@@ -1,0 +1,6 @@
+{
+  "observacao": "De onde quem instalou por zip recebe as versões novas. origem: endereço público do repositório no GitHub. pasta: a subpasta do guardião dentro dele, ou vazio se o guardião está na raiz.",
+  "origem": "https://github.com/paulovyn1/guardiao-triwer",
+  "ramo": "main",
+  "pasta": ""
+}

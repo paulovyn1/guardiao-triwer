@@ -1,0 +1,53 @@
+{
+  "versao": 1,
+  "observacao": "Modelo. O onboarding gera o config.json de verdade a partir das respostas da pessoa. Nenhum valor abaixo é real.",
+  "pessoa": {
+    "nome": "Nome da pessoa",
+    "artigo": "o"
+  },
+  "agente": {
+    "nome": "Guardião do dia",
+    "voz": "pm_santa"
+  },
+  "pastas": {
+    "operacional": "C:\\Users\\USUARIO\\Guardiao-do-dia",
+    "memoria": "C:\\Users\\USUARIO\\Guardiao-do-dia\\memoria",
+    "memoria_em_obsidian": false
+  },
+  "rotina": {
+    "dias_trabalho": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    "chegada": "09:00",
+    "almoco": "12:30",
+    "fim": "18:00",
+    "gerar_plano_as": "08:30",
+    "abrir_tela_as": "08:45",
+    "leituras_clickup": ["09:00", "13:00", "18:00"]
+  },
+  "clickup": {
+    "token_variavel": "CLICKUP_API_TOKEN",
+    "workspace_id": "0000000",
+    "user_id": "0000000",
+    "status_abertos": ["to do"],
+    "hora_sem_hora": "04:00",
+    "prefixo_aprovacao": "",
+    "atrasadas_dias": 14,
+    "listas": [
+      { "id": "000000000", "nome": "Nome da lista", "quando_usar": "o tipo de tarefa que nasce nesta lista" }
+    ],
+    "membros": [
+      { "nome": "Nome de quem recebe tarefa", "id": "0000000", "papel": "o que essa pessoa faz" }
+    ]
+  },
+  "atualizacao": {
+    "origem": "pasta do clone, pasta simples ou endereço público do repositório no GitHub",
+    "ramo": "main",
+    "pasta": "guardiao-triwer",
+    "verificar": true
+  },
+  "sessao": {
+    "pasta": "C:\\caminho\\da\\pasta\\onde\\voce\\usa\\o\\Claude Code",
+    "esforco": "low",
+    "nova_conversa_apos_horas": 3,
+    "fecha_apos_min": 15
+  }
+}

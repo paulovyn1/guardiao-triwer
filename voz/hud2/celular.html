@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Guardião</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07080a">
+<link rel="icon" href="icone.ico" sizes="any">
+<link rel="apple-touch-icon" href="icone-180.png">
+<link rel="manifest" href="app.webmanifest">
+<link rel="stylesheet" href="fontes.css">
+<style>html,body{margin:0;height:100%;background:#07080a;overflow:hidden}</style>
+<!-- React e o runtime do design ficam nesta pasta: o painel abre sem internet -->
+<script>window.GD_MODO='mobile';window.__resources={"https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js":"vendor/react.production.min.js","https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js":"vendor/react-dom.production.min.js"};</script>
+<script src="./support.js"></script>
+<script src="./palco.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>html,body{margin:0;height:100%;background:#07080a;overflow:hidden}</style></helmet>
+<div style="width:390px;height:844px;overflow:hidden;background:#07080a">
+<dc-import name="Main" mode="mobile" hint-size="390px,844px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

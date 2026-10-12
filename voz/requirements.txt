@@ -1,0 +1,12 @@
+# Dependências do programa de voz e do painel (Python 3.11 ou mais novo, Windows).
+# Os modelos não vão aqui: o Vosk fica em voz\modelo e o Kokoro em voz\kokoro.
+vosk==0.3.45
+sounddevice==0.5.6
+numpy==2.5.4
+requests==2.34.2
+edge-tts==7.2.8
+kokoro-onnx==0.4.7
+num2words==0.5.14
+onnxruntime==1.31.0
+# só para os testes de tela
+websocket-client==1.9.2

@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Fundo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#07080a}
+</style>
+</helmet>
+<div style="width: {{w}}px; height: {{h}}px; position: relative; overflow: hidden; background: #07080a">
+<canvas ref="{{setCanvas}}" aria-hidden="true" style="position: absolute; left: 0; top: 0; width: {{w}}px; height: {{h}}px; display: block"></canvas>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"variant":{"editor":"enum","default":"poeira","options":["poeira","nevoa","constelacao"],"section":"Fundo"},"w":{"editor":null},"h":{"editor":null},"ox":{"editor":null},"oy":{"editor":null},"state":{"editor":null},"paused":{"editor":null},"light":{"editor":null},"$preview":{"width":1440,"height":900}}'>
+const TAU = Math.PI * 2;
+function rnd(a, b) { return a + Math.random() * (b - a); }
+function sprite(r, g, b, size) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d'), h = size / 2;
+  const gr = x.createRadialGradient(h, h, 0, h, h, h);
+  gr.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',1)'); gr.addColorStop(0.35, 'rgba(' + r + ',' + g + ',' + b + ',.45)'); gr.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+  x.fillStyle = gr; x.fillRect(0, 0, size, size);
+  return c;
+}
+// disco de bokeh: borda um pouco mais clara, como lente fora de foco
+function bokeh(size) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d'), h = size / 2;
+  const gr = x.createRadialGradient(h, h, 0, h, h, h);
+  gr.addColorStop(0, 'rgba(232,190,110,.6)'); gr.addColorStop(0.7, 'rgba(232,190,110,.5)'); gr.addColorStop(0.88, 'rgba(236,198,124,.42)'); gr.addColorStop(1, 'rgba(232,190,110,0)');
+  x.fillStyle = gr; x.beginPath(); x.arc(h, h, h, 0, TAU); x.fill();
+  return c;
+}
+
+const VS = 'attribute vec2 aP; varying vec2 vUv; void main(){ vUv = aP * 0.5 + 0.5; gl_Position = vec4(aP, 0.0, 1.0); }';
+const FS_NEVOA = `
+precision mediump float;
+varying vec2 vUv;
+uniform float uT, uE, uA;
+uniform vec2 uRes, uO;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+float fbm(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * noise(p); p = p * 2.02 + vec2(3.1, 1.7); a *= 0.5; } return s; }
+void main(){
+  vec2 p = vUv * vec2(uRes.x / uRes.y, 1.0);
+  float t = uT * 0.022;
+  vec2 q = vec2(fbm(p * 1.6 + vec2(0.0, t)), fbm(p * 1.6 + vec2(5.2, 1.3 - t)));
+  vec2 r = vec2(fbm(p * 1.6 + 3.0 * q + vec2(1.7, 9.2) + t * 1.3), fbm(p * 1.6 + 3.0 * q + vec2(8.3, 2.8) - t));
+  float f = fbm(p * 1.6 + 3.2 * r);
+  vec2 o = uO * vec2(uRes.x / uRes.y, 1.0);
+  float d = length(p - o);
+  float pool = exp(-d * d * 3.2);
+  float smoke = smoothstep(0.35, 1.0, f) * (0.35 + 0.65 * smoothstep(0.2, 0.9, length(r)));
+  vec3 col = vec3(0.027, 0.03, 0.039);
+  col += vec3(0.52, 0.36, 0.16) * smoke * (0.17 + 0.26 * pool) * uA;
+  col += vec3(0.6, 0.42, 0.18) * pool * (0.05 + 0.03 * uE) * uA;
+  col *= 1.0 - 0.55 * smoothstep(0.55, 1.35, length((vUv - 0.5) * vec2(1.25, 1.0)) * 1.6);
+  col += (hash(vUv * uRes + fract(uT)) - 0.5) * 0.012;
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {};
+    this.cv = null; this.ctx = null; this.gl = null; this.raf = 0; this.last = 0; this.lastDraw = 0; this.t = 0; this.kind = '';
+    this.vis = true; this.mx = 0; this.my = 0; this.px = 0; this.py = 0; this.E = 0;
+    this.onPM = (e) => { const W = window.innerWidth || 1, H = window.innerHeight || 1; this.mx = e.clientX / W - 0.5; this.my = e.clientY / H - 0.5; };
+    this.setCanvas = (el) => { if (el !== this.cv) { this.cv = el; this.kind = ''; } };
+    this.loop = (ts) => { this.raf = requestAnimationFrame(this.loop); this.tick(ts); };
+  }
+  componentDidMount() {
+    try { this.reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { this.reduce = false; }
+    try { window.addEventListener('pointermove', this.onPM, { passive: true }); } catch (e) { /* ok */ }
+    try { this.io = new IntersectionObserver((en) => { this.vis = en[0] ? en[0].isIntersecting : true; }); if (this.cv) this.io.observe(this.cv); } catch (e) { this.io = null; }
+    this.raf = requestAnimationFrame(this.loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); this.raf = 0; try { window.removeEventListener('pointermove', this.onPM); } catch (e) { /* ok */ } if (this.io) this.io.disconnect(); }
+
+  init(kind) {
+    const W = this.props.w || 1440, H = this.props.h || 900;
+    this.kind = kind; this.gl = null; this.ctx = null;
+    if (kind === 'nevoa') {
+      const gl = this.cv.getContext('webgl', { antialias: false });
+      if (!gl) { this.kind = 'poeira'; return this.init('poeira'); }
+      const sh = (ty, src) => { const s = gl.createShader(ty); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.warn(gl.getShaderInfoLog(s)); } return s; };
+      const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS_NEVOA)); gl.linkProgram(pr); gl.useProgram(pr);
+      const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const l = gl.getAttribLocation(pr, 'aP'); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 0, 0);
+      this.U = {}; ['uT', 'uE', 'uA', 'uRes', 'uO'].forEach((n) => { this.U[n] = gl.getUniformLocation(pr, n); });
+      this.gl = gl;
+      return;
+    }
+    this.ctx = this.cv.getContext('2d');
+    if (kind === 'poeira') {
+      this.spr = sprite(236, 196, 120, 64); this.bok = bokeh(96);
+      const n = Math.round(150 * Math.min(1.4, (W * H) / (1440 * 900)) + 20);
+      this.motes = [];
+      for (let i = 0; i < n; i++) {
+        const z = Math.random();
+        this.motes.push({ x: Math.random(), y: Math.random(), z, s: 0.5 + z * 1.8, a: 0.18 + z * 0.4, vx: rnd(-0.004, 0.004), vy: rnd(-0.008, -0.002), ph: rnd(0, TAU), tw: rnd(0.3, 1.1) });
+      }
+      this.bk = [];
+      for (let i = 0; i < 9; i++) this.bk.push({ x: Math.random(), y: Math.random(), r: rnd(26, 70), a: rnd(0.025, 0.06), vx: rnd(-0.003, 0.003), vy: rnd(-0.004, 0.001), ph: rnd(0, TAU) });
+    } else {
+      this.spr = sprite(240, 206, 140, 48);
+      this.nodes = [];
+      const N = 210;
+      for (let i = 0; i < N; i++) {
+        const u = Math.random() * 2 - 1, th = Math.random() * TAU, rr = Math.sqrt(1 - u * u);
+        const k = 0.75 + Math.random() * 0.5;
+        this.nodes.push({ x: rr * Math.cos(th) * k, y: u * k * 0.8, z: rr * Math.sin(th) * k, b: Math.random(), ph: rnd(0, TAU) });
+      }
+      this.sig = []; this.nextSig = 0;
+    }
+  }
+
+  tick(ts) {
+    const p = this.props;
+    const dt = Math.min(0.05, Math.max(0.001, (ts - (this.last || ts)) / 1000));
+    this.last = ts;
+    if (!this.cv || p.paused || !this.vis || document.hidden) return;
+    const kind = p.variant || 'poeira';
+    if (this.kind !== kind) {
+      // trocar entre 2D e WebGL pede outro canvas: o componente pai recria a peça pela key
+      if (this.kind && ((this.kind === 'nevoa') !== (kind === 'nevoa'))) return;
+      this.init(kind);
+    }
+    const gap = (p.light ? 66 : 33);
+    if (ts - this.lastDraw < gap) return;
+    const fdt = Math.min(0.1, (ts - (this.lastDraw || ts)) / 1000) || 0.033;
+    this.lastDraw = ts;
+    this.t += fdt * (this.reduce ? 0 : 1);
+    const st = p.state || 'idle';
+    const eT = st === 'speaking' ? 1 : st === 'listening' ? 0.6 : st === 'thinking' ? 0.45 : 0;
+    this.E += (eT - this.E) * Math.min(1, fdt * 1.5);
+    this.px += (this.mx - this.px) * Math.min(1, fdt * 1.6); this.py += (this.my - this.py) * Math.min(1, fdt * 1.6);
+    if (this.kind === 'nevoa') this.drawNevoa(); else if (this.kind === 'poeira') this.drawPoeira(fdt); else this.drawConst(fdt);
+  }
+
+  size(scale) {
+    const p = this.props, W = p.w || 1440, H = p.h || 900;
+    const bw = Math.max(2, Math.round(W * scale)), bh = Math.max(2, Math.round(H * scale));
+    if (this.cv.width !== bw || this.cv.height !== bh) { this.cv.width = bw; this.cv.height = bh; }
+    return { W, H, bw, bh };
+  }
+
+  drawNevoa() {
+    const gl = this.gl, p = this.props;
+    const { W, H, bw, bh } = this.size(p.light ? 0.25 : 0.4);
+    gl.viewport(0, 0, bw, bh);
+    gl.uniform1f(this.U.uT, this.t); gl.uniform1f(this.U.uE, this.E); gl.uniform1f(this.U.uA, 1);
+    gl.uniform2f(this.U.uRes, bw, bh);
+    const ox = (typeof p.ox === 'number' ? p.ox : W / 2) / W, oy = 1 - (typeof p.oy === 'number' ? p.oy : H * 0.38) / H;
+    gl.uniform2f(this.U.uO, ox, oy);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  // poeira de luz: partículas em três profundidades que brilham quando atravessam o feixe
+  drawPoeira(dt) {
+    const p = this.props, ctx = this.ctx;
+    const dpr = p.light ? 0.75 : Math.min(1.5, window.devicePixelRatio || 1);
+    const { W, H } = this.size(dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const t = this.t, E = this.E;
+    const ox = typeof p.ox === 'number' ? p.ox : W / 2, oy = typeof p.oy === 'number' ? p.oy : H * 0.38;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#07080a'; ctx.fillRect(0, 0, W, H);
+    // feixe: cone de luz que desce do alto até a bolinha
+    const br = 0.85 + 0.15 * Math.sin(t * 0.25);
+    const top = Math.max(-H * 0.1, oy - H * 0.9);
+    const lg = ctx.createLinearGradient(0, top, 0, oy + H * 0.35);
+    lg.addColorStop(0, 'rgba(227,185,100,' + (0.07 * br) + ')'); lg.addColorStop(0.6, 'rgba(227,185,100,' + (0.035 * br) + ')'); lg.addColorStop(1, 'rgba(227,185,100,0)');
+    ctx.fillStyle = lg;
+    const wTop = W * 0.08, wBot = W * 0.34;
+    ctx.beginPath(); ctx.moveTo(ox - wTop, top); ctx.lineTo(ox + wTop, top); ctx.lineTo(ox + wBot, oy + H * 0.35); ctx.lineTo(ox - wBot, oy + H * 0.35); ctx.closePath(); ctx.fill();
+    const pool = ctx.createRadialGradient(ox, oy, 0, ox, oy, Math.max(W, H) * 0.45);
+    pool.addColorStop(0, 'rgba(178,132,49,' + (0.1 + 0.05 * E) + ')'); pool.addColorStop(1, 'rgba(178,132,49,0)');
+    ctx.fillStyle = pool; ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    const beam = (x, y) => { const k = (y - top) / (oy + H * 0.35 - top); const half = wTop + (wBot - wTop) * Math.max(0, Math.min(1, k)); return Math.max(0, 1 - Math.abs(x - ox) / (half + 1)) * (k > -0.05 && k < 1.05 ? 1 : 0); };
+    for (const m of this.motes) {
+      m.x += (m.vx + 0.002 * Math.sin(t * 0.3 + m.ph)) * dt * (0.4 + m.z); m.y += m.vy * dt * (0.4 + m.z);
+      if (m.y < -0.05) { m.y = 1.05; m.x = Math.random(); } if (m.x < -0.05) m.x = 1.05; if (m.x > 1.05) m.x = -0.05;
+      const x = m.x * W - this.px * 40 * m.z, y = m.y * H - this.py * 26 * m.z;
+      const lit = beam(x, y);
+      const tw = 0.6 + 0.4 * Math.sin(t * m.tw + m.ph);
+      const a = m.a * (0.22 + 0.9 * lit) * tw * (1 + 0.3 * E);
+      if (a < 0.01) continue;
+      const s = m.s * (1 + lit * 0.6) * 4;
+      ctx.globalAlpha = Math.min(1, a); ctx.drawImage(this.spr, x - s, y - s, s * 2, s * 2);
+    }
+    for (const b of this.bk) {
+      b.x += b.vx * dt; b.y += b.vy * dt;
+      if (b.y < -0.1) b.y = 1.1; if (b.x < -0.1) b.x = 1.1; if (b.x > 1.1) b.x = -0.1;
+      const x = b.x * W - this.px * 70, y = b.y * H - this.py * 46;
+      ctx.globalAlpha = b.a * (0.7 + 0.3 * Math.sin(t * 0.4 + b.ph)) * (0.6 + 0.8 * beam(x, y));
+      ctx.drawImage(this.bok, x - b.r, y - b.r, b.r * 2, b.r * 2);
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(7,8,10,0)'); vg.addColorStop(1, 'rgba(7,8,10,.75)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  }
+
+  // constelação: esfera enorme de pontos girando devagar em volta da bolinha; às vezes um sinal corre entre dois pontos
+  drawConst(dt) {
+    const p = this.props, ctx = this.ctx;
+    const dpr = p.light ? 0.75 : Math.min(1.5, window.devicePixelRatio || 1);
+    const { W, H } = this.size(dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const t = this.t, E = this.E;
+    const ox = typeof p.ox === 'number' ? p.ox : W / 2, oy = typeof p.oy === 'number' ? p.oy : H * 0.38;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#07080a'; ctx.fillRect(0, 0, W, H);
+    const pool = ctx.createRadialGradient(ox, oy, 0, ox, oy, Math.max(W, H) * 0.5);
+    pool.addColorStop(0, 'rgba(178,132,49,' + (0.09 + 0.04 * E) + ')'); pool.addColorStop(1, 'rgba(178,132,49,0)');
+    ctx.fillStyle = pool; ctx.fillRect(0, 0, W, H);
+    const ay = t * 0.018 + this.px * 0.25, ax = 0.32 + this.py * 0.15;
+    const ca = Math.cos(ay), sa = Math.sin(ay), cx = Math.cos(ax), sx = Math.sin(ax);
+    const Rr = Math.max(W, H) * 0.62, F = 2.2;
+    const P = this.nodes.map((n) => {
+      let x = n.x * ca + n.z * sa, z = -n.x * sa + n.z * ca, y = n.y;
+      const y2 = y * cx - z * sx; z = y * sx + z * cx; y = y2;
+      const k = F / (F + z);
+      return { X: ox + x * Rr * k * 0.62, Y: oy + y * Rr * k * 0.62, z, k, n };
+    });
+    ctx.globalCompositeOperation = 'lighter';
+    for (const q of P) {
+      const depth = (1 - q.z) / 2;
+      const tw = 0.65 + 0.35 * Math.sin(t * 0.8 + q.n.ph);
+      const a = (0.06 + 0.32 * depth * depth) * (0.4 + 0.6 * q.n.b) * tw;
+      const s = (0.8 + 2.4 * depth * depth) * 3;
+      ctx.globalAlpha = a; ctx.drawImage(this.spr, q.X - s, q.Y - s, s * 2, s * 2);
+    }
+    // sinais
+    if (!this.reduce && t > this.nextSig) {
+      const i = Math.floor(Math.random() * P.length), a = P[i];
+      if (a.z < 0.2) {
+        let best = -1, bd = 1e9;
+        for (let j = 0; j < P.length; j++) { if (j === i || P[j].z > 0.3) continue; const d = Math.hypot(P[j].X - a.X, P[j].Y - a.Y); if (d > 40 && d < bd) { bd = d; best = j; } }
+        if (best >= 0 && bd < Math.min(W, H) * 0.28) this.sig.push({ i, j: best, t0: t });
+      }
+      this.nextSig = t + (2.6 - 1.6 * E) * rnd(0.6, 1.3);
+    }
+    ctx.lineCap = 'round';
+    this.sig = this.sig.filter((s) => t - s.t0 < 2.4);
+    for (const s of this.sig) {
+      const a = P[s.i], b = P[s.j], u = Math.min(1, (t - s.t0) / 1.4), fade = 1 - Math.max(0, (t - s.t0 - 1.4) / 1.0);
+      const hx = a.X + (b.X - a.X) * u, hy = a.Y + (b.Y - a.Y) * u;
+      const lg = ctx.createLinearGradient(a.X, a.Y, hx, hy);
+      lg.addColorStop(0, 'rgba(227,185,100,0)'); lg.addColorStop(1, 'rgba(227,185,100,' + (0.28 * fade) + ')');
+      ctx.globalAlpha = 1; ctx.strokeStyle = lg; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a.X, a.Y); ctx.lineTo(hx, hy); ctx.stroke();
+      ctx.globalAlpha = 0.9 * fade; ctx.drawImage(this.spr, hx - 7, hy - 7, 14, 14);
+      if (u >= 1) { ctx.globalAlpha = 0.5 * fade; ctx.drawImage(this.spr, b.X - 12, b.Y - 12, 24, 24); }
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(7,8,10,0)'); vg.addColorStop(1, 'rgba(7,8,10,.7)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  }
+
+  renderVals() {
+    const p = this.props;
+    return { setCanvas: this.setCanvas, w: p.w || 1440, h: p.h || 900 };
+  }
+}
+</script>
+</body>
+</html>

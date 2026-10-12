@@ -1,0 +1,2 @@
+# Os .bat precisam chegar com CRLF em qualquer download (inclusive no zip do GitHub): ficam guardados como estão, sem conversão.
+*.bat -text

@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Bolinha do Guardião</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#07080a}
+</style>
+</helmet>
+<div style="width: {{px}}px; height: {{px}}px; position: relative; background: transparent">
+<canvas ref="{{setCanvas}}" role="img" aria-label="{{ariaLabel}}" style="width: {{px}}px; height: {{px}}px; display: block"></canvas>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"variant":{"editor":"enum","default":"A","options":["A","B"],"section":"Bolinha"},"state":{"editor":"enum","default":"idle","options":["idle","listening","transcribing","thinking","speaking","error","offline"],"section":"Bolinha"},"lod":{"editor":"enum","default":"lg","options":["lg","md","sm","xs"],"section":"Bolinha"},"muted":{"editor":"boolean","default":false,"section":"Bolinha"},"arcs":{"editor":null},"level":{"editor":null},"pulse":{"editor":null},"nowF":{"editor":null},"intro":{"editor":null},"$preview":{"width":400,"height":400}}'>
+const TAU = Math.PI * 2, D2R = Math.PI / 180;
+const C_GOLD = [227, 185, 100], C_GOLD2 = [178, 132, 49], C_BRONZE = [111, 83, 34], C_BRASA = [210, 96, 58], C_IVORY = [243, 236, 220], C_DIM = [138, 130, 111], C_OBS = [7, 8, 10];
+const STATES = ['idle', 'listening', 'transcribing', 'thinking', 'speaking', 'error', 'offline'];
+const LOD = { lg: 1, md: 0.66, sm: 0.1, xs: 0.22 };
+const GAP = 36, SPAN = 324, START = 90 + GAP / 2;
+const DEMO_ARCS = [
+  { a: 0.0, b: 0.05, k: 'done' }, { a: 0.05, b: 0.1, k: 'done' }, { a: 0.1, b: 0.25, k: 'now' },
+  { a: 0.25, b: 0.3, k: 'next' }, { a: 0.3, b: 0.4, k: 'next' }, { a: 0.55, b: 0.65, k: 'fixed' }, { a: 0.7, b: 0.77, k: 'next' }, { a: 0.82, b: 0.88, k: 'next' }
+];
+function rgba(c, a) { return 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a + ')'; }
+function mixc(a, b, w) { return [a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w, a[2] + (b[2] - a[2]) * w]; }
+function sstep(x) { return x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x); }
+function ang(f) { return (START + SPAN * f) * D2R; }
+function radial(ctx, x0, y0, r0, x1, y1, r1, stops) { const g = ctx.createRadialGradient(x0, y0, r0, x1, y1, r1); for (let i = 0; i < stops.length; i++) g.addColorStop(stops[i][0], stops[i][1]); return g; }
+const C_HI = [255, 238, 196], C_AMBER = [176, 118, 44], C_DEEP = [26, 19, 11];
+function nz(i, t) { return (0.5 + 0.5 * Math.sin(t * 3.1 + i * 1.7)) * (0.5 + 0.5 * Math.sin(t * 5.3 + i * 0.9 + 1.3)); }
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {};
+    this.cv = null; this.ctx = null; this.raf = 0; this.last = 0; this.lastDraw = 0; this.t = 0;
+    this.w = {}; STATES.forEach((s) => { this.w[s] = s === 'idle' ? 1 : 0; });
+    this.lv = 0; this.energy = 0; this.lastPulse = props.pulse || 0;
+    this.ripples = []; this.lastRipple = -9; this.nextAuto = 0; this.autoE = 0;
+    this.detail = LOD[props.lod] != null ? LOD[props.lod] : 1;
+    this.reduce = false; this.bs = 0; this.bd = 0; this.frozenDone = false;
+    this.tx = 0; this.ty = 0; this.gx = 0; this.gy = 0; this.L = { x: -0.5, y: -0.62 }; this.par = { x: 0, y: 0 }; this.ph = 1.7;
+    this.onPM = (e) => {
+      if (!this.cv) return;
+      const r = this.cv.getBoundingClientRect();
+      if (!r.width) return;
+      this.gx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / 640));
+      this.gy = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / 520));
+    };
+    this.setCanvas = (el) => { this.cv = el; this.ctx = el ? el.getContext('2d') : null; this.bs = 0; };
+    this.loop = (ts) => { this.raf = requestAnimationFrame(this.loop); this.tick(ts); };
+  }
+
+  componentDidMount() {
+    try { this.reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { this.reduce = false; }
+    if (this.props.frozen) { this.drawFrozen(); } else {
+      try { window.addEventListener('pointermove', this.onPM, { passive: true }); } catch (e) { /* sem ponteiro */ }
+      this.raf = requestAnimationFrame(this.loop);
+    }
+  }
+  componentDidUpdate() { if (this.props.frozen) this.drawFrozen(); else if (!this.raf) this.raf = requestAnimationFrame(this.loop); }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); this.raf = 0; try { window.removeEventListener('pointermove', this.onPM); } catch (e) { /* ok */ } }
+
+  drawFrozen() {
+    if (!this.ctx) return;
+    this.t = 2.4;
+    const p = this.props;
+    const target = p.state === 'working' ? 'thinking' : STATES.indexOf(p.state) >= 0 ? p.state : 'idle';  // no relógio, trabalhando tem o desenho de pensando
+    STATES.forEach((s) => { this.w[s] = s === target ? 1 : 0; });
+    this.detail = LOD[p.lod] != null ? LOD[p.lod] : 1;
+    this.lv = target === 'listening' ? 0.62 : target === 'speaking' ? 0.7 : 0;
+    this.energy = target === 'speaking' ? 0.6 : 0;
+    this.render(0.016, 2.4, true);
+  }
+
+  tick(ts) {
+    const p = this.props;
+    const dt = Math.min(0.05, Math.max(0.001, (ts - (this.last || ts)) / 1000));
+    this.last = ts;
+    const minGap = p.light ? 32 : 0;
+    if (minGap && ts - this.lastDraw < minGap) return;
+    this.lastDraw = ts;
+    this.t += dt * (this.reduce ? 0.35 : 1);
+    this.render(dt, this.t, false);
+  }
+
+  ensureSize() {
+    const p = this.props, cv = this.cv;
+    const px = p.px || 400;
+    const dpr = p.light ? 1 : Math.min(2, window.devicePixelRatio || 1);
+    const bs = Math.round(px * dpr);
+    if (this.bs !== bs) { cv.width = bs; cv.height = bs; this.bs = bs; this.bd = dpr; }
+    return px;
+  }
+
+  render(dt, t, frozen) {
+    const ctx = this.ctx, p = this.props;
+    if (!ctx || !this.cv) return;
+    const px = this.ensureSize();
+    const target = p.state === 'working' ? 'thinking' : STATES.indexOf(p.state) >= 0 ? p.state : 'idle';
+    const k = frozen ? 1 : Math.min(1, dt * 7);
+    STATES.forEach((s) => { this.w[s] += ((s === target ? 1 : 0) - this.w[s]) * k; });
+    const dTarget = LOD[p.lod] != null ? LOD[p.lod] : 1;
+    this.detail += (dTarget - this.detail) * (frozen ? 1 : Math.min(1, dt * 4.2));
+
+    // nível: externo ou sintético
+    const gn = window.GD_NIVEL, vivo = !!(gn && gn.vivo);  // volume real, quando o guardião de verdade está ligado
+    const nivel = typeof p.level === 'number' && p.level >= 0 ? p.level : (vivo ? (target === 'listening' ? gn.mic : target === 'speaking' ? gn.voz : 0) : -1);
+    const ext = nivel >= 0;
+    let lvT = 0;
+    if (target === 'listening') lvT = ext ? Math.min(1, nivel * 1.6) : 0.42 + 0.34 * Math.sin(t * 2.3) * Math.sin(t * 0.9 + 1) + 0.14 * nz(3, t);
+    if (target === 'speaking' && ext) lvT = Math.min(1, nivel * 1.25);
+    if (!frozen) this.lv += (lvT - this.lv) * Math.min(1, dt * 14);
+    if (typeof p.pulse === 'number' && p.pulse !== this.lastPulse) { this.lastPulse = p.pulse; this.energy = Math.min(1, this.energy + 0.6); this.spawn(t); }
+    if (target === 'speaking' && !ext && !frozen && typeof p.pulse !== 'number') {
+      if (t > this.nextAuto) { this.energy = Math.min(1, this.energy + 0.55 + Math.random() * 0.25); this.spawn(t); this.nextAuto = t + 0.16 + Math.random() * 0.14; }
+    }
+    if (!frozen) this.energy *= Math.exp(-dt * 3.4);
+    const E = Math.max(this.lv * this.w.speaking, this.energy * this.w.speaking);
+    // luz: segue o ponteiro de leve e balança sozinha, para o volume nunca ficar parado
+    if (!frozen) { this.tx += (this.gx - this.tx) * Math.min(1, dt * 2.6); this.ty += (this.gy - this.ty) * Math.min(1, dt * 2.6); }
+    const sw = this.reduce || frozen ? 0 : 1;
+    const lx = -0.5 + (this.tx * 0.34 + 0.2 * Math.sin(t * 0.37) * sw), ly = -0.62 + (this.ty * 0.3 + 0.16 * Math.cos(t * 0.29) * sw);
+    const ll = Math.hypot(lx, ly) || 1;
+    this.L.x = lx / ll * 0.8; this.L.y = ly / ll * 0.8;
+    this.par.x = this.tx + 0.28 * Math.sin(t * 0.31) * sw; this.par.y = this.ty + 0.22 * Math.cos(t * 0.27) * sw;
+    if (!frozen) this.ph += dt * (0.28 + 1.0 * this.w.thinking + 0.7 * E + 0.5 * this.lv * this.w.listening);
+
+    const S = px, R = S / 2 * 0.96;
+    ctx.setTransform(this.bd, 0, 0, this.bd, 0, 0);
+    ctx.clearRect(0, 0, S, S);
+    ctx.save();
+    ctx.translate(S / 2, S / 2);
+
+    // varredura de abertura
+    let introP = 1;
+    if (p.intro) { introP = (Date.now() - p.intro) / 1900; }
+    let clipped = false;
+    if (introP < 1) {
+      if (introP < 0) { ctx.restore(); return; }
+      const e = 1 - Math.pow(1 - introP, 2);
+      const a1 = -Math.PI / 2 + TAU * e;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R * 1.3, -Math.PI / 2, a1); ctx.closePath(); ctx.clip();
+      clipped = true;
+    }
+
+    if (p.variant === 'B') this.drawB(ctx, t, R, E, p); else this.drawA(ctx, t, R, E, p);
+
+    if (clipped) { ctx.restore(); ctx.save(); ctx.translate(S / 2, S / 2); this.drawSweep(ctx, R, introP); }
+    ctx.restore();
+  }
+
+  spawn(t) { if (t - this.lastRipple > 0.2) { this.ripples.push(t); this.lastRipple = t; if (this.ripples.length > 4) this.ripples.shift(); } }
+
+  drawSweep(ctx, R, ip) {
+    const e = 1 - Math.pow(1 - ip, 2);
+    const a1 = -Math.PI / 2 + TAU * e;
+    const fade = 1 - sstep((ip - 0.82) / 0.18);
+    for (let i = 0; i < 22; i++) {
+      const aa = a1 - i * 0.045, ab = a1 - (i + 1) * 0.045;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R * 1.02, ab, aa); ctx.closePath();
+      ctx.fillStyle = rgba(C_GOLD, 0.16 * (1 - i / 22) * fade); ctx.fill();
+    }
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a1) * R * 1.02, Math.sin(a1) * R * 1.02);
+    ctx.strokeStyle = rgba(C_GOLD, 0.9 * fade); ctx.lineWidth = 1.6; ctx.stroke();
+  }
+
+  // texto (contexto sem escala de R)
+  text(ctx, R, str, x, y, size, color, align) {
+    ctx.font = '500 ' + (size * R) + 'px "JetBrains Mono", ui-monospace, monospace';
+    ctx.fillStyle = color; ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(str, x * R, y * R);
+  }
+
+  dayRing(ctx, R, t, p, rArc, wArc, detail, aMul, withTicks, col, groove) {
+    const arcs = p.arcs && p.arcs.length ? p.arcs : (p.arcs ? [] : DEMO_ARCS);
+    const nowF = typeof p.nowF === 'number' ? p.nowF : 0.18;
+    const ringA = sstep((detail - 0.35) / 0.4) * aMul;
+    if (ringA < 0.01) return;
+    ctx.save(); ctx.scale(R, R); ctx.lineCap = 'butt';
+    if (groove) {
+      // canal esculpido: o anel parece entalhado no metal
+      ctx.beginPath(); ctx.arc(0, 0, rArc, ang(0), ang(1)); ctx.strokeStyle = rgba([0, 0, 0], 0.42 * ringA); ctx.lineWidth = wArc * 2.1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, rArc + wArc * 1.08, ang(0), ang(1)); ctx.strokeStyle = rgba(C_HI, 0.1 * ringA); ctx.lineWidth = 0.003; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, rArc - wArc * 1.08, ang(0), ang(1)); ctx.strokeStyle = rgba(C_BRONZE, 0.3 * ringA); ctx.lineWidth = 0.003; ctx.stroke();
+    }
+    // base do anel
+    ctx.beginPath(); ctx.arc(0, 0, rArc, ang(0), ang(1)); ctx.strokeStyle = rgba(C_GOLD2, 0.14 * ringA); ctx.lineWidth = wArc * 0.18; ctx.stroke();
+    for (let i = 0; i < arcs.length; i++) {
+      const a = arcs[i];
+      const f0 = Math.max(0, Math.min(1, a.a)), f1 = Math.max(0, Math.min(1, a.b));
+      if (f1 <= f0) continue;
+      let c = C_BRONZE, al = 0.7;
+      if (a.k === 'next') { c = C_GOLD2; al = 0.42; }
+      else if (a.k === 'fixed') { c = C_IVORY; al = 0.3; }
+      else if (a.k === 'miss') { c = C_BRASA; al = 0.75; }
+      else if (a.k === 'now') { c = C_GOLD; al = 0.38; }
+      if (a.k === 'now') {
+        ctx.beginPath(); ctx.arc(0, 0, rArc, ang(f0), ang(f1)); ctx.strokeStyle = rgba(c, al * ringA); ctx.lineWidth = wArc; ctx.stroke();
+        const fe = Math.max(f0, Math.min(f1, nowF));
+        if (fe > f0) {
+          ctx.beginPath(); ctx.arc(0, 0, rArc, ang(f0), ang(fe)); ctx.strokeStyle = rgba(c, 0.22 * ringA); ctx.lineWidth = wArc * 2.3; ctx.stroke();
+          ctx.beginPath(); ctx.arc(0, 0, rArc, ang(f0), ang(fe)); ctx.strokeStyle = rgba(mixc(C_GOLD, [255, 236, 190], 0.25), 1 * ringA); ctx.lineWidth = wArc; ctx.stroke();
+        }
+      } else {
+        if (a.k === 'fixed') ctx.setLineDash([0.018, 0.016]);
+        ctx.beginPath(); ctx.arc(0, 0, rArc, ang(f0), ang(f1)); ctx.strokeStyle = rgba(c, al * ringA); ctx.lineWidth = wArc * (a.k === 'fixed' ? 0.7 : 1); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    // ponteiro "agora"
+    const an = ang(Math.max(0, Math.min(1, nowF)));
+    ctx.beginPath(); ctx.moveTo(Math.cos(an) * (rArc - 0.2), Math.sin(an) * (rArc - 0.2)); ctx.lineTo(Math.cos(an) * (rArc + 0.1), Math.sin(an) * (rArc + 0.1));
+    ctx.strokeStyle = rgba(C_IVORY, 0.9 * ringA); ctx.lineWidth = 0.011 * (1 + (1 - detail) * 1.5); ctx.stroke();
+    ctx.beginPath(); ctx.arc(Math.cos(an) * rArc, Math.sin(an) * rArc, 0.024 + wArc * 0.2, 0, TAU); ctx.fillStyle = rgba(C_IVORY, ringA); ctx.fill();
+    ctx.restore();
+    if (withTicks) {
+      // marcas de hora e rótulos
+      const ds = typeof p.dayStart === 'number' ? p.dayStart : 480, de = typeof p.dayEnd === 'number' ? p.dayEnd : 1080;
+      const labA = sstep((detail - 0.82) / 0.16) * aMul;
+      for (let h = Math.ceil(ds / 60); h * 60 <= de; h++) {
+        const f = (h * 60 - ds) / (de - ds), an2 = ang(f), maj = h % 2 === 0;
+        ctx.save(); ctx.scale(R, R);
+        ctx.beginPath(); ctx.moveTo(Math.cos(an2) * (rArc + 0.045), Math.sin(an2) * (rArc + 0.045)); ctx.lineTo(Math.cos(an2) * (rArc + (maj ? 0.095 : 0.075)), Math.sin(an2) * (rArc + (maj ? 0.095 : 0.075)));
+        ctx.strokeStyle = rgba(col, (maj ? 0.5 : 0.28) * ringA); ctx.lineWidth = 0.006; ctx.stroke(); ctx.restore();
+        if (maj && labA > 0.02) this.text(ctx, R, (h < 10 ? '0' : '') + h, Math.cos(an2) * (rArc + 0.17), Math.sin(an2) * (rArc + 0.17), 0.062, rgba(C_DIM, 0.95 * labA));
+      }
+    }
+  }
+
+  // gradiente metálico: brilha do lado da luz, escurece do oposto, com um reflexo fraco no lado de baixo
+  metalGrad(ctx, rad, a, off, light) {
+    const L = this.L, la = Math.atan2(L.y, L.x);
+    const k = (c) => mixc(c, C_DIM, off * 0.8);
+    const hi = rgba(k(C_HI), a), md = rgba(k(mixc(C_GOLD, C_GOLD2, 0.4)), a * 0.82), lo = rgba(k(C_BRONZE), a * 0.6), bo = rgba(k(mixc(C_GOLD, C_HI, 0.2)), a * 0.5);
+    let g;
+    if (!light && typeof ctx.createConicGradient === 'function') {
+      g = ctx.createConicGradient(la, 0, 0);
+      g.addColorStop(0, hi); g.addColorStop(0.1, md); g.addColorStop(0.28, lo); g.addColorStop(0.42, lo); g.addColorStop(0.5, bo);
+      g.addColorStop(0.58, lo); g.addColorStop(0.74, lo); g.addColorStop(0.9, md); g.addColorStop(1, hi);
+    } else {
+      g = ctx.createLinearGradient(L.x * rad, L.y * rad, -L.x * rad, -L.y * rad);
+      g.addColorStop(0, hi); g.addColorStop(0.5, md); g.addColorStop(1, lo);
+    }
+    return g;
+  }
+
+  metal(ctx, rad, w, a, off, light) {
+    ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU);
+    ctx.strokeStyle = this.metalGrad(ctx, rad, a, off, light); ctx.lineWidth = w; ctx.stroke();
+  }
+
+  // órbitas inclinadas ("pensando"): a metade de trás passa por trás da esfera, a da frente por cima
+  orbits(ctx, R, t, front, col, wS, d, light) {
+    const th = this.w.thinking;
+    if (th < 0.02) return;
+    const defs = [[0.72, 0.2, -0.4, 1.25, 2.0, 0.02, 0], [0.68, 0.16, 0.62, -0.95, 1.6, 0.017, 2.1], [0.76, 0.24, 1.3, 0.7, 1.3, 0.014, 4.2]];
+    const NS = (light || d < 0.5) ? 8 : 16;
+    ctx.save(); ctx.scale(R, R); ctx.lineCap = 'round';
+    for (let i = 0; i < defs.length; i++) {
+      const df = defs[i], rx = df[0], ry = df[1], tilt = df[2], sp = df[3], len = df[4], w = df[5];
+      const head = t * sp + df[6], dir = sp > 0 ? 1 : -1;
+      const a0 = front ? 0 : Math.PI;
+      ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, tilt, a0, a0 + Math.PI);
+      ctx.strokeStyle = rgba(col, (front ? 0.22 : 0.09) * th); ctx.lineWidth = 0.005 * wS; ctx.stroke();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let s = 0; s < NS; s++) {
+        const u0 = s / NS, u1 = (s + 1) / NS;
+        const t0 = head - dir * len * u0, t1 = head - dir * len * u1;
+        if ((Math.sin((t0 + t1) / 2) > 0) !== front) continue;
+        const al = Math.pow(1 - u0, 1.7) * th;
+        ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, tilt, Math.min(t0, t1), Math.max(t0, t1));
+        ctx.strokeStyle = rgba(s < 2 ? mixc(col, C_HI, 0.5) : col, (front ? 0.95 : 0.4) * al);
+        ctx.lineWidth = w * wS * (front ? 1.2 : 0.8) * (0.55 + 0.45 * (1 - u0)); ctx.stroke();
+      }
+      if ((Math.sin(head) > 0) === front) {
+        const hx = Math.cos(head) * rx, hy = Math.sin(head) * ry, c = Math.cos(tilt), sn = Math.sin(tilt);
+        const X = hx * c - hy * sn, Y = hx * sn + hy * c, hr = 0.05 * Math.min(wS, 2.2);
+        ctx.fillStyle = radial(ctx, X, Y, 0, X, Y, hr, [[0, rgba(C_HI, (front ? 0.95 : 0.45) * th)], [0.4, rgba(col, 0.4 * th)], [1, rgba(col, 0)]]);
+        ctx.beginPath(); ctx.arc(X, Y, hr, 0, TAU); ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  }
+
+  // sombreamento 3D: tudo dentro do recorte atual (esfera ou membrana); cr é o raio nominal
+  shade(ctx, cr, o) {
+    const L = this.L, la = Math.atan2(L.y, L.x), t = o.t, E = o.E, aMul = o.aMul, gl = o.gl, W = this.w;
+    const lx = L.x * cr, ly = L.y * cr, off = o.offW, err = o.errW;
+    const tint = (c) => mixc(mixc(c, [c[0] * 0.95, c[1] * 0.42, c[2] * 0.38], err * 0.85), [c[0] * 0.4 + 14, c[1] * 0.4 + 14, c[2] * 0.4 + 13], off * 0.85);
+    const rect = (g) => { ctx.fillStyle = g; ctx.fillRect(-cr * 1.4, -cr * 1.4, cr * 2.8, cr * 2.8); };
+    const B = o.body;
+    // corpo: difuso com a luz vindo do canto
+    rect(radial(ctx, lx * 0.5, ly * 0.5, cr * 0.03, lx * 0.12, ly * 0.12, cr * 1.12, [[0, rgba(tint(B[0]), 1)], [0.3, rgba(tint(B[1]), 1)], [0.68, rgba(tint(B[2]), 1)], [1, rgba(tint(B[3]), 1)]]));
+    // energia por dentro: cáustica no lado oposto à luz, com paralaxe, mais bolhas de plasma orbitando
+    const ec = tint([255, 204, 118]), ec2 = tint([214, 140, 52]);
+    const ei = (o.ember + 0.5 * E + 0.3 * this.lv * W.listening + 0.16 * W.thinking + 0.05 * Math.sin(t * 0.9)) * aMul;
+    const ex = -lx * 0.3 - this.par.x * 0.05, ey = -ly * 0.3 - this.par.y * 0.05;
+    ctx.globalCompositeOperation = 'lighter';
+    rect(radial(ctx, ex, ey, 0, ex, ey, cr * 0.82, [[0, rgba(ec, ei)], [0.35, rgba(ec2, ei * 0.5)], [1, rgba(ec2, 0)]]));
+    if (!o.light && gl > 0.3) {
+      for (let i = 0; i < 3; i++) {
+        const a = this.ph * (i % 2 ? -1 : 1) * (0.9 + i * 0.3) + i * 2.1;
+        const rr = cr * (0.2 + 0.12 * Math.sin(this.ph * 0.7 + i * 1.3));
+        const bx = ex + Math.cos(a) * rr, by = ey + Math.sin(a) * rr * 0.8, br = cr * (0.34 + 0.05 * i);
+        rect(radial(ctx, bx, by, 0, bx, by, br, [[0, rgba(ec, ei * 0.5 * gl)], [1, rgba(ec2, 0)]]));
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // luz rebatida (mais grossa no lado oposto à luz) e aro de fresnel
+    const hotc = tint(mixc(C_HI, C_BRASA, err * 0.7));
+    rect(radial(ctx, lx * 0.1, ly * 0.1, cr * 0.5, lx * 0.1, ly * 0.1, cr * 1.05, [[0, rgba(ec2, 0)], [0.75, rgba(ec2, 0.08 * aMul)], [1, rgba(ec2, (0.42 + 0.3 * E) * aMul)]]));
+    rect(radial(ctx, 0, 0, cr * 0.84, 0, 0, cr * 1.0, [[0, rgba(hotc, 0)], [1, rgba(hotc, (0.38 + 0.25 * E) * aMul)]]));
+    if (gl > 0.03) {
+      // reflexo da cúpula de vidro: crescente do lado da luz
+      ctx.save();
+      const kx = -L.x * cr * 0.2, ky = -L.y * cr * 0.2;
+      ctx.fillStyle = radial(ctx, kx, ky, cr * 0.9, kx, ky, cr * 1.2, [[0, rgba([255, 247, 226], 0)], [0.55, rgba([255, 244, 214], 0.1 * gl * aMul)], [1, rgba([255, 250, 236], (o.crescent || 0.42) * gl * aMul)]]);
+      ctx.fillRect(-cr * 1.4, -cr * 1.4, cr * 2.8, cr * 2.8);
+      ctx.restore();
+      // brilho macio de janela
+      ctx.save(); ctx.translate(lx * 0.5, ly * 0.5); ctx.rotate(la + Math.PI / 2); ctx.scale(1, 0.62);
+      ctx.fillStyle = radial(ctx, 0, 0, 0, 0, 0, cr * 0.36, [[0, rgba([255, 250, 236], 0.34 * gl * aMul)], [0.5, rgba([255, 246, 222], 0.1 * gl * aMul)], [1, rgba([255, 246, 222], 0)]]);
+      ctx.beginPath(); ctx.arc(0, 0, cr * 0.36, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+    // ponto de luz forte + reflexo pequeno do lado oposto
+    const hx = lx * 0.62, hy = ly * 0.62;
+    rect(radial(ctx, hx, hy, 0, hx, hy, cr * 0.1, [[0, rgba([255, 255, 255], (0.55 + 0.4 * gl) * aMul)], [0.35, rgba([255, 246, 222], 0.45 * aMul)], [1, rgba([255, 246, 222], 0)]]));
+    if (gl > 0.2) rect(radial(ctx, -lx * 0.62, -ly * 0.62, 0, -lx * 0.62, -ly * 0.62, cr * 0.07, [[0, rgba(hotc, 0.3 * gl * aMul)], [1, rgba(hotc, 0)]]));
+    if (!o.light && gl > 0.5 && !this.reduce) {
+      // estrela discreta no ponto de luz e brilho que varre a esfera de tempos em tempos
+      const sl = cr * (0.2 + 0.06 * Math.sin(t * 1.3)), sa = (0.22 + 0.1 * Math.sin(t * 1.3 + 1)) * gl * aMul;
+      ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineWidth = cr * 0.007;
+      for (let k = 0; k < 2; k++) {
+        const aa = k * Math.PI / 2 + 0.35, cx2 = Math.cos(aa) * sl, cy2 = Math.sin(aa) * sl;
+        const sg = ctx.createLinearGradient(hx - cx2, hy - cy2, hx + cx2, hy + cy2);
+        sg.addColorStop(0, rgba(C_HI, 0)); sg.addColorStop(0.5, rgba(C_HI, sa)); sg.addColorStop(1, rgba(C_HI, 0));
+        ctx.strokeStyle = sg; ctx.beginPath(); ctx.moveTo(hx - cx2, hy - cy2); ctx.lineTo(hx + cx2, hy + cy2); ctx.stroke();
+      }
+      const u = (t % 11) / 11;
+      if (u < 0.24) {
+        const kk = u / 0.24, pos = (-1.3 + 2.6 * kk) * cr, ax = Math.cos(0.6), ay = Math.sin(0.6), ga = Math.sin(kk * Math.PI) * 0.085 * gl * aMul;
+        const gg = ctx.createLinearGradient(ax * (pos - cr * 0.32), ay * (pos - cr * 0.32), ax * (pos + cr * 0.32), ay * (pos + cr * 0.32));
+        gg.addColorStop(0, rgba(C_HI, 0)); gg.addColorStop(0.5, rgba(C_HI, ga)); gg.addColorStop(1, rgba(C_HI, 0));
+        ctx.fillStyle = gg; ctx.fillRect(-cr * 1.4, -cr * 1.4, cr * 2.8, cr * 2.8);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+  }
+
+  drawA(ctx, t, R, E, p) {
+    const d = this.detail, W = this.w, par = this.par;
+    const errW = W.error, offW = W.offline;
+    const col = mixc(mixc(C_GOLD, C_BRASA, errW), C_DIM, offW * 0.7);
+    const aMul = 1 - offW * 0.55;
+    const wS = 1 + (1 - d) * 2.8;
+    const rm = this.reduce ? 0.3 : 1;
+    const breathe = 1 + 0.014 * rm * Math.sin(t * 0.9) * (1 - offW) + 0.02 * E;
+    const gl = sstep((d - 0.18) / 0.4);
+    const light = !!p.light;
+
+    // bloom grande e aditivo: o brilho que enche o espaço em volta
+    ctx.save(); ctx.scale(R, R);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = radial(ctx, 0, 0, 0.4, 0, 0, 1.0, [[0, rgba(col, (0.3 + 0.3 * E + 0.03 * Math.sin(t * 0.9)) * aMul)], [0.3, rgba(col, (0.12 + 0.12 * E) * aMul)], [1, rgba(col, 0)]]);
+    ctx.beginPath(); ctx.arc(0, 0, 0.98, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+
+    // aro metálico facetado, com paralaxe leve
+    if (gl > 0.02) {
+      ctx.save(); ctx.scale(R, R); ctx.translate(par.x * 0.016, par.y * 0.016);
+      ctx.beginPath(); ctx.arc(0, 0, 0.915, 0, TAU); ctx.strokeStyle = rgba([0, 0, 0], 0.5 * gl * aMul); ctx.lineWidth = 0.03; ctx.stroke();
+      this.metal(ctx, 0.915, 0.016, aMul * gl, offW, light);
+      ctx.beginPath(); ctx.arc(0, 0, 0.903, 0, TAU); ctx.strokeStyle = rgba([0, 0, 0], 0.55 * gl * aMul); ctx.lineWidth = 0.004; ctx.stroke();
+      ctx.restore();
+    }
+    // anel do dia
+    this.dayRing(ctx, R, t, p, 0.8, 0.048 * (1 + (1 - d) * 0.5), d, aMul, true, col, gl > 0.3);
+
+    // poço escuro sob as marcas, para a esfera e os filamentos "descolarem" do fundo
+    ctx.save(); ctx.scale(R, R);
+    ctx.fillStyle = radial(ctx, 0, 0, 0.3, 0, 0, 0.72, [[0, rgba(C_OBS, 0.6 * gl)], [1, rgba(C_OBS, 0)]]);
+    ctx.beginPath(); ctx.arc(0, 0, 0.72, 0, TAU); ctx.fill();
+
+    // marcas radiais (flutuam um pouco acima da esfera)
+    ctx.translate(par.x * 0.012, par.y * 0.012);
+    const N = p.light ? 48 : 72;
+    const r0 = 0.5 * breathe;
+    const lv = this.lv, en = E;
+    const tw = 0.007 * wS;
+    ctx.lineCap = 'round';
+    const dotsMode = offW > 0.5;
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.beginPath();
+      for (let i = 0; i < N; i++) {
+        const u = i / N, an = u * TAU - Math.PI / 2;
+        const s1 = 0.018 + 0.01 * (0.5 + 0.5 * Math.sin(t * 0.9 + u * TAU * 2)) * rm;
+        const s2 = 0.02 + 0.17 * lv * (0.35 + 0.65 * nz(i, t)) * (0.7 + 0.3 * Math.cos(u * TAU * 2));
+        const s3 = 0.02 + 0.13 * Math.pow(0.5 + 0.5 * Math.sin(u * TAU * 3 - t * 5), 3);
+        const s4 = 0.02 + 0.03 * (0.5 + 0.5 * Math.sin(u * TAU * 6 + t * 2));
+        const s5 = 0.02 + 0.2 * en * (0.35 + 0.65 * nz(i * 0.7, t * 1.3)) * (0.75 + 0.25 * Math.sin(u * TAU * 3 + t * 2));
+        const s6 = 0.02 + 0.05 * (0.5 + 0.5 * Math.sin(t * 1.3 + i * 2.1)) * (0.5 + 0.5 * Math.sin(t * 0.37 + i));
+        const s7 = 0.006;
+        let len = W.idle * s1 + W.listening * s2 + W.transcribing * s3 + W.thinking * s4 + W.speaking * s5 + W.error * s6 + W.offline * s7;
+        if (dotsMode) len = 0.006;
+        if ((pass === 0) === (len < 0.075)) {
+          const ca = Math.cos(an), sa = Math.sin(an);
+          ctx.moveTo(ca * r0, sa * r0); ctx.lineTo(ca * (r0 + len), sa * (r0 + len));
+        }
+      }
+      ctx.strokeStyle = pass === 0 ? rgba(mixc(col, C_DIM, offW), 0.62 * aMul) : rgba(mixc(col, [255, 236, 190], 0.2), 0.98);
+      ctx.lineWidth = tw; ctx.stroke();
+      if (pass === 1 && gl > 0.3) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = rgba(col, 0.16 * gl * (0.5 + E + lv) * aMul); ctx.lineWidth = tw * 3.4; ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+    // ondas ao falar
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const ph = (t - this.ripples[i]) / 1.3;
+      if (ph > 1) { this.ripples.splice(i, 1); continue; }
+      ctx.beginPath(); ctx.arc(0, 0, 0.5 + 0.38 * ph, 0, TAU);
+      ctx.strokeStyle = rgba(C_GOLD, 0.42 * Math.pow(1 - ph, 2) * W.speaking); ctx.lineWidth = 0.008 * wS; ctx.stroke();
+    }
+    ctx.restore();
+
+    this.orbits(ctx, R, t, false, col, wS, d, light);
+
+    // simplificado (tamanho pequeno): halo grosso
+    const simp = 1 - sstep((d - 0.2) / 0.3);
+    if (simp > 0.02) {
+      ctx.save(); ctx.scale(R, R);
+      ctx.beginPath(); ctx.arc(0, 0, 0.9, 0, TAU); ctx.strokeStyle = rgba(col, (0.5 + 0.4 * E) * simp * aMul); ctx.lineWidth = 0.05 + 0.04 * E; ctx.stroke();
+      ctx.restore();
+    }
+
+    // esfera de vidro escuro com luz quente por dentro
+    ctx.save(); ctx.scale(R, R);
+    const cr = 0.46 * breathe;
+    ctx.translate(par.x * 0.006, par.y * 0.006);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0, 0, cr, 0, TAU); ctx.clip();
+    this.shade(ctx, cr, { t, E, errW, offW, aMul, gl, light, body: [[118, 88, 44], [62, 44, 22], [20, 15, 10], C_OBS], ember: 0.42, crescent: 0.34 });
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(0, 0, cr, 0, TAU);
+    ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = rgba(col, (0.16 + 0.3 * E) * aMul); ctx.lineWidth = 0.034 * Math.min(wS, 1.6); ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    this.metal(ctx, cr, 0.009 * wS, aMul, offW, light);
+    ctx.restore();
+
+    this.orbits(ctx, R, t, true, col, wS, d, light);
+
+    if (p.muted) this.mutedGlyph(ctx, R, d);
+    if (offW > 0.3) this.offGlyph(ctx, R, offW);
+  }
+
+  mutedGlyph(ctx, R, d) {
+    const k = sstep((0.5 - d) / 0.4);
+    const x = 0.62 * k, y = 0.93 - 0.31 * k, s = 1 + k * 2.4;
+    ctx.save(); ctx.scale(R, R); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.fillStyle = rgba(C_DIM, 1); ctx.strokeStyle = rgba(C_DIM, 1);
+    ctx.beginPath(); ctx.moveTo(-0.04, -0.014); ctx.lineTo(-0.02, -0.014); ctx.lineTo(0.004, -0.036); ctx.lineTo(0.004, 0.036); ctx.lineTo(-0.02, 0.014); ctx.lineTo(-0.04, 0.014); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 0.009; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-0.05, -0.045); ctx.lineTo(0.032, 0.045); ctx.stroke();
+    ctx.restore();
+  }
+
+  offGlyph(ctx, R, a) {
+    ctx.save(); ctx.scale(R, R);
+    ctx.strokeStyle = rgba(C_DIM, 0.8 * a); ctx.lineWidth = 0.012; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-0.11, 0.11); ctx.lineTo(0.11, -0.11); ctx.stroke();
+    ctx.restore();
+  }
+
+  drawB(ctx, t, R, E, p) {
+    const d = this.detail, W = this.w, par = this.par;
+    const errW = W.error, offW = W.offline;
+    const col = mixc(mixc(C_GOLD, C_BRASA, errW), C_DIM, offW * 0.7);
+    const aMul = 1 - offW * 0.5;
+    const wS = 1 + (1 - d) * 2.6;
+    const rm = this.reduce ? 0.3 : 1;
+    const lv = this.lv;
+    const gl = sstep((d - 0.18) / 0.4);
+    const light = !!p.light;
+
+    // bloom aditivo
+    ctx.save(); ctx.scale(R, R);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = radial(ctx, 0, 0, 0.45, 0, 0, 1.0, [[0, rgba(col, (0.32 + 0.3 * E) * aMul)], [0.3, rgba(col, (0.12 + 0.12 * E) * aMul)], [1, rgba(col, 0)]]);
+    ctx.beginPath(); ctx.arc(0, 0, 0.98, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+
+    // anel do dia, discreto: só arcos finos e uma conta
+    const dr = sstep((d - 0.4) / 0.4);
+    if (dr > 0.02) { this.dayRing(ctx, R, t, p, 0.88, 0.026, d, aMul, false, col, gl > 0.3); }
+
+    this.orbits(ctx, R, t, false, col, wS, d, light);
+
+    // membrana: gota de vidro âmbar
+    ctx.save(); ctx.scale(R, R);
+    ctx.translate(par.x * 0.006, par.y * 0.006);
+    const R0 = 0.55;
+    const M = p.light ? 64 : 110;
+    for (let layer = 2; layer >= 0; layer--) {
+      const ph = layer * 1.9;
+      const path = new Path2D();
+      for (let i = 0; i <= M; i++) {
+        const th = (i / M) * TAU;
+        const idle = 0.007 * Math.sin(2 * th + t * 0.8 + ph) + 0.006 * Math.sin(3 * th - t * 0.6 + ph);
+        const lis = 0.075 * lv * (0.6 * Math.sin(3 * th + t * 2.4 + ph) + 0.4 * Math.sin(5 * th - t * 3.1 + ph * 2)) + 0.03 * lv * Math.sin(2 * th + t * 1.7);
+        const tra = 0.03 * Math.sin(6 * th - t * 4 + ph);
+        const thi = 0.04 * Math.sin(3 * th + t * 1.6 + ph) + 0.022 * Math.sin(2 * th - t * 1.1);
+        const spk = 0.085 * E * (0.55 * Math.sin(4 * th + t * 5 + ph) + 0.45 * Math.sin(7 * th - t * 6.4 + ph * 1.3)) + 0.03 * E * Math.sin(2 * th + t * 3);
+        const err = 0.022 * Math.sin(7 * th + t * 1.2 + ph) * (0.5 + 0.5 * Math.sin(t * 0.7));
+        const dr2 = W.idle * idle * rm + W.listening * lis + W.transcribing * tra + W.thinking * thi + W.speaking * spk + W.error * err;
+        const r = (R0 + layer * 0.012 * (1 + E)) * (1 + 0.016 * rm * Math.sin(t * 0.9 + ph) * (1 - offW) + 0.03 * E) + dr2 * (1 - 0.08 * layer);
+        const x = Math.cos(th) * r, y = Math.sin(th) * r;
+        if (i === 0) path.moveTo(x, y); else path.lineTo(x, y);
+      }
+      path.closePath();
+      if (layer === 0) {
+        ctx.save(); ctx.clip(path);
+        this.shade(ctx, R0, { t, E, errW, offW, aMul, gl, light, body: [[178, 128, 60], [100, 68, 30], [34, 24, 12], [10, 8, 6]], ember: 0.5, crescent: 0.26 });
+        ctx.restore();
+        ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = rgba(col, (0.16 + 0.3 * E) * aMul); ctx.lineWidth = 0.034 * Math.min(wS, 1.6); ctx.stroke(path);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = this.metalGrad(ctx, R0, 0.98 * aMul, offW, light);
+      } else {
+        ctx.fillStyle = rgba(col, 0.035 * aMul); ctx.fill(path);
+        ctx.strokeStyle = rgba(col, [0.95, 0.5, 0.28][layer] * aMul);
+      }
+      ctx.lineWidth = (layer === 0 ? 0.011 : 0.007) * wS;
+      if (offW > 0.5 && layer === 0) ctx.setLineDash([0.02, 0.03]);
+      ctx.stroke(path); ctx.setLineDash([]);
+    }
+    // ondas ao falar
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const ph = (t - this.ripples[i]) / 1.4;
+      if (ph > 1) { this.ripples.splice(i, 1); continue; }
+      ctx.beginPath(); ctx.arc(0, 0, R0 + 0.04 + 0.3 * ph, 0, TAU);
+      ctx.strokeStyle = rgba(C_GOLD, 0.4 * Math.pow(1 - ph, 2) * W.speaking); ctx.lineWidth = 0.008 * wS; ctx.stroke();
+    }
+    ctx.restore();
+
+    this.orbits(ctx, R, t, true, col, wS, d, light);
+
+    if (p.muted) this.mutedGlyph(ctx, R, d);
+    if (offW > 0.3) this.offGlyph(ctx, R, offW);
+  }
+
+  renderVals() {
+    const p = this.props;
+    const names = { idle: 'aguardando', listening: 'ouvindo', transcribing: 'transcrevendo', thinking: 'pensando', working: 'trabalhando', speaking: 'falando', error: 'algo falhou', offline: 'sem conexão' };
+    return { setCanvas: this.setCanvas, px: p.px || 400, ariaLabel: 'Bolinha do Guardião, ' + (names[p.state] || 'aguardando') + (p.muted ? ', voz silenciada' : '') };
+  }
+}
+</script>
+</body>
+</html>

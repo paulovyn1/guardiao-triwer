@@ -1,0 +1,5 @@
+/* Fontes do painel, empacotadas: funcionam sem internet. São variáveis: um arquivo cobre os pesos 400 a 600. */
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:400 600;font-display:swap;src:url(fontes/CormorantGaramond-normal-400.woff2) format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:400 600;font-display:swap;src:url(fontes/CormorantGaramond-italic-400.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400 600;font-display:swap;src:url(fontes/InstrumentSans-normal-400.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 600;font-display:swap;src:url(fontes/JetBrainsMono-normal-400.woff2) format('woff2')}

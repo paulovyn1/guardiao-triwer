@@ -1,0 +1,4 @@
+{
+  "observacao": "Tempo real por TIPO de tarefa, em minutos. Preenchido pelo guardião no fim do dia a partir de registros\\registro_AAAA-MM-DD.json. A média só vale a partir da 3ª execução do mesmo tipo. Execução sem horário real confirmado entra como confirmado=false e fica fora da média.",
+  "tipos": {}
+}
