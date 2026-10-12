@@ -7,6 +7,10 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.6.2 - 2026-10-12
+- Corrigido: o botão "Nova versão" (o `atualizar.ps1`) falhava para quem instalou pelo zip do repositório público, porque a origem é um endereço do GitHub e o script a tratava como pasta.
+- Testado de ponta a ponta como um aluno: baixar o zip público sem login, extrair, instalar numa pasta de usuário nova, gerar a configuração e receber uma versão nova pelo endereço público.
+
 ## 0.6.1 - 2026-10-12
 - Corrigido: numa instalação nova o programa não ligava, porque faltava a biblioteca `num2words` na lista do instalador. A conferência final do instalador agora importa o programa inteiro, e o instalador completa um ambiente antigo sem refazê-lo.
 - Repositório público para alunos: https://github.com/paulovyn1/guardiao-triwer. Quem instala por zip passa a receber o aviso de versão nova a partir dele.

@@ -74,7 +74,7 @@ $definicoes = @(
     @{
         nome = $nomes[3]; acao = (Acao 'voz\abrir_guardiao_v2.ps1'); ajustes = (Ajustes $false)
         gatilhos = @((New-ScheduledTaskTrigger -AtLogOn -User $usuario)) + @($(if ($cfg.rotina.abrir_tela_as) { New-ScheduledTaskTrigger -Weekly -DaysOfWeek $dias -At $cfg.rotina.abrir_tela_as }))
-        resumo = "ao ligar o PC e $(if ($cfg.rotina.abrir_tela_as) { "as $($cfg.rotina.abrir_tela_as) nos dias de trabalho " })(abre a janela do painel)"
+        resumo = "ao ligar o PC$(if ($cfg.rotina.abrir_tela_as) { " e as $($cfg.rotina.abrir_tela_as) nos dias de trabalho" }) (abre a janela do painel)"
     }
 )
 

@@ -79,9 +79,10 @@ try {
     }
     if (-not $Origem) { throw 'A origem das atualizações não está configurada. Preencha o campo "atualizacao": {"origem": ...} do config.json.' }
     # origem local em que o guardião está na raiz (clone do repositório público): a subpasta não existe, vale a raiz
-    if ($subpasta -and (Test-Path $Origem) -and -not (Test-Path (Join-Path $Origem "$subpasta\VERSION")) -and (Test-Path (Join-Path $Origem 'VERSION'))) { $subpasta = '' }
+    $naRede = $Origem -match '^https?://'  # endereço do GitHub: não é pasta, e Join-Path com ele dá erro
+    if (-not $naRede -and $subpasta -and (Test-Path $Origem) -and -not (Test-Path (Join-Path $Origem "$subpasta\VERSION")) -and (Test-Path (Join-Path $Origem 'VERSION'))) { $subpasta = '' }
 
-    if (Test-Path (Join-Path $Origem '.git')) {
+    if (-not $naRede -and (Test-Path (Join-Path $Origem '.git'))) {
         if (-not $Local -and -not $SoVerificar) {
             $alvo = if ($subpasta) { $subpasta } else { '.' }
             $sujo = Git-Rodar @('-C', $Origem, 'status', '--porcelain', '--', $alvo)
@@ -92,7 +93,8 @@ try {
             $null = Git-Rodar @('-C', $Origem, 'fetch', '--quiet', 'origin', $Ramo)
         }
         $fonte = if ($subpasta) { Join-Path $Origem $subpasta } else { $Origem }
-    } elseif ($Origem -match '^https://github\.com/([\w.-]+)/([\w.-]+?)(\.git)?/?$') {
+    } elseif ($naRede) {
+        if ($Origem -notmatch '^https://github\.com/([\w.-]+)/([\w.-]+?)(\.git)?/?$') { throw "A origem das atualizações ($Origem) não é um endereço de repositório do GitHub." }
         $dono = $Matches[1]; $repo = $Matches[2]
         $temp = Join-Path $env:TEMP ("guardiao_atualizacao_" + [guid]::NewGuid().ToString('N').Substring(0, 8))
         New-Item -ItemType Directory -Path $temp | Out-Null
