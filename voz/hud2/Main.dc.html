@@ -2466,7 +2466,8 @@ class Component extends DCLogic {
     this._t(() => this.setState({ phase: 'leave' }), 1050);
     this._t(() => {
       const done = { id: p.id, at, title: p.title, needNote: !!p.needNote, sent: false, a: h.a, b: h.b, medido: h.medido };
-      if (p.needNote) {  // tarefa do ClickUp: fica "feita" na tela e só fecha de verdade quando vier a frase do que foi feito
+      const pedeFrase = false;  // o check conclui na hora, inclusive tarefa do ClickUp; a frase do comentário deixou de ser obrigatória
+      if (p.needNote && pedeFrase) {  // tarefa do ClickUp: fica "feita" na tela e só fecha de verdade quando vier a frase do que foi feito
         this.pend[p.id] = { a: h.a, b: h.b, medido: h.medido }; this.salvarPend();
         API.post('/execucao', { acao: 'aguardar', id: p.id }).catch(() => {});  // o relógio desta tarefa para; o da próxima começa
         const tasks = this.state.tasks.map((t) => (t.id === p.id ? Object.assign({}, t, { status: 'done', aguarda: true, startedAt: h.a, doneAt: h.b }) : t));
@@ -2750,11 +2751,10 @@ class Component extends DCLogic {
     const S = this.state, id = S.detail && S.detail.id, t = this.findTask(id), a = parseHM(S.dForm.a), b = parseHM(S.dForm.b), nota = String(S.dForm.note || '').trim();
     if (!t) return;
     if (a == null || b == null || b <= a) { this.toast('Confira os horários. Use o formato 09:30.', true); return; }
-    if (t.needNote && !nota) { this.toast('Escreva em uma frase o que foi feito. Ela vai como comentário no ClickUp.', true); return; }
     this.setState({ detailOpen: false, dForm: { open: false, a: '', b: '', note: '' } });
     API.post('/concluir', { id, concluido: true, nota, inicio: hhmm(a), fim: hhmm(b) }).then((r) => {
       if (!r || !r.ok) { this.toast((r && r.erro) || 'Não consegui concluir.', true); return; }
-      this.toast('Marcada como feita às ' + hhmm(b) + (t.needNote ? '. Comentário enviado ao ClickUp.' : '.')); this.sfx('done');
+      this.toast('Marcada como feita às ' + hhmm(b) + (t.needNote && nota ? '. Comentário enviado ao ClickUp.' : '.')); this.sfx('done');
       this.setState({ breath: this.state.breath + 1 });
     }).catch((e) => this.falha(e));
   }

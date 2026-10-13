@@ -369,13 +369,12 @@ def concluir_bloco(dados):
         cab = {"Authorization": token}
         try:
             if concluido:
-                if not nota:
-                    return {"ok": False, "erro": "Escreva em uma frase o que foi feito. Ela vai como comentário na tarefa."}
-                r = requests.post(
-                    f"https://api.clickup.com/api/v2/task/{cid}/comment", headers=cab, timeout=20,
-                    json={"comment_text": f"Atualização de status: {nota}\n\n{assinatura()}"},
-                )
-                r.raise_for_status()
+                if nota:  # a frase é opcional: sem ela a tarefa fecha do mesmo jeito, só sem comentário
+                    r = requests.post(
+                        f"https://api.clickup.com/api/v2/task/{cid}/comment", headers=cab, timeout=20,
+                        json={"comment_text": f"Atualização de status: {nota}\n\n{assinatura()}"},
+                    )
+                    r.raise_for_status()
             tarefa = requests.get(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, timeout=20)
             tarefa.raise_for_status()
             lista = requests.get(f"https://api.clickup.com/api/v2/list/{tarefa.json()['list']['id']}", headers=cab, timeout=20)
