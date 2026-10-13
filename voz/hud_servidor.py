@@ -398,6 +398,12 @@ def concluir_bloco(dados):
         _v2().ao_concluir(bloco, real, bool(dados.get("nao_confirmado")), concluido)
     except Exception as erro:
         print("  (não consegui registrar o tempo da tarefa:", erro, ")")
+    if concluido and bloco.get("posts_previstos"):  # bloco de criação de posts: mede o que rendeu (posts previstos x que apareceram), uma vez
+        try:
+            import posts_maes
+            threading.Thread(target=posts_maes.registrar_rendimento, args=(_config(), _token_clickup(), OPER, bloco, real, _v2().registrar_evento), daemon=True).start()
+        except Exception as erro:
+            print("  (rendimento do bloco não rodou:", erro, ")")
     bus.emitir("plano")
     return {"ok": True, "status": status}
 
@@ -442,6 +448,22 @@ def aprovar_plano():
                 except Exception as erro:
                     erros.append(f"{b.get('titulo')} (novo horário): {erro}")
                 continue
+            if b.get("post") and not b.get("pai") and not b.get("clickup_id") and b.get("lista_id"):
+                # etapa de um post (copy, design...): o app acha a tarefa mãe sozinho, em Python, e a etapa vira subtarefa dela
+                mae = None
+                try:
+                    import posts_maes
+                    mae = posts_maes.achar_mae(OPER, b["post"])
+                    if not mae and token:
+                        posts_maes.atualizar(cfg, token, OPER)
+                        mae = posts_maes.achar_mae(OPER, b["post"])
+                except Exception as erro:
+                    print("  (não consegui achar a tarefa mãe do post:", erro, ")")
+                if mae:
+                    b["pai"] = mae
+                else:
+                    erros.append(f"{b.get('titulo')}: não achei a tarefa mãe do post '{b['post']}' e não criei uma tarefa solta.")
+                    continue
             if b.get("clickup_id") or not b.get("lista_id"):
                 continue
             try:

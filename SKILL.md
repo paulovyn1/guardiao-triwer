@@ -159,6 +159,8 @@ Terminar sempre com o plano para aprovação. Depois do ok, gravar `plano_do_dia
 - `primeiro_passo` (a primeira ação física, pequena) e `por_que_agora`.
 - `descricao`: 1 ou 2 frases simples, o que é, o que produz, quando está pronta. Se não couber em 2 frases, a tarefa está grande demais: quebrar. No painel aparece no detalhe da tarefa.
 - Ligação com o ClickUp: bloco de tarefa que já existe no resumo leva `clickup_id` (nunca duplicar). Bloco novo leva `lista_id` (uma das listas de `clickup.listas` no config.json, escolhida pelo campo `quando_usar`) e, se for parte de uma tarefa existente, `pai`.
+- Etapa de um post (copy, design...): `post` com o dia dele (`"quinta"` ou `AAAA-MM-DD`) e `lista_id`. Ao aprovar, o app acha a tarefa mãe do post em Python (`posts_maes.py`, lista de conteúdo com o campo "Onde" = "Feed" nos próximos dias) e cria a etapa como subtarefa dela. Nunca procurar a mãe pelo Claude e nunca criar etapa de post como tarefa solta. Liga por `clickup.posts` no `config.json`.
+- Bloco de criação de posts: `posts_previstos` com quantos posts o bloco deve render. Ao concluir o bloco, o app consulta o ClickUp uma vez e grava no registro de eventos quantos posts apareceram de verdade (evento `posts_criados`), para o report perguntar o porquê da diferença. Não há consulta automática em segundo plano.
 - Reunião ou compromisso que existe como tarefa no ClickUp (vem no `resumo_clickup.json`) vai em `blocos` com `clickup_id`, para a pessoa poder marcar Feito, informar o horário real e concluir a tarefa. `fixos` (inicio, fim, titulo) é só para o que não tem tarefa, como o almoço: na tela não tem botão nem sincroniza.
 
 **O que o painel faz sozinho, sem o guardião do chat:**
