@@ -71,6 +71,10 @@ confere("microfone aberto desligado: só uma rodada, mesmo o guardião esperando
 h.salvar_preferencias({"escuta_aberta": True})
 turnos.clear()
 g.conversar(A(), None, None, None, 0)
+confere("microfone aberto ligado, mas escuta contínua desligada (padrão): só uma rodada", len(turnos) == 1, len(turnos))
+h.salvar_preferencias({"mic_sempre_ligado": True})
+turnos.clear()
+g.conversar(A(), None, None, None, 0)
 confere("microfone aberto ligado: segue até o limite de 12 seguimentos", len(turnos) == 13, len(turnos))
 
 print(f"\n{sum(resultados)}/{len(resultados)} verificações passaram")

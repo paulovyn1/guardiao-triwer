@@ -6,6 +6,7 @@ import json
 import os
 import queue
 import re
+import subprocess
 import threading
 import time
 import webbrowser
@@ -420,6 +421,54 @@ def adiar_bloco(dados):
     return {"ok": True, "vezes": entrada["vezes_adiada"]}
 
 
+_PALAVRAS_FRACAS = {"para", "com", "das", "dos", "uma", "que", "por", "sobre", "ate", "como", "mais", "fazer", "enviar", "preparar"}
+
+
+def atualizar_resumo_clickup():
+    """Confere o ClickUp ao vivo antes de criar tarefa: roda o mesmo script das leituras agendadas (ler_clickup.ps1), sem Claude e sem
+    conector. Devolve True se o resumo foi regravado agora. Se falhar, o resumo antigo segue valendo e o motivo vai para o terminal."""
+    script = os.path.join(OPER, "ler_clickup.ps1")
+    if not os.path.exists(script):
+        return False
+    try:
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script], capture_output=True, timeout=90,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if r.returncode != 0:
+            print("  (a leitura ao vivo do ClickUp falhou, uso o resumo antigo:", r.stderr.decode("utf-8", "replace")[:200], ")")
+        return r.returncode == 0
+    except (OSError, subprocess.SubprocessError) as erro:
+        print("  (não consegui rodar a leitura ao vivo do ClickUp, uso o resumo antigo:", erro, ")")
+        return False
+
+
+def _palavras_do_titulo(titulo):
+    return {p[:5] for p in _norm(titulo).split() if len(p) >= 4 and p not in _PALAVRAS_FRACAS}
+
+
+def _marca_do_titulo(titulo):
+    """O que separa tarefas irmãs: a letra solta (carrossel A, B) e os números entre parênteses (posta qua 14)."""
+    t = str(titulo or "")
+    return set(re.findall(r"\b[A-Z]\b", t)) | {n for trecho in re.findall(r"\(([^)]*)\)", t) for n in re.findall(r"\d+", trecho)}
+
+
+def achar_parecida(titulo, tarefas):
+    """Procura no resumo uma tarefa aberta que parece ser a mesma do título. Devolve (tarefa, exata): exata = mesmo título.
+    Parecida = o mesmo assunto com outras palavras: 3 palavras em comum e a mesma "marca" (a letra do carrossel, o número do dia).
+    "Copy do carrossel A" e "Copy do carrossel B", ou "Copy" e "Design" do mesmo carrossel, são tarefas diferentes e não contam."""
+    alvo = _palavras_do_titulo(titulo)
+    marca = _marca_do_titulo(titulo)
+    melhor = None
+    for t in tarefas:
+        if _norm(t.get("nome")).split() == _norm(titulo).split():
+            return t, True
+        if _marca_do_titulo(t.get("nome")) != marca:
+            continue
+        comuns = len(alvo & _palavras_do_titulo(t.get("nome")))
+        if comuns >= 3 and (not melhor or comuns > melhor[0]):
+            melhor = (comuns, t)
+    return (melhor[1], False) if melhor else (None, False)
+
+
 def aprovar_plano():
     """Aprova o plano de hoje. Cada bloco novo (com lista_id e sem clickup_id) vira tarefa no ClickUp, com dono, hora e estimativa."""
     plano, caminho = _plano_e_caminho()
@@ -432,6 +481,14 @@ def aprovar_plano():
     criadas, reagendadas, erros = 0, 0, []
     if not plano.get("exemplo"):
         token = _token_clickup()
+        if any(b.get("lista_id") and not b.get("clickup_id") for b in plano.get("blocos", [])):
+            atualizar_resumo_clickup()  # alguém (o Zapia, o Vitor) pode ter criado a tarefa depois da última leitura agendada
+        abertas = (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", [])
+        for b in plano.get("blocos", []):  # título igual ao de uma tarefa aberta: o bloco passa a usar ela (e ela muda de hora abaixo)
+            if b.get("lista_id") and not b.get("clickup_id") and not b.get("post"):
+                achada, exata = achar_parecida(b.get("titulo"), abertas)
+                if achada and exata:
+                    b["clickup_id"], b["reagendado"] = achada["id"], True
         for b in plano.get("blocos", []):
             if b.get("clickup_id") and b.get("reagendado"):  # movido na revisão: a tarefa existente muda de hora no ClickUp
                 try:
@@ -466,6 +523,11 @@ def aprovar_plano():
                     erros.append(f"{b.get('titulo')}: não achei a tarefa mãe do post '{b['post']}' e não criei uma tarefa solta.")
                     continue
             if b.get("clickup_id") or not b.get("lista_id"):
+                continue
+            existente, _ = achar_parecida(b.get("titulo"), abertas)
+            if existente:  # mesmo assunto com outras palavras: não cria, a pessoa decide se é a mesma
+                erros.append(f"{b.get('titulo')}: não criei porque já existe uma tarefa parecida no ClickUp ({existente.get('nome')}: {existente.get('url')}). "
+                             f"Se for a mesma, peça para usar ela; se for outra, peça para criar.")
                 continue
             try:
                 if not token:
@@ -941,6 +1003,12 @@ def criar_tarefa(dados):
     lista = resolver_lista(dados.get("lista"))
     if not lista:
         return {"ok": False, "erro": "Não achei nenhuma lista do ClickUp na configuração."}
+    if not dados.get("forcar"):  # confere o ClickUp ao vivo: alguém pode ter criado a mesma tarefa minutos atrás
+        atualizar_resumo_clickup()
+        achada, _ = achar_parecida(titulo, (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", []))
+        if achada:
+            return {"ok": False, "erro": f"Já existe uma tarefa parecida no ClickUp: {achada.get('nome')} ({achada.get('url')}). Não criei outra. "
+                                         f"Se for a mesma, use ela; se for outra, peça para criar mesmo assim."}
     corpo = {
         "name": titulo,
         "markdown_description": f"{str(dados.get('descricao') or '').strip()}\n\n*Criada pelo Guardião a pedido {pessoa()['do']}.*".strip(),
