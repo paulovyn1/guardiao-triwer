@@ -104,6 +104,7 @@ try {
         Expand-Archive -Path $zip -DestinationPath $temp -Force -ErrorAction Stop
         $raiz = (Get-ChildItem $temp -Directory | Select-Object -First 1).FullName
         $fonte = if ($subpasta) { Join-Path $raiz $subpasta } else { $raiz }
+        if (-not (Test-Path (Join-Path $fonte 'VERSION')) -and (Test-Path (Join-Path $raiz 'VERSION'))) { $fonte = $raiz }  # guardião na raiz do repositório (o público)
     } else {
         $fonte = if ($subpasta -and (Test-Path (Join-Path $Origem $subpasta))) { Join-Path $Origem $subpasta } else { $Origem }
     }

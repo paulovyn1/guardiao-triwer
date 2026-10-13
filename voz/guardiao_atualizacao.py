@@ -84,6 +84,9 @@ def ler_remoto(o):
     if os.path.isdir(os.path.join(onde, ".git")):
         busca = _git(onde, "fetch", "--quiet", "origin", ramo)
         versao = _git(onde, "show", f"origin/{ramo}:{prefixo}VERSION")
+        if versao.returncode != 0 and prefixo:  # o repositório público tem o guardião na raiz; o interno, na subpasta guardiao-triwer
+            prefixo = ""
+            versao = _git(onde, "show", f"origin/{ramo}:VERSION")
         if versao.returncode != 0:
             raise RuntimeError("não achei o arquivo VERSION no repositório")
         notas = _git(onde, "show", f"origin/{ramo}:{prefixo}CHANGELOG.md")
@@ -92,6 +95,9 @@ def ler_remoto(o):
     if m:
         base = f"https://raw.githubusercontent.com/{m.group(1)}/{m.group(2)}/{ramo}/{prefixo}"
         versao = requests.get(base + "VERSION", timeout=12)
+        if versao.status_code == 404 and prefixo:  # guardião na raiz do repositório: tenta sem a subpasta
+            base = f"https://raw.githubusercontent.com/{m.group(1)}/{m.group(2)}/{ramo}/"
+            versao = requests.get(base + "VERSION", timeout=12)
         versao.raise_for_status()
         notas = requests.get(base + "CHANGELOG.md", timeout=12)
         return versao.text.strip(), notas.text if notas.ok else "", None

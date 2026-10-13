@@ -13,7 +13,8 @@ param(
     [switch]$Verificar,
     [switch]$SemAtalho,
     [switch]$Quieto,
-    [string]$VersaoPython = "3.14"
+    [string]$VersaoPython = "3.14",
+    [string]$FormatoDoDisco = ""  # só para teste: finge o formato do disco da pasta (NTFS, FAT32, exFAT)
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -21,6 +22,7 @@ $raizSkill = Split-Path -Parent $PSScriptRoot
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $utf8bom = New-Object System.Text.UTF8Encoding($true)
 $arqMemoriaSkill = Join-Path $raizSkill 'memoria.md'
+. (Join-Path $raizSkill 'app\_comum.ps1')
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }  # o Python do guardião escreve em UTF-8
 
@@ -45,6 +47,15 @@ if (-not $Pasta) {
 $op = $Pasta
 $voz = Join-Path $op 'voz'
 $venvPy = Join-Path $voz '.venv\Scripts\python.exe'
+
+# O uv instala o Python criando links (uma junção para a versão menor). FAT32 e exFAT (pendrive, HD externo antigo) e pasta de rede não criam links:
+# o uv falha com "Failed to create Python minor version link directory". Nesse caso o Python do guardião vai para %LOCALAPPDATA%\GuardiaoDoDia, que é NTFS.
+function Disco-Aceita-Links([string]$pasta, [string]$formato = '') {
+    if ($formato) { return ($formato -in @('NTFS', 'ReFS')) }  # (o teste passa o formato do disco)
+    try { $raiz = [System.IO.Path]::GetPathRoot([System.IO.Path]::GetFullPath($pasta)) } catch { return $true }
+    if (-not $raiz -or $raiz.StartsWith('\\')) { return $false }  # pasta de rede
+    try { return ((New-Object System.IO.DriveInfo($raiz)).DriveFormat -in @('NTFS', 'ReFS')) } catch { return $true }  # sem saber, tenta do jeito normal
+}
 
 function Rodar([string]$exe, [string[]]$argumentos) {
     # programa de fora: os avisos dele saem na saída de erro e não podem derrubar o script
@@ -73,7 +84,14 @@ function Kokoro-Ok {
 }
 function Programa-Ok { (Test-Path (Join-Path $voz 'guardiao_voz.py')) -and (Test-Path (Join-Path $voz 'hud2\index.html')) -and (Test-Path (Join-Path $op 'ler_clickup.ps1')) }
 function Variavel-Usuario([string]$nome) { [bool][Environment]::GetEnvironmentVariable($nome, 'User') }
-function Tem-Claude { [bool](Get-Command claude -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $env:USERPROFILE '.local\bin\claude.exe')) }
+# 'ok' = o Claude Code foi achado E executa (claude --version); 'nao_executa' = achado, mas não roda; 'falta' = não achado
+function Estado-Claude {
+    $e = Get-ClaudeEstado
+    if ($e.Ok) { return 'ok' }
+    if ($e.Erro) { return 'nao_executa' }
+    return 'falta'
+}
+function Tem-Claude { (Estado-Claude) -eq 'ok' }
 
 # ---------------------------------------------------------------------------------------------------------------
 if ($Verificar) {
@@ -85,7 +103,7 @@ if ($Verificar) {
         voz               = $(if (Kokoro-Ok) { 'ok' } else { 'falta' })
         chave_groq        = $(if (Variavel-Usuario 'GROQ_API_KEY') { 'ok' } else { 'falta' })
         token_clickup     = $(if (Variavel-Usuario 'CLICKUP_API_TOKEN') { 'ok' } else { 'falta' })
-        claude            = $(if (Tem-Claude) { 'ok' } else { 'falta' })
+        claude            = (Estado-Claude)
         config            = $(if (Test-Path (Join-Path $op 'config.json')) { 'ok' } else { 'falta' })
     }
     $r.painel_instalado = $(if ($r.programa -eq 'ok' -and $r.python -eq 'ok' -and $r.modelo_escuta -eq 'ok' -and $r.voz -eq 'ok') { 'sim' } else { 'nao' })
@@ -173,6 +191,11 @@ if (Bibliotecas-Ok) {
     $ferr = Join-Path $voz '.ferramentas'
     $env:UV_PYTHON_INSTALL_DIR = Join-Path $ferr 'python'
     $env:UV_CACHE_DIR = Join-Path $ferr 'cache'
+    if (-not (Disco-Aceita-Links $voz $FormatoDoDisco)) {
+        $env:UV_PYTHON_INSTALL_DIR = Join-Path $env:LOCALAPPDATA 'GuardiaoDoDia\python'
+        $env:UV_LINK_MODE = 'copy'  # sem links, o uv copia os arquivos das bibliotecas em vez de ligá-los ao cache
+        Write-Host "      Esta pasta está num disco sem suporte a links (FAT32, exFAT ou rede). O Python do guardião vai para $env:LOCALAPPDATA\GuardiaoDoDia; o resto fica aqui."
+    }
     $uv = (Get-Command uv -ErrorAction SilentlyContinue | Select-Object -First 1).Source
     if (-not $pronto -and -not $uv) {
         $uv = Join-Path $ferr 'uv.exe'
@@ -207,7 +230,7 @@ if (Bibliotecas-Ok) {
             if ("$v".Trim() -eq '1') { $py = $cmd; break }
         }
         if ($py) {
-            Write-Host "      Usando o Python que já está no computador ($py)..."
+            Write-Host "      Usando o Python que já está no computador ($py). Se você desinstalar esse Python, rode o instalador de novo."
             if (Test-Path (Join-Path $voz '.venv')) { Remove-Item (Join-Path $voz '.venv') -Recurse -Force -ErrorAction SilentlyContinue }
             $c = Rodar $py @('-m', 'venv', (Join-Path $voz '.venv'))
             if ($c -eq 0) { $c = Rodar $venvPy @('-m', 'pip', 'install', '-q', '--disable-pip-version-check', '-r', $req) }
@@ -273,5 +296,8 @@ if ($c -ne 0) { throw "A conferência final falhou (veja as linhas acima). Rode 
 Write-Host ""
 Write-Host "Painel do guardião instalado em $op." -ForegroundColor Green
 if (-not (Variavel-Usuario 'GROQ_API_KEY')) { Write-Host "Falta a chave gratuita do Groq para o microfone: dois cliques em $voz\definir_chave_groq.bat. Sem ela o painel abre e funciona por texto." }
-if (-not (Tem-Claude)) { Write-Host "Não achei o Claude Code neste computador. É ele que pensa: instale em https://claude.com/claude-code antes de usar o guardião." }
+switch (Estado-Claude) {
+    'falta' { Write-Host "Não achei o Claude Code neste computador. É ele que pensa: instale em https://claude.com/claude-code, entre com a sua conta e abra o guardião." }
+    'nao_executa' { Write-Host "Achei o Claude Code, mas ele não executa ($((Get-ClaudeEstado).Erro)). Abra um terminal, rode 'claude' e siga o que ele pedir (entrar na conta, atualizar)." }
+}
 if (-not (Test-Path (Join-Path $op 'config.json'))) { Write-Host "Próximo passo: abra o Claude Code e escreva: configurar o guardião." }

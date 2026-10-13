@@ -44,7 +44,17 @@ def voz():
     amostras, taxa = k.create("Tudo certo por aqui.", voice="pm_santa", speed=1.0, lang="pt-br")
     if len(amostras) < taxa // 2:
         raise RuntimeError("a voz gerou um áudio curto demais")
-    return f"{len(amostras) / taxa:.1f} s de fala"
+    # velocidade: a voz é gerada neste computador, uma frase por vez, enquanto a anterior toca. Se gerar mais devagar do que a frase dura (fator acima de 1),
+    # a fala ganha pausas entre as frases.
+    inicio = time.time()
+    amostras, taxa = k.create("Seu próximo bloco começa às nove horas, e vale a pena revisar o plano com calma antes de começar.", voice="pm_santa", speed=1.0, lang="pt-br")
+    fator = (time.time() - inicio) / (len(amostras) / taxa)
+    aviso = ""
+    if fator >= 1.0:
+        aviso = f"; ATENÇÃO: este computador leva {fator:.1f} s para gerar cada segundo de fala, então a fala vai ter pausas. Se incomodar, desligue a voz em Preferências (o guardião passa a só escrever)"
+    elif fator >= 0.7:
+        aviso = f"; no limite (fator {fator:.2f}): com o computador ocupado pode haver pequenas pausas"
+    return f"fator de velocidade {fator:.2f}{aviso}"
 
 
 def programa():

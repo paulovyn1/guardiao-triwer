@@ -39,10 +39,17 @@ try {
     if (-not [Environment]::Is64BitOperatingSystem) { throw "O guardião precisa do Windows de 64 bits." }
     $disco = Get-PSDrive -Name ([System.IO.Path]::GetPathRoot($Pasta).Substring(0, 1)) -ErrorAction SilentlyContinue
     if ($disco -and $disco.Free -lt 2GB) { throw "Preciso de pelo menos 2 GB livres no disco $($disco.Name):. Libere espaço e rode de novo." }
-    $claudeLocal = Join-Path $env:USERPROFILE '.local\bin'
-    if (-not (Get-Command claude -ErrorAction SilentlyContinue) -and (Test-Path (Join-Path $claudeLocal 'claude.exe'))) { $env:PATH = "$claudeLocal;$env:PATH" }
-    $temClaude = [bool](Get-Command claude -ErrorAction SilentlyContinue)
-    if (-not $temClaude) {
+    . (Join-Path $origem 'app\_comum.ps1')
+    $claude = Get-ClaudeEstado
+    $temClaude = $claude.Ok
+    if ($temClaude) {
+        Write-Host "  Claude Code encontrado: $($claude.Versao)." -ForegroundColor Green
+        Write-Host ""
+    } elseif ($claude.Erro) {
+        Write-Host "  ATENÇÃO: achei o Claude Code, mas ele não executa ($($claude.Erro))." -ForegroundColor Yellow
+        Write-Host "  Abra um terminal, rode 'claude' e siga o que ele pedir (entrar na conta, atualizar). Vou instalar o resto mesmo assim."
+        Write-Host ""
+    } else {
         Write-Host "  ATENÇÃO: não achei o Claude Code neste computador. É ele que pensa pelo guardião." -ForegroundColor Yellow
         Write-Host "  Vou instalar tudo mesmo assim. Depois instale o Claude Code (https://claude.com/claude-code), entre com a sua conta"
         Write-Host "  e siga para o passo da configuração. Não precisa rodar este instalador de novo."
@@ -85,6 +92,7 @@ try {
     Write-Host "  Painel e voz:  $Pasta"
     Write-Host "  Skill:         $PastaSkill"
     Write-Host "  Microfone:     $(if ($temChave) { 'ligado (chave do Groq gravada)' } else { 'desligado, falta a chave do Groq (voz\definir_chave_groq.bat)' })"
+    Write-Host "  Se algo não funcionar: dois cliques em $Pasta\voz\diagnostico.bat (ele confere cada peça e diz o que fazer)."
     Write-Host ""
     if ($configurado) {
         Write-Host "  Este computador já tinha o guardião configurado. Abra pelo atalho Guardião, na área de trabalho."

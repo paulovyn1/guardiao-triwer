@@ -26,12 +26,6 @@ elseif (PrecisaReiniciar) {
     Ligar
 }
 
-$edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
-if (-not (Test-Path $edge)) { $edge = 'C:\Program Files\Microsoft\Edge\Application\msedge.exe' }
-if (Test-Path $edge) {
-    # perfil próprio: o som da abertura toca sem clique e as permissões ficam guardadas
-    # as aspas em volta do caminho contam: sem elas, uma pasta de usuário com espaço no nome quebra a linha de comando do Edge
-    Start-Process -FilePath $edge -ArgumentList "--app=http://localhost:$porta/v2/", '--window-size=1456,939', "--user-data-dir=`"$voz\perfil_edge`"", '--autoplay-policy=no-user-gesture-required', '--no-first-run', '--no-default-browser-check'
-} else {
-    Start-Process "http://localhost:$porta/v2/"
-}
+# Quem abre a janela é o janela_edge.py: perfil só do guardião, sem entrar na conta Microsoft da pessoa, sem sincronizar e sem extensões,
+# e limpa um perfil antigo que já tenha entrado na conta. (Os argumentos do Edge ficam num lugar só, nele.)
+Start-Process -FilePath $pythonw -ArgumentList "`"$voz\janela_edge.py`"", "http://localhost:$porta/v2/" -WorkingDirectory $voz -WindowStyle Hidden

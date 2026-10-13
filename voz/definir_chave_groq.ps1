@@ -36,7 +36,7 @@ for ($tentativa = 1; $tentativa -le 3; $tentativa++) {
     }
     [Environment]::SetEnvironmentVariable("GROQ_API_KEY", $chave, "User")
     Write-Host "Chave aceita pelo Groq e gravada neste computador." -ForegroundColor Green
-    Write-Host "Se o guardião já estiver aberto, feche e abra de novo para o microfone ligar."
+    Write-Host "Se o guardião já estiver aberto, o microfone liga sozinho em até um minuto. Não precisa fechar nada."
     exit 0
 }
 Write-Host "Não deu certo em 3 tentativas. Nada foi gravado. Rode de novo quando quiser."

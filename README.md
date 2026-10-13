@@ -37,6 +37,8 @@ Pulou esse passo? O painel funciona do mesmo jeito, por texto. Para ligar o micr
 - Abra pelo atalho **Guardião**, na área de trabalho.
 - Diga **"Ei guardião"**, espere o som e fale. Ou escreva na barra de baixo.
 - Leve o cursor ao topo da janela para ver o menu: o dia, o planejador, a calibragem, os POPs e as preferências.
+- **Fechar a janela não desliga o guardião.** Ele segue ouvindo "Ei guardião" em segundo plano; se estava falando, para na hora. Para desligar de vez: `Guardiao-do-dia\voz\parar_guardiao.bat`.
+- Sem a "Conversa com memória" (o padrão), ele lembra das últimas 10 falas e de um resumo do dia, mesmo depois de reiniciar. "Nova conversa" esquece tudo.
 - Em Preferências você ajusta os sons, a abertura, a saudação e liga a conversa com memória.
 
 ## Se algo não funcionar
@@ -46,6 +48,9 @@ Pulou esse passo? O painel funciona do mesmo jeito, por texto. Para ligar o micr
 - **O guardião não responde, só o painel abre:** falta o Claude Code. Instale por https://claude.com/claude-code, entre com a sua conta e abra o guardião de novo.
 - **O microfone não liga:** falta a chave do Groq (`Guardiao-do-dia\voz\definir_chave_groq.bat`), ou o Windows está bloqueando o microfone. Em Configurações, Privacidade e segurança, Microfone, deixe ligado "Permitir que aplicativos da área de trabalho acessem o microfone".
 - **Ele não me ouve quando chamo:** diga "Ei guardião" junto, no começo da frase, e espere o som antes de falar o resto.
+- **Ele diz que atingiu o limite do plano ou que o Claude Code não está conectado:** é a conta do Claude, não o guardião. O limite volta na hora que ele informa; para entrar na conta, abra o Claude Code e faça o login.
+- **Ele demora para responder, ou a voz tem pausas entre as frases:** dê dois cliques em `Guardiao-do-dia\voz\diagnostico.bat`. Ele mede o Claude, a voz e o computador, diz onde está o problema e escreve `Guardiao-do-dia\logs\diagnostico.txt`. Se pedirem, mande também `logs\latencia.jsonl`.
+- **A janela do painel abriu com os favoritos ou uma extensão do Edge:** era de uma versão antiga. Feche a janela e abra pelo atalho Guardião: o perfil do painel é recriado limpo, sem conta e sem sincronização.
 - **Nada disso resolveu:** abra o Claude Code e escreva "o guardião não está funcionando, confere a instalação". Ele sabe conferir o que falta.
 
 ## Atualizar e desinstalar

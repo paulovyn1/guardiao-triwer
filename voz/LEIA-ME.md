@@ -18,6 +18,10 @@ Roda na pasta `voz\` dentro da pasta operacional do guardião. Só Windows.
 | `criar_atalho.ps1` | cria o atalho Guardião na área de trabalho, com o ícone |
 | `definir_chave_groq.bat` | guarda a chave gratuita do Groq, com o passo a passo na tela |
 | `ouvir_vozes.bat` | toca as três vozes do guardião para escolher (a escolhida vai em `agente.voz` do `config.json`) |
+| `diagnostico.bat` | confere cada peça (Claude, voz, escuta, microfone, Groq, janela), mede onde o tempo vai e escreve `logs\diagnostico.txt` |
+| `janela_edge.py` | abre a janela do painel no Edge sem conta, sem sincronização e sem extensões, e limpa o perfil antigo que já tinha entrado na conta |
+| `controle_fala.py`, `latencia.py` | parar a fala quando a janela fecha; os tempos de cada resposta em `logs\latencia.jsonl` |
+| `memoria_conversa.py` | as últimas 10 trocas em arquivo e o resumo do dia (modo rápido) |
 | `conferir_instalacao.py` | confere de verdade se a escuta, a voz e o painel funcionam. O instalador roda no fim |
 | `parar_guardiao.bat` | desliga o programa |
 | `iniciar_guardiao.bat` | liga o programa com o terminal aberto, para ver o que ele escreve (pare antes o que estiver em segundo plano) |

@@ -6,7 +6,6 @@
 import argparse
 import atexit
 import asyncio
-import contextlib
 import ctypes
 import io
 import json
@@ -21,7 +20,6 @@ import tempfile
 import threading
 import time
 import wave
-import webbrowser
 import winreg
 import winsound
 
@@ -31,8 +29,12 @@ import requests
 import sounddevice as sd
 from vosk import KaldiRecognizer, SetLogLevel
 
+import controle_fala
 import guardiao_sessao
 import guardiao_v2 as v2
+import janela_edge
+import latencia
+import memoria_conversa
 import nativo
 from fala import normalizar_para_fala
 from hud_servidor import (_config, _norm, _plano_de_hoje, _registro_de_hoje, agir, bus, conflitos_do_plano, editar_plano, iniciar_servidor,
@@ -61,8 +63,8 @@ VOZ_WINDOWS = "Microsoft Maria Desktop"
 VOZ_EDGE = "pt-BR-FranciscaNeural"  # vozes neurais do Edge: ThalitaNeural, AntonioNeural
 VOZ_KOKORO = "pm_santa"  # voz padrão; outras em português: pm_alex, pf_dora
 VOZES_KOKORO = ("pm_santa", "pm_alex", "pf_dora")  # a escolhida no onboarding fica em agente.voz do config.json
-AVISO_SEM_CHAVE = ("Microfone desligado: falta a chave gratuita do Groq. Dê dois cliques em definir_chave_groq.bat, na pasta voz, "
-                   "e abra o guardião de novo. Enquanto isso, escreva aqui embaixo.")
+AVISO_SEM_CHAVE = ("Microfone desligado: falta a chave gratuita do Groq. Dê dois cliques em definir_chave_groq.bat, na pasta voz. "
+                   "Em até um minuto depois de gravar a chave o microfone liga sozinho. Enquanto isso, escreva aqui embaixo.")
 AVISO_SEM_MIC = "Não achei um microfone neste computador. Escreva aqui embaixo."
 INTERVALO_PREVIA = 3.3  # segundos entre prévias no Groq (limite grátis: 20 pedidos por minuto)
 PORTA_TELA = 8767
@@ -88,19 +90,12 @@ def chamou(resultado):
     return False
 
 
-def achar_claude():
-    """O comando claude está à mão? O instalador do Claude Code o deixa em %USERPROFILE%\\.local\\bin, que nem sempre está no PATH de quem
-    abre o guardião pelo atalho ou pela tarefa agendada. Se estiver lá, a pasta entra no PATH deste programa."""
-    if shutil.which("claude"):
-        return True
-    pasta = os.path.join(os.path.expanduser("~"), ".local", "bin")
-    if os.path.isfile(os.path.join(pasta, "claude.exe")):
-        os.environ["PATH"] = pasta + os.pathsep + os.environ.get("PATH", "")
-        return True
-    return False
+def achar_claude(refazer=False):
+    """O Claude Code está instalado e executa? (npm, instalador oficial ou extensão do VS Code: veja guardiao_sessao.comando_do_claude)"""
+    return bool(guardiao_sessao.comando_do_claude(refazer))
 
 
-AVISO_SEM_CLAUDE = "Não achei o Claude Code neste computador. É ele que pensa por mim. Instale em claude.com/claude-code e abra o guardião de novo."
+AVISO_SEM_CLAUDE = guardiao_sessao.AVISO_SEM_CLAUDE
 
 
 def voz_configurada():
@@ -118,6 +113,40 @@ def chave_groq():
             return winreg.QueryValueEx(k, "GROQ_API_KEY")[0]
     except OSError:
         return None
+
+
+class Microfone:
+    """O microfone do guardião. Se faltar a chave do Groq ou o aparelho na hora de ligar, a pessoa pode resolver com o guardião aberto
+    (gravar a chave, plugar o fone): o programa tenta de novo sozinho e a tela passa a mostrar o microfone ligado."""
+
+    def __init__(self, a, entrada):
+        self.a, self.entrada, self.stream, self.ultimo_erro = a, entrada, None, ""
+
+    def tentar(self, chave):
+        if self.stream is not None:
+            return True
+        if not chave:  # sem a chave não há o que fazer com o áudio: o microfone fica desligado
+            return False
+        try:
+            stream = sd.RawInputStream(samplerate=SR, blocksize=BLOCO, dtype="int16", channels=1, device=self.a.mic,
+                                       callback=lambda indata, frames, tempo, status: self.entrada.put(bytes(indata)))
+            stream.start()
+        except Exception as erro:  # computador sem microfone (ou com ele bloqueado): o painel segue por texto
+            if str(erro) != self.ultimo_erro:  # o problema é contado uma vez só, não a cada tentativa
+                self.ultimo_erro = str(erro)
+                print("  (não consegui abrir o microfone:", erro, ")")
+            return False
+        self.stream = stream
+        return True
+
+    def parar(self):
+        if self.stream is not None:
+            try:
+                self.stream.stop()
+                self.stream.close()
+            except Exception:
+                pass
+            self.stream = None
 
 
 def rms_de(dado):
@@ -247,6 +276,24 @@ def limpar_alucinacao(texto):
     if len(re.sub(r"[^A-Za-zÀ-ú0-9]", "", limpo)) < 2:
         return ""
     return limpo
+
+
+# Uma palavra só, dita em menos de um segundo e meio, quase sempre é ruído que o Whisper "transcreve" mesmo assim (um clique vira "Mãe.", o silêncio vira
+# "Obrigado."). Vale como fala só se for um comando ou uma resposta conhecida; palavra curta de até 3 letras que não está na lista também cai.
+RUIDO_COMUM = {"obrigado", "obrigada", "tchau", "mae", "ah", "eh", "hm", "hum", "uhum", "ne", "ta", "to", "tudo", "bom", "tá"}
+CURTAS_VALIDAS = {"sim", "nao", "ok", "oi", "ola", "pare", "para", "pode", "isso", "certo", "claro", "aprova", "aprovar", "cancela", "cancelar", "volta", "voltar",
+                  "sempre", "feito", "pronto", "conclui", "ajuda", "agora", "hoje", "plano", "amanha", "resumo", "pendencias", "continua", "continue", "repete", "repita"}
+
+
+def fala_confiavel(texto, segundos_de_voz):
+    """False quando o que foi 'ouvido' é quase certamente ruído: uma palavra só, curta no tempo, que não é comando nem resposta conhecida."""
+    palavras = _norm(texto).split()
+    if len(palavras) != 1 or segundos_de_voz >= 1.5:
+        return True
+    palavra = palavras[0]
+    if palavra in CURTAS_VALIDAS:
+        return True
+    return not (palavra in RUIDO_COMUM or len(palavra) <= 3)
 
 
 def transcrever(wav_bytes, chave):
@@ -528,6 +575,7 @@ PROPOSTA = None  # algo aguardando o "sim" da pessoa: {"tipo": "criar" ou "aprov
 REVISAO = None  # revisão do plano em andamento: {"inicio": time, "ultimo": time}; enquanto durar, o microfone reabre depois de cada resposta
 AVISOS_AO_MODELO = []  # resultado dos últimos ajustes do plano, para o guardião saber se deu certo na próxima fala
 INTERVALO_SAUDACAO = 3 * 3600  # a saudação não se repete se a janela for reaberta antes disso
+LIMITE_SAUDACAO = 18  # segundos desde que a saudação começa a ser preparada: a abertura da tela dura uns 9, o Claude leva uns 4. Passou disso, vale a frase local
 CONVERSA = []  # últimas trocas, para o guardião entender "e a da Marina?" ou o comentário que ele pediu
 VALIDADE_PROPOSTA = 180  # segundos
 INTENCAO = {  # a ação só acontece se o que a pessoa disse realmente pede aquilo
@@ -657,18 +705,47 @@ def lembrar(usuario, guardiao, na_sessao=False):
         CONVERSA.clear()
     CONVERSA.append((agora, usuario, guardiao))
     del CONVERSA[:-4]
+    memoria_conversa.lembrar(usuario, guardiao, agora)  # em arquivo: sobrevive a reinício e a horas de intervalo (o CONVERSA acima só serve para as janelas curtas de intenção)
 
 
 def bloco_conversa():
-    if not CONVERSA or time.time() - CONVERSA[-1][0] > 600:
+    """O que o guardião lembra, para ir junto da pergunta: o resumo do dia e as últimas 10 trocas (memoria_conversa.py)."""
+    base = memoria_conversa.bloco(pessoa()["primeiro"])
+    if not base:
         return ""
-    linhas = []
-    for _, u, g in CONVERSA:
-        linhas += [f"{pessoa()['primeiro']}: {u}", f"Guardiao: {g}"]
     pendente = ""
     if PROPOSTA and time.time() - PROPOSTA["quando"] < VALIDADE_PROPOSTA:
         pendente = f"\nPROPOSTA PENDENTE ({PROPOSTA.get('tipo', 'criar')}) aguardando o sim {pessoa()['do']}: {json.dumps(PROPOSTA['dados'], ensure_ascii=False)}"
-    return "CONVERSA RECENTE (para você entender o que ele quer dizer agora):\n" + "\n".join(linhas) + pendente
+    return base + pendente
+
+
+def _chamar_resumo(pedido):
+    """O resumo do dia: uma chamada curta ao modelo leve, sem ferramentas, sem conectores e sem pensamento. Devolve o texto ou None."""
+    base = guardiao_sessao.comando_do_claude()
+    if not base:
+        return None
+    arq = os.path.join(tempfile.gettempdir(), "guardiao_voz_resumo.txt")
+    with open(arq, "w", encoding="utf-8") as f:
+        f.write("Você escreve resumos curtos e fiéis do que foi dito. Responda só com o resumo.")
+    modelo = MODELO_LEVE if modelo_leve_ligado() and MODELO_LEVE else MODELO_PADRAO
+    cmd = [*base, "-p", pedido, "--model", modelo, "--system-prompt-file", arq, "--tools", "", "--disable-slash-commands", "--strict-mcp-config",
+           "--setting-sources", "local", "--no-session-persistence", "--effort", "low", "--output-format", "json"]
+    env = dict(os.environ)
+    env.pop("CLAUDECODE", None)
+    env["MAX_THINKING_TOKENS"] = "0"
+    erro = guardiao_sessao.arquivo_de_erro()
+    try:
+        saida = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=erro, text=True, encoding="utf-8", errors="replace", env=env, cwd=OPER, timeout=90,
+                               creationflags=guardiao_sessao.FLAGS_CLAUDE)
+    finally:
+        if erro is not subprocess.DEVNULL:
+            erro.close()
+    try:
+        ev = json.loads(saida.stdout)
+    except ValueError:
+        return None
+    registrar_chamada(modelo, "resumo do dia", ev)
+    return None if ev.get("is_error") else str(ev.get("result") or "").strip()
 
 
 def texto_acoes(sessao=False):
@@ -826,12 +903,18 @@ def frases_da_sessao(pergunta):
             guardiao_sessao.avisar_tela(troca=True)
         _CONVERSA_DA_VEZ[0] = conversa
         cortador = Cortador()
+        viu_texto = False
+        latencia.marca("sessao_turno_enviado")
         for tipo, dado in guardiao_sessao.turno(mensagem_da_sessao(pergunta, conversa), arquivo_prompt_sessao()):
             if tipo == "texto":
+                if not viu_texto:
+                    viu_texto = True
+                    latencia.marca("sessao_primeiro_texto")
                 for frase in cortador.alimentar(dado):
                     saiu = True
                     yield frase
             elif tipo == "ferramenta":
+                latencia.marca("ferramenta", fase=dado.get("fase"), rotulo=dado.get("rotulo"), dentro=bool(dado.get("dentro")))
                 if dado.get("fase") == "inicio" and not dado.get("dentro"):
                     antes = cortador.resto()  # "Vou olhar no ClickUp" é dito já, enquanto a ferramenta trabalha
                     if antes:
@@ -845,12 +928,14 @@ def frases_da_sessao(pergunta):
                     yield antes
                 yield "permissao", dado
             elif tipo == "fim":
+                if not saiu and isinstance(dado, dict) and dado.get("is_error") and not dado.get("_interrompido"):
+                    raise guardiao_sessao.erro_de_conta(dado.get("result"))  # limite de uso, sem login...: dizer o motivo, não ficar mudo nem tentar de novo
                 break
         resto = cortador.resto()
         if resto:
             yield resto
     except Exception as erro:
-        if saiu:
+        if saiu or isinstance(erro, guardiao_sessao.ErroDeConta):  # erro de conta: o modo rápido falharia igual, só dobraria a espera
             raise
         print("  (a sessão do Claude Code falhou, respondo pelo modo rápido:", erro, ")")
         bus.emitir("aviso", texto="A sessão do Claude Code não respondeu. Respondi pelo modo rápido.", erro=True)
@@ -940,6 +1025,7 @@ def trocar_conversa(cid=None):
     """Conversa nova (sem id) ou volta a uma anterior. A memória curta do modo rápido também é zerada."""
     CONVERSA.clear()
     FORA_DA_SESSAO.clear()
+    memoria_conversa.zerar()
     return guardiao_sessao.trocar(cid)
 
 
@@ -951,8 +1037,11 @@ def comando_claude(pergunta, streaming, modelo=None):
     if mensagem != pergunta:  # para depurar: o que foi junto da pergunta neste turno (o prompt de sistema fica no arquivo ao lado)
         with open(os.path.join(tempfile.gettempdir(), "guardiao_voz_mensagem.txt"), "w", encoding="utf-8") as f:
             f.write(mensagem)
+    base = guardiao_sessao.comando_do_claude()
+    if not base:
+        raise guardiao_sessao.ErroDeConta(AVISO_SEM_CLAUDE)
     cmd = [
-        "claude", "-p", mensagem,
+        *base, "-p", mensagem,
         "--model", modelo or MODELO_PADRAO,
         "--system-prompt-file", arq,
         "--tools", "Read",
@@ -978,7 +1067,7 @@ def comando_claude(pergunta, streaming, modelo=None):
 def perguntar_claude(pergunta, modelo=None):
     t0 = time.time()
     cmd, env = comando_claude(pergunta, streaming=False, modelo=modelo)
-    saida = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env, cwd=OPER, timeout=90, creationflags=SEM_JANELA)
+    saida = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env, cwd=OPER, timeout=90, creationflags=guardiao_sessao.FLAGS_CLAUDE)
     try:
         resposta = json.loads(saida.stdout).get("result", "").strip()
     except json.JSONDecodeError:
@@ -1031,22 +1120,42 @@ class Cortador:
 def frases_do_claude(pergunta, modelo=None, motivo=""):
     """Pergunta ao Claude em streaming e devolve cada frase assim que ela fica completa."""
     cmd, env = comando_claude(pergunta, streaming=True, modelo=modelo)
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", env=env, cwd=OPER, creationflags=SEM_JANELA)
+    erro_arq = guardiao_sessao.arquivo_de_erro()
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=erro_arq, text=True, encoding="utf-8", env=env, cwd=OPER, creationflags=guardiao_sessao.FLAGS_CLAUDE)
+    if erro_arq is not subprocess.DEVNULL:
+        erro_arq.close()  # o processo filho tem a própria cópia
+    controle_fala.registrar_processo(proc)
+    latencia.marca("claude_iniciou")
     cortador = Cortador()
+    falou, erro_do_claude, viu_linha, viu_texto = False, "", False, False
     try:
         for linha in proc.stdout:
+            if not viu_linha:
+                viu_linha = True
+                latencia.marca("claude_primeira_linha")
             try:
                 ev = json.loads(linha)
             except json.JSONDecodeError:
                 continue
             if ev.get("type") == "result":
                 registrar_chamada(modelo or MODELO_PADRAO, motivo, ev)
+                if ev.get("is_error"):
+                    erro_do_claude = str(ev.get("result") or "erro")
             if ev.get("type") == "stream_event" and ev["event"].get("type") == "content_block_delta":
-                yield from cortador.alimentar(ev["event"].get("delta", {}).get("text", ""))
+                if not viu_texto:
+                    viu_texto = True
+                    latencia.marca("claude_primeiro_texto")
+                for frase in cortador.alimentar(ev["event"].get("delta", {}).get("text", "")):
+                    falou = True
+                    yield frase
         resto = cortador.resto()
         if resto:
+            falou = True
             yield resto
+        if erro_do_claude and not falou:  # sem login, sem limite de uso...: a pessoa precisa saber o que fazer, não ouvir "não respondeu"
+            raise guardiao_sessao.erro_de_conta(erro_do_claude)
     finally:
+        controle_fala.esquecer_processo(proc)
         try:
             proc.terminate()
         except OSError:
@@ -1080,6 +1189,9 @@ def tocar_e_revelar(texto, amostras, taxa, antes=""):
     mostrado = 0
     janela = int(taxa * 0.05)
     while True:
+        if controle_fala.PARAR.is_set():  # a pessoa fechou a janela: a frase é cortada no meio
+            sd.stop()
+            return
         decorrido = time.time() - t0
         alvo = len(texto) if decorrido >= duracao else int(len(texto) * decorrido / duracao)
         if alvo > mostrado:
@@ -1254,7 +1366,7 @@ def prompt_completo(pedido, arquivo_plano):
     quem = pessoa()
     memoria = pasta_memoria()
     hoje = time.strftime("%Y-%m-%d")
-    conversa = "\n".join(f"{quem['primeiro']}: {u}\nGuardião: {g}" for _, u, g in CONVERSA[-3:])
+    conversa = "\n".join(f"{quem['primeiro']}: {u}\nGuardião: {g}" for _, u, g in memoria_conversa.recentes(3))
     return (
         f"Use a skill guardiao-triwer. Pedido de {quem['nome']}, feito por voz no painel do guardião: \"{pedido}\"\n"
         f"Hoje é {hoje} e agora são {time.strftime('%H:%M')}. Pasta operacional (plano, registros, resumo do ClickUp, scripts): {OPER}. Pasta de memória: {memoria}.\n"
@@ -1275,11 +1387,14 @@ def prompt_completo(pedido, arquivo_plano):
 
 def _chamar_completo(pedido, arquivo_plano):
     memoria = pasta_memoria()
-    cmd = ["claude", "-p", prompt_completo(pedido, arquivo_plano), "--model", MODELO_PADRAO, "--add-dir", memoria,
+    base = guardiao_sessao.comando_do_claude()
+    if not base:
+        raise guardiao_sessao.ErroDeConta(AVISO_SEM_CLAUDE)
+    cmd = [*base, "-p", prompt_completo(pedido, arquivo_plano), "--model", MODELO_PADRAO, "--add-dir", memoria,
            "--allowedTools", "Read,Write,Glob,Skill", "--max-turns", "30", "--output-format", "json"]
     env = dict(os.environ)
     env.pop("CLAUDECODE", None)
-    saida = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, cwd=OPER, timeout=TEMPO_COMPLETO, creationflags=SEM_JANELA)
+    saida = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, cwd=OPER, timeout=TEMPO_COMPLETO, creationflags=guardiao_sessao.FLAGS_CLAUDE)
     ev = json.loads(saida.stdout)
     registrar_chamada(MODELO_PADRAO, "guardião completo", ev)
     return str(ev.get("result") or "")
@@ -1445,6 +1560,21 @@ def pode_saudar(forcar=False):
     return bool(forcar) or time.time() - _ler_saudacoes().get("ts", 0) > INTERVALO_SAUDACAO
 
 
+def marcar_saudacao():
+    """Anota que a saudação começou. Fica anotado já no começo e não só no fim: se ela falhar ou demorar, o próximo reinício não repete a saudação."""
+    d = _ler_saudacoes()
+    os.makedirs(os.path.dirname(SAUDACAO_ARQ), exist_ok=True)
+    with open(SAUDACAO_ARQ, "w", encoding="utf-8") as f:
+        json.dump({"ts": time.time(), "textos": d.get("textos") or []}, f, ensure_ascii=False)
+
+
+def saudacao_local():
+    """A saudação que não depende do Claude: usada quando a dele demora ou falha. Só o horário e o nome."""
+    hora = time.localtime().tm_hour
+    parte = "Bom dia" if 5 <= hora < 12 else "Boa tarde" if 12 <= hora < 18 else "Boa noite"
+    return f"{parte}, {pessoa()['primeiro']}."
+
+
 def registrar_saudacao(texto):
     d = _ler_saudacoes()
     textos = (d.get("textos") or [])[-2:] + [texto]
@@ -1499,6 +1629,7 @@ def revelar_sem_voz(texto, antes=""):
 
 def dizer(texto, a):
     """Fala uma resposta curta e fixa (sem passar pelo Claude), mostrando o texto junto, como nas respostas normais."""
+    controle_fala.comecar()
     bus.emitir("estado", v="falando")
     try:
         if not voz_ligada():
@@ -1509,10 +1640,31 @@ def dizer(texto, a):
             print()
         elif a.voz == "kokoro":
             k = carregar_kokoro()
+            frases = dividir_frases(texto)
+            prontas = queue.Queue()
+
+            def gerar():  # a próxima frase é gerada enquanto a anterior toca
+                for frase in frases:
+                    if controle_fala.PARAR.is_set():
+                        break
+                    try:
+                        amostras, taxa = k.create(normalizar_para_fala(frase), voice=a.voz_kokoro, speed=1.0, lang="pt-br")
+                        prontas.put((frase, amostras, taxa))
+                    except Exception:
+                        prontas.put((frase, None, None))
+                prontas.put(None)
+
+            threading.Thread(target=gerar, daemon=True).start()
             acumulado = ""
-            for frase in dividir_frases(texto):
-                amostras, taxa = k.create(normalizar_para_fala(frase), voice=a.voz_kokoro, speed=1.0, lang="pt-br")
-                tocar_e_revelar(frase, amostras, taxa, acumulado)
+            while True:
+                item = prontas.get()
+                if item is None or controle_fala.PARAR.is_set():
+                    break
+                frase, amostras, taxa = item
+                if amostras is None:
+                    revelar_sem_voz(frase, acumulado)
+                else:
+                    tocar_e_revelar(frase, amostras, taxa, acumulado)
                 acumulado += frase + " "
             print()
         else:
@@ -1521,100 +1673,138 @@ def dizer(texto, a):
     except Exception as erro:
         print("  (não consegui falar:", erro, ")")
         bus.emitir("guardiao_texto", texto=texto)
+    finally:
+        controle_fala.terminar()
     bus.emitir("guardiao_fim", texto=texto)
 
 
-def responder_falando(pergunta, voz_kokoro, texto_usuario=None, acoes=True, portao=None, modelo=None, motivo="", fonte=None, pedir=None):
+def responder_falando(pergunta, voz_kokoro, texto_usuario=None, acoes=True, portao=None, modelo=None, motivo="", fonte=None, pedir=None,
+                      limite_primeira=None, modo="rapido"):
     """Claude em streaming -> frases -> voz Kokoro, com o texto aparecendo junto com a fala e as diretivas
     (destaque, cartão, ações) acontecendo na hora em que a frase começa a ser falada.
+    limite_primeira: segundos até a primeira frase. Passou disso, a resposta é abandonada e a função lança TimeoutError (a saudação usa).
+    Se a pessoa fechar a janela no meio, a fala para e o que já foi dito é devolvido.
     Devolve (tempo até a primeira fala, tempo total, texto falado). Lança exceção se o Claude não responder."""
     texto_usuario = texto_usuario if texto_usuario is not None else pergunta
     t0 = time.time()
-    mudo = not voz_ligada()  # voz desligada no painel: nem sintetiza, só escreve
-    k = None if mudo else carregar_kokoro()
-    fila_frases = queue.Queue()
-    fila_audio = queue.Queue()
+    medidor = latencia.iniciar(modo, motivo)
+    controle_fala.comecar()
+    primeira, acumulado, dito, parado, erro_final = None, "", [], False, ""  # dito: mensagens já fechadas neste turno (o que veio antes de um pedido de permissão)
+    try:
+        mudo = not voz_ligada()  # voz desligada no painel: nem sintetiza, só escreve
+        k = None if mudo else carregar_kokoro()
+        fila_frases = queue.Queue()
+        fila_audio = queue.Queue()
+        erro_leitura = []
 
-    def ler():
-        try:
-            for frase in (fonte() if fonte else frases_do_claude(pergunta, modelo, motivo)):
-                fila_frases.put(frase)
-        finally:
-            fila_frases.put(None)
-
-    def sintetizar():
-        while True:
-            frase = fila_frases.get()
-            if frase is None:
-                fila_audio.put(None)
-                return
-            if not isinstance(frase, str):  # pedido de permissão: segue na ordem, depois do que já foi dito
-                fila_audio.put(frase)
-                continue
-            limpo, diretivas = extrair_diretivas(frase)
-            if not limpo or mudo:
-                fila_audio.put((limpo, diretivas, None, None))
-                continue
+        def ler():
             try:
-                amostras, taxa = k.create(normalizar_para_fala(limpo), voice=voz_kokoro, speed=1.0, lang="pt-br")
-                fila_audio.put((limpo, diretivas, amostras, taxa))
-            except Exception:
-                fila_audio.put((limpo, diretivas, None, None))
+                for frase in (fonte() if fonte else frases_do_claude(pergunta, modelo, motivo)):
+                    if controle_fala.PARAR.is_set():
+                        break
+                    fila_frases.put(frase)
+            except Exception as erro:  # o motivo de verdade (sem login, sem limite...) chega a quem está esperando a primeira frase
+                erro_leitura.append(erro)
+            finally:
+                fila_frases.put(None)
 
-    threading.Thread(target=ler, daemon=True).start()
-    threading.Thread(target=sintetizar, daemon=True).start()
-    print("  pensando...", end="\r", flush=True)
-    primeira = None
-    acumulado = ""
-    dito = []  # mensagens já fechadas neste turno (o que veio antes de um pedido de permissão)
-    calado = False  # parou de falar para usar uma ferramenta: a tela volta a mostrar que ele está trabalhando
-    while True:
-        try:
-            item = fila_audio.get(timeout=0.5)
-        except queue.Empty:
-            if primeira is not None and not calado:
+        def sintetizar():
+            n = 0
+            while True:
+                frase = fila_frases.get()
+                if frase is None:
+                    fila_audio.put(None)
+                    return
+                if controle_fala.PARAR.is_set():
+                    continue  # a pessoa fechou a janela: o resto da fila é esvaziado sem gerar voz
+                if not isinstance(frase, str):  # pedido de permissão: segue na ordem, depois do que já foi dito
+                    fila_audio.put(frase)
+                    continue
+                limpo, diretivas = extrair_diretivas(frase)
+                n += 1
+                medidor.marca("frase", n=n, palavras=len(limpo.split()))
+                if not limpo or mudo:
+                    fila_audio.put((limpo, diretivas, None, None))
+                    continue
+                try:
+                    inicio = time.time()
+                    medidor.marca("sintese_ini", n=n)
+                    amostras, taxa = k.create(normalizar_para_fala(limpo), voice=voz_kokoro, speed=1.0, lang="pt-br")
+                    medidor.marca("sintese_fim", n=n, fala=round(len(amostras) / taxa, 1), gasto=round(time.time() - inicio, 2))
+                    fila_audio.put((limpo, diretivas, amostras, taxa))
+                except Exception:
+                    fila_audio.put((limpo, diretivas, None, None))
+
+        threading.Thread(target=ler, daemon=True).start()
+        threading.Thread(target=sintetizar, daemon=True).start()
+        print("  pensando...", end="\r", flush=True)
+        calado = False  # parou de falar para usar uma ferramenta: a tela volta a mostrar que ele está trabalhando
+        toques = 0
+        while True:
+            if controle_fala.PARAR.is_set():
+                parado = True
+                break
+            if limite_primeira and primeira is None and time.time() - t0 > limite_primeira:
+                controle_fala.parar(f"a primeira frase não chegou em {limite_primeira} s")
+                raise TimeoutError(f"a primeira frase não chegou em {limite_primeira} s")
+            try:
+                item = fila_audio.get(timeout=0.5)
+            except queue.Empty:
+                if primeira is not None and not calado:
+                    calado = True
+                    bus.emitir("estado", v="pensando")
+                continue
+            if item is None:
+                break
+            if len(item) == 2 and item[0] == "permissao":
+                if acumulado.strip():
+                    print()
+                    bus.emitir("guardiao_fim", texto=acumulado.strip())
+                    dito.append(acumulado.strip())
+                    acumulado = ""
+                guardiao_sessao.decidir(item[1], *(pedir(item[1]) if pedir else ("nao", "")))
                 calado = True
-                bus.emitir("estado", v="pensando")
-            continue
-        if item is None:
-            break
-        if len(item) == 2 and item[0] == "permissao":
-            if acumulado.strip():
-                print()
-                bus.emitir("guardiao_fim", texto=acumulado.strip())
-                dito.append(acumulado.strip())
-                acumulado = ""
-            guardiao_sessao.decidir(item[1], *(pedir(item[1]) if pedir else ("nao", "")))
-            calado = True
-            continue
-        limpo, diretivas, amostras, taxa = item
-        if portao is not None and primeira is None and limpo:
-            portao.wait(timeout=15)  # a saudação espera a abertura da tela terminar
-        if diretivas:
-            executar_diretivas(diretivas, texto_usuario, acoes)
-        if not limpo:
-            continue
-        if primeira is None:
-            primeira = time.time() - t0
-            print(" " * 40, end="\r")
-            print("  Guardião: ", end="", flush=True)
-            bus.emitir("estado", v="falando")
-        elif calado:
-            bus.emitir("estado", v="falando")
-        calado = False
-        if amostras is None:
-            revelar_sem_voz(limpo, acumulado)
-        else:
-            tocar_e_revelar(limpo, amostras, taxa, acumulado)
-        acumulado += limpo + " "
-    print()
-    if primeira is None and not dito:
-        raise RuntimeError("o Claude não respondeu")
-    if acumulado.strip():
-        bus.emitir("guardiao_fim", texto=acumulado.strip())
-        dito.append(acumulado.strip())
-    bus.emitir("foco_fim")
-    return primeira or 0.0, time.time() - t0, " ".join(dito)
+                continue
+            limpo, diretivas, amostras, taxa = item
+            if portao is not None and primeira is None and limpo:
+                portao.wait(timeout=15)  # a saudação espera a abertura da tela terminar
+            if controle_fala.PARAR.is_set():
+                parado = True
+                break
+            if diretivas:
+                executar_diretivas(diretivas, texto_usuario, acoes)
+            if not limpo:
+                continue
+            if primeira is None:
+                primeira = time.time() - t0
+                print(" " * 40, end="\r")
+                print("  Guardião: ", end="", flush=True)
+                bus.emitir("estado", v="falando")
+            elif calado:
+                bus.emitir("estado", v="falando")
+            calado = False
+            toques += 1
+            medidor.marca("toque_ini", n=toques)
+            if amostras is None:
+                revelar_sem_voz(limpo, acumulado)
+            else:
+                tocar_e_revelar(limpo, amostras, taxa, acumulado)
+            medidor.marca("toque_fim", n=toques)
+            acumulado += limpo + " "
+        print()
+        if primeira is None and not dito and not parado:
+            raise (erro_leitura[0] if erro_leitura else RuntimeError("o Claude não respondeu"))
+        if acumulado.strip():
+            bus.emitir("guardiao_fim", texto=acumulado.strip())
+            dito.append(acumulado.strip())
+        bus.emitir("foco_fim")
+        return primeira or 0.0, time.time() - t0, " ".join(dito)
+    except Exception as erro:
+        erro_final = f"{type(erro).__name__}: {erro}"
+        raise
+    finally:
+        controle_fala.terminar()
+        medidor.fechar(primeira=round(primeira, 2) if primeira is not None else None, parado=parado, erro=erro_final or None)
 
 
 def tocar_mp3(caminho):
@@ -1738,20 +1928,9 @@ def vigiar_avisos():
 
 # a janela do guardião tem um perfil só dela: assim o som da abertura toca sem precisar de um clique antes
 # (a regra de "autoplay" só vale para um Edge que nasce com essa opção) e as preferências da tela ficam guardadas lá
-PERFIL_EDGE = os.path.join(BASE, "perfil_edge")
-ARGS_JANELA = [f"--user-data-dir={PERFIL_EDGE}", "--autoplay-policy=no-user-gesture-required", "--no-first-run", "--no-default-browser-check"]
-
-
 def abrir_tela(url):
-    """Abre a tela numa janela só dela (sem abas nem barra de endereço) no Edge; se não achar, no navegador padrão."""
-    for caminho in (
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-    ):
-        if os.path.exists(caminho):
-            subprocess.Popen([caminho, f"--app={url}", "--window-size=1500,940", *ARGS_JANELA])
-            return
-    webbrowser.open(url)
+    """Abre o painel numa janela só dele (sem abas nem barra de endereço) no Edge, sem entrar na conta da pessoa nem sincronizar (veja janela_edge.py)."""
+    janela_edge.abrir(url, "1500,940")
 
 
 # ---------------- pedidos que a própria máquina resolve (painel novo), sem gastar uma chamada ao Claude ----------------
@@ -1846,6 +2025,7 @@ def comando_local(texto):
             trocar_conversa()
         else:
             CONVERSA.clear()
+            memoria_conversa.zerar()
         return {"fala": "Conversa nova. Pode falar."}
     if VER_CONVERSAS.search(t) and modo_sessao():
         bus.emitir("ui", cmd="conversas")
@@ -1984,6 +2164,12 @@ def escutar(a, q, modelo, chave, piso, seguimento=False, avisar_cancelamento=Tru
         bus.emitir("estado", v="aguardando")
         return "", None, "erro"
     print(f"  Você disse (Groq, {stt:.1f}s): {texto}")
+    segundos_de_voz = len(pcm) / (2.0 * SR)
+    if texto and not fala_confiavel(texto, segundos_de_voz):
+        print(f"  (descartei: uma palavra só, em {segundos_de_voz:.1f}s, parece ruído)")
+        bus.emitir("previa", texto="")
+        bus.emitir("estado", v="aguardando")
+        return "", stt, "silencio"
     return texto, stt, "ok" if texto else "silencio"
 
 
@@ -2071,6 +2257,9 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, saudacao=False, segu
 
     bus.emitir("estado", v="pensando")
     falado = ""
+    sem_conta = False
+    if saudacao:
+        marcar_saudacao()
     na_sessao = modo_sessao() and not saudacao  # a saudação continua no modo rápido: é curta e não precisa de memória
     llm, motivo_llm = escolher_modelo("" if saudacao else texto, saudacao)
     print("  (sessão do Claude Code)" if na_sessao else f"  (modelo: {llm}, {motivo_llm})")
@@ -2082,7 +2271,9 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, saudacao=False, segu
         if a.voz == "kokoro":
             primeira, total, falado = responder_falando(texto, a.voz_kokoro, "" if saudacao else texto, acoes=not saudacao,
                                                         portao=bus.portao_saudacao if saudacao else None, modelo=llm, motivo=motivo_llm,
-                                                        fonte=(lambda: frases_da_sessao(texto)) if na_sessao else None, pedir=pedir if na_sessao else None)
+                                                        fonte=(lambda: frases_da_sessao(texto)) if na_sessao else None, pedir=pedir if na_sessao else None,
+                                                        limite_primeira=LIMITE_SAUDACAO if saudacao else None,
+                                                        modo="saudacao" if saudacao else "sessao" if na_sessao else "rapido")
             print(f"  (voz começou em {primeira:.1f}s, resposta completa em {total:.1f}s)")
         else:
             if na_sessao:
@@ -2125,8 +2316,18 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, saudacao=False, segu
         bus.emitir("metricas", stt=stt, primeira=primeira, total=total)
     except Exception as erro:
         print("  Erro:", erro)
-        bus.emitir("erro", msg=AVISO_SEM_CLAUDE if isinstance(erro, FileNotFoundError) and not achar_claude() else f"Não consegui responder: {erro}")
+        conta = isinstance(erro, (guardiao_sessao.ErroDeConta, FileNotFoundError))  # sem Claude Code, sem login, no limite de uso...
+        if conta:
+            sem_conta = True
+        elif not isinstance(erro, TimeoutError):  # demorar demais na saudação não é erro para mostrar: ela só vira a frase local
+            bus.emitir("erro", msg=f"Não consegui responder: {erro}")
         falado = ""
+        if saudacao:  # a abertura nunca fica muda nem fala tarde: o cumprimento local entra no lugar (e, se o problema é a conta, já avisa)
+            falado = saudacao_local() + (f" {erro}" if conta else "")
+            dizer(falado, a)
+            registrar_saudacao(falado)
+        elif conta:
+            dizer(str(erro), a)  # escreve na conversa e fala: o motivo e o que fazer, sem depender do Claude
     drenar(q)
     guardar = []
     while not bus.comandos.empty():  # cliques e perguntas acumulados durante a resposta não disparam de novo
@@ -2141,7 +2342,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, saudacao=False, segu
     tocar_revisao()
     # o microfone reabre quando ele precisa responder: depois da saudação, durante a revisão do plano,
     # com algo esperando o sim, ou quando o guardião terminou a fala com uma pergunta
-    seguir = bool(falado) and (texto_digitado is None or saudacao) and (
+    seguir = bool(falado) and not sem_conta and not controle_fala.PARAR.is_set() and (texto_digitado is None or saudacao) and (
         saudacao or revisao_ativa() or PROPOSTA is not None or falado.rstrip().endswith("?"))
     bus.emitir("estado", v="aguardando")
     return seguir
@@ -2190,8 +2391,15 @@ def main():
         return
     if a.voz_kokoro == VOZ_KOKORO:  # sem escolha na linha de comando, vale a voz escolhida no onboarding
         a.voz_kokoro = voz_configurada()
-    if a.cerebro and not achar_claude():
-        print("Não achei o comando claude (Claude Code). O painel abre, mas o guardião não responde até ele ser instalado: https://claude.com/claude-code")
+    if a.cerebro:
+        memoria_conversa.vigiar(_chamar_resumo, lambda: pessoa()["primeiro"])  # o resumo do dia é atualizado quando a pessoa fica uns minutos sem falar
+        estado = guardiao_sessao.estado_do_claude()
+        if estado["ok"]:
+            print(f"Claude Code: {estado['versao']} ({estado['de']})")
+        else:
+            print("Não achei um Claude Code que execute. O painel abre, mas o guardião não responde até ele ser instalado: https://claude.com/claude-code")
+            if estado["erro"]:
+                print("  tentativas:", estado["erro"])
     ACOES_ATIVAS = not a.sem_acoes
     if a.prompt_estavel:
         PROMPT_ESTAVEL = True
@@ -2217,7 +2425,7 @@ def main():
         return
 
     if not chave:  # sem a chave o painel abre do mesmo jeito: a conversa é por texto e o microfone fica desligado
-        print("Sem a chave do Groq: microfone desligado, conversa só por texto. Para ligar: dois cliques em definir_chave_groq.bat e abra o guardião de novo.")
+        print("Sem a chave do Groq: microfone desligado, conversa só por texto. Para ligar: dois cliques em definir_chave_groq.bat; o microfone liga sozinho em até um minuto.")
 
     if not a.sem_tela:
         servidor = iniciar_servidor(PORTA_TELA)
@@ -2243,24 +2451,19 @@ def main():
         abrir_tela(url + "v2/")
 
     q = queue.Queue()
-
-    def callback(indata, frames, tempo, status):
-        q.put(bytes(indata))
-
     piso = 120.0
-    captura = None
-    if chave:
-        try:
-            captura = sd.RawInputStream(samplerate=SR, blocksize=BLOCO, dtype="int16", channels=1, device=a.mic, callback=callback)
-        except Exception as erro:  # computador sem microfone (ou com ele bloqueado): o painel segue por texto
-            print("  (não consegui abrir o microfone:", erro, ")")
-    sem_mic = captura is None
+    escuta_aberta_original = bool(getattr(a, "sem_escuta_aberta", False))
+    mic = Microfone(a, q)
+    mic.tentar(chave)
+    sem_mic = mic.stream is None
     if sem_mic:
         a.sem_escuta_aberta = True  # sem microfone, ninguém fica esperando uma resposta falada
-    with (captura or contextlib.nullcontext()):
+    try:
         modo = "com o cérebro (Claude)" if a.cerebro else "só transcrevendo"
         print(f"Pronto, {modo}. " + ("Microfone desligado: escreva no painel." if sem_mic else "Diga 'Ei guardião', espere o bipe e fale.") + " Ctrl+C para sair.")
-        bus.emitir("saude", mic=not sem_mic, groq=bool(chave), claude=bool(a.cerebro and shutil.which("claude")), voz=voz_ok)
+        saude = {"mic": not sem_mic, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
+        bus.emitir("saude", **saude)
+        revisar_em = mic_em = claude_em = time.time() + 5
         bus.emitir("estado", v="aguardando")
         atexit.register(guardiao_sessao.encerrar)  # o Claude Code da sessão fecha junto com o guardião
         if a.cerebro and modo_sessao():  # abre a sessão do Claude Code já, para a primeira fala não esperar a partida
@@ -2272,6 +2475,22 @@ def main():
                 dado = q.get(timeout=0.2)
             except queue.Empty:
                 dado = None
+            if time.time() > revisar_em:  # o que pode mudar com o guardião aberto: a chave gravada depois, o fone ligado depois, o Claude Code instalado depois
+                revisar_em = time.time() + 5
+                if not chave:
+                    chave = chave_groq()
+                if chave and mic.stream is None and time.time() > mic_em:
+                    mic_em = time.time() + 30
+                    if mic.tentar(chave):
+                        a.sem_escuta_aberta = escuta_aberta_original
+                        print("Microfone ligado. Diga 'Ei guardião', espere o bipe e fale.")
+                if a.cerebro and not achar_claude() and time.time() > claude_em:
+                    claude_em = time.time() + 30
+                    threading.Thread(target=lambda: achar_claude(refazer=True), daemon=True).start()  # a conferência executa o Claude: fora do laço do áudio
+                agora_saude = {"mic": mic.stream is not None, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
+                if agora_saude != saude:
+                    saude = agora_saude
+                    bus.emitir("saude", **saude)
             if a.cerebro and time.time() > olhar_em:  # a pessoa ligou o modo sessão nas preferências: o Claude Code já começa a abrir
                 olhar_em = time.time() + 5
                 ligada = modo_sessao()
@@ -2369,9 +2588,13 @@ def main():
             if not ativou:
                 continue
 
+            if a.cerebro and modo_sessao():  # a pessoa leva alguns segundos para falar: a sessão do Claude Code já abre (ou segue aberta, sem custo)
+                threading.Thread(target=lambda: guardiao_sessao.preparar(arquivo_prompt_sessao()), daemon=True).start()
             conversar(a, q, modelo, chave, piso)
             rec = reconhecedor(modelo)
             print("Aguardando 'Ei guardião'...")
+    finally:
+        mic.parar()
 
 
 if __name__ == "__main__":

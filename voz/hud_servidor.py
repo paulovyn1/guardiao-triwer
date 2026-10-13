@@ -51,6 +51,7 @@ class Barramento:
         self.ultimos = {}
         self.portao_saudacao = threading.Event()  # a saudação só começa a falar quando a abertura da tela termina
         self.cancelar_escuta = threading.Event()  # a tela pediu para parar de ouvir (clique no microfone enquanto ouvia)
+        self.ao_ficar_sem_janela = None  # função chamada quando a última janela do painel fecha (o guardiao_voz usa para parar a fala)
 
     def emitir(self, tipo, /, **dados):
         ev = {"t": tipo, **dados}
@@ -79,6 +80,12 @@ class Barramento:
     def sair(self, q):
         with self.trava:
             self.assinantes.discard(q)
+            ficou_vazio = not self.assinantes
+        if ficou_vazio and self.ao_ficar_sem_janela:
+            try:
+                self.ao_ficar_sem_janela()
+            except Exception:
+                pass
 
 
 bus = Barramento()

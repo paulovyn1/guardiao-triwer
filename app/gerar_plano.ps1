@@ -74,10 +74,16 @@ No fim, responda em ate 6 linhas: o que colocou, o que deixou de fora e por que.
 "@
 
 $env:CLAUDECODE = $null
-# o instalador do Claude Code deixa o comando em %USERPROFILE%\.local\bin, que nem sempre está no PATH da tarefa agendada
-$claudeLocal = Join-Path $env:USERPROFILE '.local\bin'
-if (-not (Get-Command claude -ErrorAction SilentlyContinue) -and (Test-Path (Join-Path $claudeLocal 'claude.exe'))) { $env:PATH = "$claudeLocal;$env:PATH" }
 Set-Location $pasta
-$saidaClaude = & claude -p $prompt --add-dir $memoria --allowedTools "Read,Write,Glob,Skill" --max-turns 25 --output-format text 2>&1
+# Achar o claude.exe de verdade (npm, instalador oficial ou extensão do VS Code) e fixar o modelo: sem isso o plano diário usaria o padrão
+# da conta de quem instalou, que pode ser um modelo várias vezes mais caro. GUARDIAO_MODELO troca (o painel usa a mesma variável).
+$claude = Get-ClaudeEstado
+if (-not $claude.Ok) {
+    "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===`r`nNão achei um Claude Code que execute: $($claude.Erro)" | Out-File $log -Append -Encoding utf8
+    exit 1
+}
+$exeClaude = $claude.Comando[0]; $preClaude = @(); if ($claude.Comando.Count -gt 1) { $preClaude = @($claude.Comando[1..($claude.Comando.Count - 1)]) }
+$modelo = if ($env:GUARDIAO_MODELO) { $env:GUARDIAO_MODELO } else { 'claude-sonnet-5-5' }
+$saidaClaude = & $exeClaude @preClaude -p $prompt --model $modelo --add-dir $memoria --allowedTools "Read,Write,Glob,Skill" --max-turns 25 --output-format text 2>&1
 "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===" | Out-File $log -Append -Encoding utf8
 $saidaClaude | Out-String | Out-File $log -Append -Encoding utf8

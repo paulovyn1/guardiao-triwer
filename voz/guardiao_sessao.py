@@ -5,10 +5,12 @@
 #
 # Arquivos (pasta operacional\conversas): indice.json (as conversas), <id>.jsonl (o que foi dito, para reabrir na tela)
 # e permissoes.json (o que a pessoa mandou permitir sempre).
+import glob
 import json
 import os
 import queue
 import re
+import shutil
 import subprocess
 import threading
 import time
@@ -18,11 +20,168 @@ import hud_servidor as h
 from hud_servidor import _config, _ler_json, bus
 
 SEM_JANELA = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-COMANDO = ["claude"]  # os testes trocam por um Claude de mentira
+# O Claude Code (e os conectores que ele abre, que herdam a prioridade) roda abaixo do normal: ele passa quase todo o tempo esperando a rede e quase não sente,
+# mas na partida os conectores gastam toda a CPU, e a voz (que é gerada neste computador) ficava mais lenta do que a fala, com pausas entre as frases.
+FLAGS_CLAUDE = SEM_JANELA | getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0x00004000)
+COMANDO = None  # os testes trocam por um Claude de mentira (lista com o comando); sem isso vale comando_do_claude()
 MODELO_PADRAO = os.environ.get("GUARDIAO_MODELO") or "claude-sonnet-5-5"
 PRAZO_PERMISSAO = 150  # segundos esperando o sim ou o não; sem resposta, a ação é negada
 PRAZO_SILENCIO = 600   # sem nenhum sinal do Claude por tanto tempo, o turno é dado como perdido
 _trava = threading.RLock()
+
+
+# ---------------- onde está o Claude Code ----------------
+# O nome "claude" puro não basta no Windows: quem instalou por npm tem um claude.cmd, que o CreateProcess não abre
+# (FileNotFoundError) e que, chamado por caminho completo, o cmd.exe corta na primeira quebra de linha do pedido.
+# Aqui se acha o claude.exe de verdade, se confere que ele executa e todo o programa chama por este caminho.
+
+AVISO_SEM_CLAUDE = "Não achei o Claude Code neste computador. É ele que pensa por mim. Instale em claude.com/claude-code, entre com a sua conta e abra o guardião de novo."
+_CLAUDE = {"comando": None, "versao": "", "erro": "", "de": ""}
+_trava_claude = threading.Lock()
+
+
+def _real_do_atalho(atalho):
+    """O que um claude.cmd do npm de fato executa: ['...\\claude.exe'] ou, nas versões antigas, [node, '...\\cli.js']. Vazio se não achar."""
+    base = os.path.dirname(os.path.abspath(atalho))
+    try:
+        with open(atalho, encoding="utf-8", errors="replace") as f:
+            texto = f.read()
+    except OSError:
+        texto = ""
+    alvos = [os.path.normpath(os.path.join(base, rel)) for rel in re.findall(r'%dp0%\\([^"\r\n]+?\.(?:exe|js))"', texto, re.I)]
+    pacote = os.path.join(base, "node_modules", "@anthropic-ai", "claude-code")
+    alvos += [os.path.join(pacote, "bin", "claude.exe"), os.path.join(pacote, "cli.js")]
+    for alvo in alvos:
+        if not os.path.isfile(alvo):
+            continue
+        if alvo.lower().endswith(".exe"):
+            return [alvo]
+        node = shutil.which("node") or os.path.join(base, "node.exe")
+        if os.path.isfile(node):
+            return [node, alvo]
+    return []
+
+
+def _candidatos():
+    """Onde procurar, do mais provável ao menos: o que o terminal da pessoa usa (PATH), o instalador oficial, o npm e a extensão do VS Code."""
+    forcado = os.environ.get("GUARDIAO_CLAUDE", "").strip().strip('"')
+    if forcado:
+        yield forcado
+    achado = shutil.which("claude")
+    if achado:
+        yield achado
+    casa = os.path.expanduser("~")
+    yield os.path.join(casa, ".local", "bin", "claude.exe")
+    yield os.path.join(os.environ.get("APPDATA") or os.path.join(casa, "AppData", "Roaming"), "npm", "claude.cmd")
+    yield from sorted(glob.glob(os.path.join(casa, ".vscode", "extensions", "anthropic.claude-code-*", "resources", "native-binary", "claude.exe")), reverse=True)
+
+
+def _como_chamar(caminho):
+    if not os.path.isfile(caminho):
+        return []
+    return _real_do_atalho(caminho) if caminho.lower().endswith((".cmd", ".bat")) else [caminho]
+
+
+def _executa(comando):
+    """Roda `claude --version` de verdade. Devolve (versão, erro): achar o arquivo não prova que ele executa."""
+    try:
+        r = subprocess.run(comando + ["--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+                           stdin=subprocess.DEVNULL, creationflags=SEM_JANELA)
+    except (OSError, subprocess.TimeoutExpired) as erro:
+        return "", str(erro)
+    saida = (r.stdout or r.stderr or "").strip()
+    return (saida.splitlines()[0] if saida else ""), ("" if r.returncode == 0 else f"saiu com código {r.returncode}: {saida[:200]}")
+
+
+def comando_do_claude(refazer=False):
+    """Como chamar o Claude Code: a lista que abre qualquer comando (['C:\\...\\claude.exe']). Vazia se nenhum candidato executa.
+    O resultado fica guardado; refazer=True procura de novo (a pessoa pode ter instalado o Claude Code com o guardião aberto)."""
+    if COMANDO:
+        return list(COMANDO)
+    guardado = _CLAUDE["comando"]
+    if guardado is not None and not refazer:  # sem cadeado: o laço do microfone chama isto a cada poucos segundos e não pode esperar uma procura lenta
+        return list(guardado)
+    with _trava_claude:
+        if _CLAUDE["comando"] is not None and not refazer:
+            return list(_CLAUDE["comando"])
+        erros, vistos = [], set()
+        for candidato in _candidatos():
+            if candidato.lower() in vistos:
+                continue
+            vistos.add(candidato.lower())
+            cmd = _como_chamar(candidato)
+            if not cmd:
+                continue
+            versao, erro = _executa(cmd)
+            if not erro:
+                _CLAUDE.update(comando=cmd, versao=versao, erro="", de=candidato)
+                return list(cmd)
+            erros.append(f"{candidato}: {erro}")
+        _CLAUDE.update(comando=[], versao="", erro="; ".join(erros), de="")
+        return []
+
+
+def estado_do_claude():
+    """Para a tela e o diagnóstico: o que foi achado, a versão e, se nada executou, por quê."""
+    comando_do_claude()
+    return {"ok": bool(_CLAUDE["comando"]), "comando": list(_CLAUDE["comando"] or []), "versao": _CLAUDE["versao"], "erro": _CLAUDE["erro"], "de": _CLAUDE["de"]}
+
+
+class ErroDeConta(RuntimeError):
+    """O Claude Code respondeu, mas a conta não deixa: sem login, limite de uso, servidor sobrecarregado, ou ele nem está instalado.
+    A mensagem já vem em português e diz o que fazer; quem recebe pode falá-la como está. Tentar de novo por outro caminho falharia igual."""
+
+
+_MESES_EN = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+_MESES_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+
+
+def quando_o_limite_volta(texto):
+    """'... resets Oct 17, 7pm (America/Fortaleza)' vira 'em 17 de outubro, às 19h'; '... resets 3pm' vira 'às 15h'. Vazio se não entender."""
+    m = re.search(r"\breset(?:s)?(?:\s+at|\s+on)?\s+(?:([A-Za-z]{3})[A-Za-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(?:at\s+)?)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", texto or "", re.I)
+    if not m:
+        return ""
+    mes, dia, hora, minuto, ampm = m.groups()
+    h24 = int(hora) % 12 + (12 if ampm.lower() == "pm" else 0)
+    quando = f"às {h24}h" + (minuto if minuto and minuto != "00" else "")
+    if mes and dia and mes.lower() in _MESES_EN:
+        return f"em {int(dia)} de {_MESES_PT[_MESES_EN[mes.lower()] - 1]}, {quando}"
+    return quando
+
+
+def explicar_erro_do_claude(texto):
+    """O texto de erro que o Claude Code devolve vira uma frase que a pessoa entende e sabe resolver. Vazio se não for um erro de conta conhecido."""
+    t = (texto or "").lower()
+    if re.search(r"not logged in|/login|invalid api key|authentication|oauth token|token has expired|please run", t):
+        return "O Claude Code não está conectado à sua conta. Abra o Claude Code, entre com a sua conta e fale comigo de novo."
+    if "overloaded" in t or "529" in t:
+        return "O Claude está sobrecarregado agora. Tente de novo em instantes."
+    if re.search(r"hit your|usage limit|rate limit|limit reached|reached your|out of (extra )?usage|quota", t):
+        volta = quando_o_limite_volta(texto)
+        quando = f"Ele volta {volta}." if volta else "Tente de novo mais tarde."
+        if "weekly" in t:
+            return f"Você atingiu o limite semanal do seu plano do Claude. {quando} Até lá não consigo responder."
+        return f"Você atingiu o limite de uso do seu plano do Claude. {quando}"
+    return ""
+
+
+def erro_de_conta(texto):
+    """A ErroDeConta para o texto de erro do Claude Code (explicado em português, ou o texto como veio se não for conhecido)."""
+    return ErroDeConta(explicar_erro_do_claude(texto) or f"O Claude Code respondeu com erro: {str(texto or 'sem detalhes').strip()[:160]}")
+
+
+def arquivo_de_erro():
+    """Para onde vai o que o Claude Code escreve na saída de erro: logs\\claude_erro.log (apagado quando passa de 200 KB). Sem isso,
+    um problema de login ou de versão não deixa rastro nenhum."""
+    try:
+        pasta = os.path.join(h.OPER, "logs")
+        os.makedirs(pasta, exist_ok=True)
+        caminho = os.path.join(pasta, "claude_erro.log")
+        if os.path.exists(caminho) and os.path.getsize(caminho) > 200_000:
+            os.remove(caminho)
+        return open(caminho, "ab")
+    except OSError:
+        return subprocess.DEVNULL
 
 
 def _pasta():
@@ -347,7 +506,10 @@ class Processo:
         cfg = configuracao()
         self.conversa = conversa["id"]
         self.modelo = cfg["modelo"]
-        cmd = COMANDO + ["--print", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--input-format", "stream-json",
+        base = comando_do_claude()
+        if not base:
+            raise ErroDeConta(AVISO_SEM_CLAUDE)
+        cmd = base + ["--print", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--input-format", "stream-json",
                          "--permission-prompt-tool", "stdio", "--model", self.modelo, "--append-system-prompt-file", arquivo_prompt]
         cmd += ["--resume", self.conversa] if conversa.get("iniciada") else ["--session-id", self.conversa]
         if cfg["esforco"]:
@@ -357,8 +519,11 @@ class Processo:
                 cmd += ["--add-dir", pasta]
         env = dict(os.environ)
         env.pop("CLAUDECODE", None)
-        self.proc = subprocess.Popen(cmd, cwd=cfg["pasta"], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
-                                     errors="replace", bufsize=1, creationflags=SEM_JANELA)
+        erro = arquivo_de_erro()
+        self.proc = subprocess.Popen(cmd, cwd=cfg["pasta"], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=erro, text=True, encoding="utf-8",
+                                     errors="replace", bufsize=1, creationflags=FLAGS_CLAUDE)
+        if erro is not subprocess.DEVNULL:
+            erro.close()  # o processo filho tem a própria cópia
         self.fila = queue.Queue()
         self.pronta = threading.Event()
         self.em_turno = False
@@ -366,6 +531,7 @@ class Processo:
         self.custo = 0.0
         self.solto = ""  # texto que chegou fora de um turno (um agente que terminou em segundo plano, por exemplo)
         self.fechou = False
+        self.descartar = False  # a fala foi interrompida: o que ainda chegar desse turno não é para dizer
         self.respostas = {}  # respostas aos pedidos de controle que o guardião faz (estado dos conectores)
         self.aquecida = threading.Event()  # os conectores terminaram de ligar
         self.contexto = 0  # tamanho da conversa na última chamada ao Claude (o fecho do turno soma todas as chamadas, o que não serve para isso)
@@ -413,6 +579,11 @@ class Processo:
         """Sem turno em andamento chegam o fecho do turno anterior (uso e custo) e, às vezes, uma fala que o Claude começa sozinho
         (um agente em segundo plano terminou): essa fala vira um comando para o guardião dizer."""
         tipo = ev.get("type")
+        if self.descartar:  # turno interrompido (a pessoa fechou a janela): nada do que sobrou vira fala
+            if tipo == "result":
+                self.descartar, self.solto = False, ""
+                self._fechar_turno(ev, contar=False)
+            return
         if tipo == "stream_event" and not ev.get("parent_tool_use_id"):
             e = ev.get("event") or {}
             if e.get("type") == "content_block_delta" and (e.get("delta") or {}).get("type") == "text_delta":
@@ -451,6 +622,14 @@ class Processo:
             time.sleep(1.5)
         self.aquecida.set()
 
+    def interromper(self):
+        """Pede ao Claude Code que pare a resposta em andamento (testado: ele devolve o fecho do turno em milésimos e aceita a fala seguinte)."""
+        self.descartar = True
+        try:
+            self._manda({"type": "control_request", "request_id": f"int_{time.time():.3f}", "request": {"subtype": "interrupt"}})
+        except (OSError, ValueError):
+            self.descartar = False
+
     def _responde(self, ev, permitir, mensagem=""):
         resposta = {"behavior": "allow", "updatedInput": (ev.get("request") or {}).get("input") or {}} if permitir else {"behavior": "deny", "message": mensagem or "A pessoa não autorizou."}
         try:
@@ -486,6 +665,7 @@ class Processo:
         Quem recebe um pedido de permissão precisa chamar decidir(pedido, 'sim' | 'sempre' | 'nao', mensagem)."""
         if not self.viva():
             raise RuntimeError("a sessão do Claude Code fechou")
+        self._esperar_fecho_da_interrupcao()
         self.em_turno = True
         self.usado_em = time.time()
         try:
@@ -505,6 +685,9 @@ class Processo:
                 if tipo == "_permissao":
                     yield "permissao", ev["pedido"]
                 elif tipo == "result":
+                    if self.descartar:  # este é o fecho de uma interrupção (a pessoa fechou a janela): chega como erro, mas não é um erro de verdade
+                        ev["_interrompido"] = True
+                    self.descartar = False  # e ele acabou de ser consumido aqui: o turno seguinte não precisa esperar por ele
                     if self.resultados_atrasados > 0:  # fecho de um turno anterior que chegou só agora
                         self._fechar_turno(ev)
                         continue
@@ -535,6 +718,33 @@ class Processo:
             self.em_turno = False
             self.usado_em = time.time()
 
+    def _esperar_fecho_da_interrupcao(self):
+        """Depois de uma interrupção o Claude Code manda o fecho do turno interrompido. Ele precisa chegar (e ser descartado) antes da fala
+        seguinte, senão seria lido como o fim dela. Normalmente leva milésimos; se não vier em 3 s, segue assim mesmo."""
+        fim = time.time() + 3
+        while self.descartar and time.time() < fim:
+            try:
+                ev = self.fila.get(timeout=0.1)  # com o turno ainda marcado como aberto, o fecho cai aqui em vez de em _fora_de_turno
+            except queue.Empty:
+                continue
+            if ev.get("type") == "result":
+                self.descartar = False
+                self._fechar_turno(ev, contar=False)
+            elif ev.get("type") == "_fim":
+                self.fila.put(ev)
+                break
+        self.descartar = False
+        guardados = []
+        while True:  # o que sobrou do turno antigo na fila
+            try:
+                ev = self.fila.get_nowait()
+            except queue.Empty:
+                break
+            if ev.get("type") == "_fim":
+                guardados.append(ev)
+        for ev in guardados:
+            self.fila.put(ev)
+
     def _fechar_turno(self, ev, contar=True):
         if contar:
             self.resultados_atrasados = max(0, self.resultados_atrasados - 1)
@@ -564,6 +774,13 @@ _proc = None
 _vigia = None
 
 
+def interromper():
+    """A pessoa fechou a janela no meio da resposta: o turno em andamento para."""
+    p = _proc
+    if p and p.viva() and p.em_turno:
+        p.interromper()
+
+
 def decidir(pedido, decisao, mensagem=""):
     pedido["decisao"] = (decisao, mensagem)
     pedido["espera"].set()
@@ -581,8 +798,13 @@ def _vigiar():
     while True:
         time.sleep(30)
         p = _proc
-        if p and p.viva() and not p.em_turno and time.time() - p.usado_em > configuracao()["ociosa"] > 0:
-            _fechar_processo()  # a conversa continua guardada: a próxima fala reabre o processo no mesmo ponto
+        if p and p.viva() and not p.em_turno:
+            cfg = configuracao()
+            # Com a janela do painel aberta a sessão fica de pé até a conversa vencer (nova_conversa_apos_horas): assim a primeira fala depois de
+            # um intervalo não paga a partida do Claude Code e dos conectores de novo (uns 20 s). Sem janela, fecha logo (fecha_apos_min).
+            limite = max(cfg["ociosa"], cfg["nova_apos"]) if bus.assinantes else cfg["ociosa"]
+            if cfg["ociosa"] > 0 and time.time() - p.usado_em > limite:
+                _fechar_processo()  # a conversa continua guardada: a próxima fala reabre o processo no mesmo ponto
 
 
 def processo(arquivo_prompt):

@@ -10,6 +10,7 @@ import time
 from datetime import date, datetime, timedelta
 
 import hud_servidor as h
+import janela_edge
 import guardiao_v2 as v2
 
 PORTA = 8768
@@ -78,9 +79,5 @@ def atender():
 if not h.iniciar_servidor(PORTA):
     raise SystemExit(f"A porta {PORTA} está ocupada. Feche a outra demonstração e tente de novo.")
 threading.Thread(target=atender, daemon=True).start()
-edge = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-if not os.path.exists(edge):
-    edge = r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
-subprocess.Popen([edge, f"--app=http://localhost:{PORTA}/v2/?abertura=1", "--window-size=1456,939", f"--user-data-dir={os.path.join(os.path.dirname(os.path.abspath(__file__)), 'perfil_edge')}",
-                  "--autoplay-policy=no-user-gesture-required", "--no-first-run", "--no-default-browser-check"])
+janela_edge.abrir(f"http://localhost:{PORTA}/v2/?abertura=1")  # o mesmo jeito de abrir do painel de verdade: sem conta, sem sincronização, sem extensões
 time.sleep(1800)  # fecha sozinha em 30 minutos

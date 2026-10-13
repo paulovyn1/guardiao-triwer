@@ -7,19 +7,43 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.7.1 - 2026-10-13
+- **Conta do Claude no limite ou sem login.** O guardião agora fala e escreve o motivo, em português e com o dia e a hora em que o limite volta ("Você atingiu o limite semanal do seu plano do Claude. Ele volta em 17 de outubro, às 19h."). Antes ficava mudo ou mostrava "o Claude não respondeu", e a sessão ainda tentava de novo pelo outro caminho, dobrando a espera para o mesmo erro.
+- **A voz não fica mais com pausas quando o computador está ocupado.** O Claude Code e os conectores que ele abre passam a rodar com prioridade abaixo do normal. Medido com a carga de uma partida dos conectores: a voz, gerada neste computador, levava 1,16 s para cada segundo de fala (mais devagar do que a fala, com pausas entre as frases) e passa a levar 0,52 s; parado, 0,41 s.
+- Na pausa entre duas frases da mesma resposta, a tela diz "Ainda respondendo", em vez de "Pensando".
+- O aviso de "Nova versão" funciona também para quem instalou clonando o repositório público (o guardião fica na raiz dele e a configuração antiga procurava uma subpasta).
+- Depois de fechar a janela no meio de uma fala, a fala seguinte não espera 3 segundos à toa.
+- Testado com o Claude de verdade: memória depois de reiniciar (pedir uma anotação, reiniciar o programa e perguntar o que foi combinado), resumo do dia, "Se apresente" no modo sessão com 8 conectores (primeira frase em 2,9 s), corte da fala no meio e a fala seguinte (1,8 s). Ainda sem teste: um computador mais fraco, com a geração de voz medida por `voz\diagnostico.bat`.
+
+## 0.7.0 - 2026-10-13
+Correções que vieram da primeira instalação em um computador de fora da equipe de desenvolvimento.
+- **Claude Code instalado por npm funciona.** O guardião procurava o comando `claude` pelo nome puro, e o Windows não abre o `claude.cmd` do npm desse jeito: nenhuma fala funcionava e o instalador dizia que estava tudo certo. Agora há um só jeito de achar o Claude Code (instalador oficial, npm, npm fora do PATH ou extensão do VS Code), que confere se ele de fato executa, e vale para a voz, a sessão, o plano diário e o `-Verificar` do instalador.
+- **A janela do painel não entra mais na conta Microsoft.** Medido: um perfil novo do Edge entrava sozinho na conta do Windows e ligava a sincronização de favoritos, preenchimento automático e extensões dentro da pasta do guardião (uma extensão chegou a abrir uma segunda janela). Agora a janela abre sem conta, sem sincronização e sem extensões, e o perfil antigo que já tinha entrado é apagado e recriado limpo na próxima abertura (só o perfil do painel; o Edge da pessoa e os dados dela na nuvem não são tocados).
+- **Fechar a janela para a fala.** Se o guardião está falando e a última janela do painel fecha, ele para (inclusive a sessão do Claude Code, que é interrompida). O programa segue ouvindo "Ei guardião" em segundo plano. Página recarregada não corta a fala, e sem janela nenhuma (só voz) ele fala normalmente.
+- **A saudação tem prazo.** Se a saudação do Claude não chega em 18 segundos, entra um "Bom dia, <nome>." local, e ela nunca mais é dita tarde, "do nada". Falhando ou não, a saudação conta como feita (não repete no próximo reinício).
+- **A abertura animada só é gasta quando a pessoa a vê.** O carimbo agora é gravado quando a animação termina (ou é pulada), e uma janela que abre sozinha (tarefa agendada) espera o primeiro olhar, para a abertura e a saudação. Em Preferências, Comportamento, o botão "Rever a abertura".
+- **O guardião lembra da conversa mesmo com a "Conversa com memória" desligada.** As últimas 10 trocas ficam em arquivo (sobrevivem a reinício e a horas de intervalo, no mesmo dia) e vão junto de cada pergunta. Quando você fica uns minutos sem falar, o Claude (modelo leve, uma chamada curta de uns centavos) atualiza um resumo do dia: decisões, tarefas e prazos, pendências. "Nova conversa" zera tudo, e o resumo vale só no dia em que foi feito.
+- **Status dos serviços em tempo real.** Chave do Groq gravada com o guardião aberto liga o microfone em até 1 minuto, sem reiniciar; fone ligado depois e Claude Code instalado depois também passam a valer, e a tela mostra o estado de agora.
+- **Erro do Claude explicado.** Sem login ou no limite de uso, a tela diz o que fazer em vez de "o Claude não respondeu". O que o Claude Code escreve de erro fica em `logs\claude_erro.log`.
+- **Plano diário com modelo fixo** (Sonnet 5.5; `GUARDIAO_MODELO` troca), em vez do padrão da conta de quem instalou.
+- **Instalação em disco FAT32/exFAT ou pasta de rede**: o Python do guardião vai para `%LOCALAPPDATA%\GuardiaoDoDia` em vez de falhar ou cair em silêncio no Python do sistema.
+- **Ruído transcrito como palavra** ("Mãe.", "Obrigado." no silêncio) não gasta mais uma resposta.
+- **Descobrir onde está a demora:** cada resposta grava em `logs\latencia.jsonl` os tempos do Claude, da geração da voz e de cada frase, e o uso do computador. Novo `voz\diagnostico.bat` confere cada peça (Claude, voz, escuta, microfone, Groq, janela), diz o que fazer e escreve `logs\diagnostico.txt` para mandar a quem ajuda. O instalador também mede a velocidade da voz neste computador.
+- A sessão do Claude Code (Conversa com memória) fica aberta enquanto a janela do painel estiver aberta, em vez de fechar em 15 minutos parada: a fala depois de uma pausa não paga a partida de novo.
+- Testes que acompanham o guardião (`voz\testes`): resolvedor do Claude Code, janela do Edge, controle de fala, memória, abertura, instalação e os de antes. Ainda sem teste: uma conversa completa por microfone numa máquina nova, o disco FAT32 de verdade (só simulado) e o Claude Code dela com muitos conectores.
+
 ## 0.6.2 - 2026-10-12
 - Corrigido: o botão "Nova versão" (o `atualizar.ps1`) falhava para quem instalou pelo zip do repositório público, porque a origem é um endereço do GitHub e o script a tratava como pasta.
 - Testado de ponta a ponta como um aluno: baixar o zip público sem login, extrair, instalar numa pasta de usuário nova, gerar a configuração e receber uma versão nova pelo endereço público.
 
 ## 0.6.1 - 2026-10-12
 - Corrigido: numa instalação nova o programa não ligava, porque faltava a biblioteca `num2words` na lista do instalador. A conferência final do instalador agora importa o programa inteiro, e o instalador completa um ambiente antigo sem refazê-lo.
-- Repositório público para alunos: https://github.com/paulovyn1/guardiao-triwer. Quem instala por zip passa a receber o aviso de versão nova a partir dele.
+- Repositório público do guardião: https://github.com/paulovyn1/guardiao-triwer. Quem instala por zip passa a receber o aviso de versão nova a partir dele.
 - Nome de usuário do Windows com acento ("José", "Conceição") não impede mais a escuta nem a voz de carregar. Antes a instalação parava na conferência final.
 - Pasta de usuário com espaço no nome não quebra mais a janela do painel nem a tarefa agendada do guardião.
 - Claude Code instalado fora do PATH (pasta `.local\bin` do usuário) é encontrado pelo guardião e pelo plano automático. Sem o Claude Code, o painel diz o que falta em vez de mostrar um erro do Windows.
 - `instalar.bat` aberto de dentro do `.zip` avisa para extrair a pasta primeiro.
 - O LEIA-ME da pasta virou `README.md`, com o endereço para baixar e uma seção "Se algo não funcionar".
-- `scripts\empacotar.ps1 -Clone <pasta>` publica a versão no repositório público, e o script não termina mais com código de erro quando dá certo.
 - Clone em que o guardião está na raiz do repositório é aceito como origem das atualizações.
 - Testado: instalação completa numa pasta de usuário com espaço e acento, com o programa ligando de verdade nela (painel, versão e voz), e instalação a partir do zip baixado do repositório público. Ainda sem teste: uma conversa completa com microfone numa máquina nova e o onboarding com uma pessoa de verdade.
 
@@ -34,8 +58,8 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - `references/opcionais.md`: cobrança de prazo por WhatsApp e delegar etapa a agente de IA, só para quem tem essas peças (seção "Canais e agentes" do `equipe.md`).
 - Arquivos `extensoes-*.md` na pasta da skill passam a ser lidos junto com o `SKILL.md`: regras só daquela pessoa, que a atualização não toca.
 - Todo comando de script documentado leva `-ExecutionPolicy Bypass` (o padrão do Windows recusa scripts).
-- `origem.json` guarda o endereço público de onde quem instalou por zip recebe as versões novas, e `scripts\empacotar.ps1` gera o zip do aluno.
-- Testado: instalação limpa numa pasta vazia, com o PATH só do Windows (5 min 43 s; rodar de novo, 8 s), e `teste_instalacao.py`. Ainda sem teste: o onboarding inteiro com uma pessoa de verdade e a criação real das tarefas agendadas num computador novo.
+- Quem instala por zip passa a receber o aviso de versão nova pelo endereço público do guardião.
+- Testado: instalação limpa numa pasta vazia, com o PATH só do Windows (5 min 43 s; rodar de novo, 8 s). Ainda sem teste: o onboarding inteiro com uma pessoa de verdade.
 
 ## 0.5.2 - 2026-10-12
 - A voz não lê mais endereços inteiros. Tarefa do ClickUp citada como link: só o título. Endereço solto: só o domínio e, no máximo, o nome da página. O texto da tela continua com o link.

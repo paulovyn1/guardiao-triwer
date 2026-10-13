@@ -1888,10 +1888,21 @@ class Component extends DCLogic {
         const falta = Object.keys(this.pend)[0], tf = falta ? this.findTask(falta) : null;  // conclusão que ficou esperando a frase do que foi feito
         if (tf && tf.aguarda) { const pd = this.pend[falta]; this.setState({ done: { id: falta, at: pd.b, title: tf.title, needNote: true, sent: false, a: pd.a, b: pd.b, medido: !!pd.medido } }); }
         const mini = this.M === 'mini', forcar = QS.get('abertura') === '1', nunca = QS.get('semabertura') === '1' || mini;
-        if (!nunca && pf.introAnim && (ses.abertura || forcar)) {
-          API.get('/sessao?marcar=1').catch(() => {});
+        const quer = !nunca && pf.introAnim && (ses.abertura || forcar);
+        const olhando = () => forcar || (document.visibilityState === 'visible' && document.hasFocus());
+        const abrirComAbertura = () => {
           if (QS.get('demo') !== '1') API.post('/saudacao', { fase: 'preparar' }).catch(() => {});
-          this.startIntro();
+          this.startIntro();  // o carimbo "a abertura do dia já foi vista" é gravado quando ela termina (afterIntro), não ao carregar a página
+        };
+        if (quer && olhando()) {
+          abrirComAbertura();
+        } else if (quer) {
+          // ninguém está olhando (a janela abriu sozinha, por tarefa agendada, ou ainda sem foco): a abertura e a saudação esperam o primeiro olhar,
+          // em vez de passar sem ninguém ver e gastar a abertura do dia
+          let comecou = false;
+          const olhou = () => { if (comecou) return; comecou = true; window.removeEventListener('focus', olhou); abrirComAbertura(); };
+          window.addEventListener('focus', olhou);
+          this._t(() => { if (!comecou) { this.setState({ introPhase: 'skip' }); this._t(() => this.setState({ introPhase: 'done' }), 850); } }, 800);
         } else {
           this.setState({ introPhase: 'skip' });
           this._t(() => { this.setState({ introPhase: 'done' }); this.afterIntro(); }, 850);
@@ -1933,6 +1944,7 @@ class Component extends DCLogic {
     this.setState({ ver: ev, verBusy: false });
     if (ev.nova && !(antes && antes.nova) && this.M !== 'mini') this.toast('Há uma versão nova do Guardião: ' + ev.remota + '.');
   }
+  verAbertura() { try { location.search = '?abertura=1'; } catch (e) { location.reload(); } }  // recarrega o painel pedindo a abertura completa
   verificarVersao() {
     if (this.state.verBusy) return;
     this.setState({ verBusy: true });
@@ -2278,6 +2290,7 @@ class Component extends DCLogic {
 
   /* ---------- abertura ---------- */
   startIntro() {
+    this.abriu = true;
     const t0 = Date.now(), pf = this.state.pf;
     this.introTimers.forEach((id) => clearTimeout(id)); this.introTimers.clear();
     SFX.stopAll();
@@ -2320,6 +2333,7 @@ class Component extends DCLogic {
   afterIntro() {
     if (this.aposAbertura || this.M === 'mini') return;
     this.aposAbertura = true;
+    if (this.abriu) API.get('/sessao?marcar=1').catch(() => {});  // a abertura rodou até o fim (ou foi pulada por clique): a do dia está vista
     if (this.M === 'desktop') { this.setState({ hdPeek: true }); this._t(() => this.setState({ hdPeek: false }), 2600); }  // a barra do topo se mostra um instante e se recolhe
     if (QS.get('semabertura') !== '1' && QS.get('demo') !== '1') API.post('/saudacao', { fase: 'liberar' }).catch(() => {});
     if (this.state.pf.openExec && this.actionable() && !this.state.exec) this.enterExec(true);
@@ -2859,7 +2873,7 @@ class Component extends DCLogic {
     const idx = SCREENS.indexOf(S.screen), SX = ST_X[M] + sobra, SY = ST_Y[M];
     const stn = (i) => ({ cls: i === idx ? 'cur' : '', st: 'left:' + (i * SX) + 'px;top:' + SY[i] + 'px;width:' + W + 'px;height:' + H + 'px', hidden: i === idx ? 'false' : 'true' });
     const semMic = S.saude && S.saude.mic === false;
-    const statusMap = { idle: S.fullJob ? 'Montando o seu pedido' : voiceOn && !semMic ? 'Diga Ei Guardião' : 'Escreva ou toque no microfone', listening: 'Ouvindo · Esc cancela', transcribing: 'Transcrevendo', thinking: S.tool ? S.tool.rotulo : 'Pensando', speaking: voiceOn ? 'Falando' : 'Escrevendo', error: 'Algo falhou', offline: 'Guardião desligado' };
+    const statusMap = { idle: S.fullJob ? 'Montando o seu pedido' : voiceOn && !semMic ? 'Diga Ei Guardião' : 'Escreva ou toque no microfone', listening: 'Ouvindo · Esc cancela', transcribing: 'Transcrevendo', thinking: S.tool ? S.tool.rotulo : this.liveId ? 'Ainda respondendo' : 'Pensando', speaking: voiceOn ? 'Falando' : 'Escrevendo', error: 'Algo falhou', offline: 'Guardião desligado' };
     const statusTxt = statusMap[orbEff] || '', usando = (!!S.tool && orbEff === 'thinking') || (!!S.fullJob && orbEff === 'idle');  // usando um conector, uma skill ou um agente: isso aparece no lugar da frase da pessoa
     const dataLonga = DIAS[hoje.getDay()] + ', ' + hoje.getDate() + ' de ' + MESES[hoje.getMonth()];
 
@@ -3073,7 +3087,7 @@ class Component extends DCLogic {
       sub: rot ? 'Report do dia, pergunta ' + rot.passo + ' de ' + rot.total + '. Responda por voz ou texto.' : orbEff === 'speaking' ? (voiceOn ? 'Falo e escrevo no mesmo ritmo.' : 'Escrevo no ritmo da conversa. A voz está silenciada.') : orbEff === 'listening' ? 'Pode falar. O texto aparece no campo.' : orbEff === 'thinking' ? 'Pensando na melhor forma de encaixar isso.' : orbEff === 'offline' ? 'O guardião está desligado neste computador.' : orbEff === 'error' ? 'Não consegui agora. Tente de novo.' : 'Escreva, fale ou escolha um roteiro.',
       count: S.chat.length + (S.chat.length === 1 ? ' mensagem' : ' mensagens')
     };
-    const colHint = orbEff === 'speaking' ? plan.sub : orbEff === 'listening' ? 'Pode falar. O texto aparece no campo.' : orbEff === 'thinking' ? (S.tool ? S.tool.rotulo + '.' : 'Pensando.') : orbEff === 'transcribing' ? 'Transcrevendo o que você disse.' : orbEff === 'offline' ? 'O guardião está desligado neste computador.' : orbEff === 'error' ? 'Não consegui agora. Tente de novo.' : voiceOn ? 'Diga "Ei Guardião" ou escreva.' : 'Voz silenciada. Respondo só por texto.';
+    const colHint = orbEff === 'speaking' ? plan.sub : orbEff === 'listening' ? 'Pode falar. O texto aparece no campo.' : orbEff === 'thinking' ? (S.tool ? S.tool.rotulo + '.' : this.liveId ? 'Ainda estou respondendo.' : 'Pensando.') : orbEff === 'transcribing' ? 'Transcrevendo o que você disse.' : orbEff === 'offline' ? 'O guardião está desligado neste computador.' : orbEff === 'error' ? 'Não consegui agora. Tente de novo.' : voiceOn ? 'Diga "Ei Guardião" ou escreva.' : 'Voz silenciada. Respondo só por texto.';
     const visivel = !introRun && !introHome && !prep;
     const colOn = colScr && S.screen !== 'plan' && visivel;
     const dockOn = mobile && S.screen !== 'home' && visivel;
@@ -3176,7 +3190,7 @@ class Component extends DCLogic {
       ver: vTem ? 'Versão ' + V.instalada + (V.nova ? ' · nova: ' + V.remota : '') : '',
       groups: [
         { id: 'som', title: 'Voz e sons', rows: [sw('voice', 'Voz do Guardião', 'Ligada por padrão. Desligada, ele só escreve. O seu microfone continua valendo.'), sw('sound', 'Ligar todos os sons', 'Tudo sintetizado, sem arquivos. Desligue para silêncio total.'), rng('volume', 'Volume'), sw('typing', 'Digitação e escrita', 'Teclas quando você digita e o Guardião escrevendo a resposta.'), sw('motion', 'Movimento', 'Troca de tela, painéis abrindo e fechando, entrar e sair da execução.'), sw('touch', 'Toques', 'Cliques nos botões e o microfone ligando e desligando.'), sw('confirm', 'Confirmações e avisos', 'Sucesso, concluído, erro, cancelamento e avisos.'), sw('stateSnd', 'Estados do Guardião', 'Sininhos suaves enquanto ele pensa. Ligando e desligando quando o guardião cai ou volta.'), sw('track', 'Trilha da abertura', 'Atmosfera, carregamento e o impacto final da abertura.')] },
-        { id: 'comp', title: 'Comportamento', rows: [sw('introAnim', 'Animação de abertura', 'Completa na primeira vez do dia e quando você reabre depois de 3 horas. Clique, Esc, Espaço ou Enter pulam.'), sw('greet', 'Saudação ao abrir', 'Ele cumprimenta e propõe revisar o plano. Também respeita as 3 horas.'), sw('openMic', 'Microfone aberto', 'Reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Abrir direto em execução', 'Pula a tela só com a bolinha e já mostra a tarefa de agora.'), sw('session', 'Conversa com memória', 'Cada conversa vira uma sessão do seu Claude Code: lembra do que foi dito e usa conectores, skills e agentes. Ele começa a responder cerca de um segundo depois.')] },
+        { id: 'comp', title: 'Comportamento', rows: [sw('introAnim', 'Animação de abertura', 'Completa na primeira vez do dia em que você olha o painel e quando reabre depois de 3 horas. Clique, Esc, Espaço ou Enter pulam.'), btn('Rever a abertura', 'Toca a animação agora, uma vez, sem mudar a regra do dia.', 'Rever', C('verAbertura')), sw('greet', 'Saudação ao abrir', 'Ele cumprimenta e propõe revisar o plano. Também respeita as 3 horas.'), sw('openMic', 'Microfone aberto', 'Reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Abrir direto em execução', 'Pula a tela só com a bolinha e já mostra a tarefa de agora.'), sw('session', 'Conversa com memória', 'Cada conversa vira uma sessão do seu Claude Code: lembra do que foi dito e usa conectores, skills e agentes. Ele começa a responder cerca de um segundo depois.')] },
         { id: 'apar', title: 'Aparência', rows: [sw('glass', 'Vidro com desfoque', 'Painéis translúcidos. Desligue se o computador engasgar. O modo leve também desliga.'), sw('light', 'Modo leve', 'Menos animação, fundo simples e bolinha 2D. Bom para computadores fracos.'), seg('Bolinha', 'Núcleo: cristal 3D com onda de voz. Relógio: o instrumento clássico, com o dia em volta e o tempo no centro.', ['N', 'A'].map((v) => ({ label: v === 'N' ? 'Núcleo 3D' : 'Relógio', on: pf.variant === v, cls: pf.variant === v ? 'on' : '', go: () => { this.setPf('variant', v); this.sfx('click'); } }))), seg('Formato da janela', 'Compacta é a janela pequena, para deixar num canto da tela.', [{ label: 'Completa', on: !compact, cls: !compact ? 'on' : '', go: () => { if (compact) this.toggleCompact(); } }, { label: 'Compacta', on: compact, cls: compact ? 'on' : '', go: () => { if (!compact) this.toggleCompact(); } }])] },
         { id: 'ver', title: 'Versão', rows: vRows },
         { id: 'serv', title: 'Serviços', rows: [stat('Guardião', off ? 'desligado' : 'ligado', off ? 'bad' : ''), stat('Microfone', sMic[0], sMic[1]), stat('Transcrição', sStt[0], sStt[1]), stat('Voz do Guardião', voiceOn ? 'ligada' : 'silenciada', voiceOn ? '' : 'off'), stat('Claude', sCl[0], sCl[1]), stat('Plano de hoje', S.planState === 'none' ? 'sem plano' : S.planState === 'suggested' ? 'aguardando aprovação' : 'aprovado', S.planState === 'none' ? 'off' : '')] }
