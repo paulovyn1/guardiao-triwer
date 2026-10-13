@@ -141,7 +141,8 @@ PREFS_PADRAO = {
     "som_abertura": True,      # a trilha da abertura
     "abertura_animada": True,  # a animação de ~7 s ao abrir o app
     "saudacao": True,          # o guardião cumprimenta ao abrir o app
-    "escuta_aberta": True,     # o microfone reabre sozinho quando o guardião espera resposta
+    "mic_sempre_ligado": False,  # OPÇÃO: escuta contínua ("Ei guardião"). Desligada, o microfone só abre num clique e fecha no fim da gravação
+    "escuta_aberta": True,     # o microfone reabre sozinho quando o guardião espera resposta (só vale com a escuta contínua)
     # painel novo (v2)
     "som_estados": True,       # sininhos enquanto ele pensa, ligando e desligando quando a conexão cai ou volta
     "voz_guardiao": True,      # o guardião fala em voz alta; desligado, ele só escreve (o microfone continua valendo)

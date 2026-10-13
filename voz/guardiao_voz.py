@@ -148,6 +148,34 @@ class Microfone:
                 pass
             self.stream = None
 
+    def existe(self):
+        """Há um aparelho de entrada? Só consulta a lista, não abre nada (abrir acende o indicador de microfone em uso do Windows)."""
+        try:
+            return any(d.get("max_input_channels", 0) > 0 for d in sd.query_devices())
+        except Exception:
+            return False
+
+
+MIC = None  # o Microfone do main(); as gravações por botão abrem e fecham por ele
+
+
+def escuta_continua():
+    """Preferência "Escuta contínua" (mic_sempre_ligado). Desligada (padrão), o microfone fica fechado e só abre durante uma gravação
+    pedida por botão; ligada, ele fica aberto esperando "Ei guardião" e reabre sozinho depois de uma pergunta do guardião."""
+    return bool(preferencias().get("mic_sempre_ligado", False))
+
+
+def abrir_para_gravar():
+    """Começo de uma gravação por botão. Devolve False se o microfone não abriu (a gravação não pode esperar um áudio que não vem)."""
+    return MIC is None or MIC.tentar(chave_groq())
+
+
+def fechar_apos_gravar(q):
+    """Fim da gravação: sem a escuta contínua o microfone fecha de verdade, para o indicador do Windows apagar."""
+    if MIC is not None and not escuta_continua():
+        MIC.parar()
+        drenar(q)
+
 
 def rms_de(dado):
     x = np.frombuffer(dado, dtype=np.int16).astype(np.float32)
@@ -999,7 +1027,7 @@ def pedir_permissao(a, q, modelo, chave, piso, pedido, por_voz):
                 bus.emitir("voce", texto=r[1])
                 decisao = interpretar_permissao(r[1], pedido["sempre"])
             continue
-        if por_voz and escutas < 3 and not getattr(a, "sem_escuta_aberta", False):
+        if por_voz and escutas < 3 and not getattr(a, "sem_escuta_aberta", False) and escuta_continua():
             escutas += 1
             texto, _, motivo = escutar(a, q, modelo, chave, piso, seguimento=True, avisar_cancelamento=False)
             if texto:
@@ -2129,10 +2157,17 @@ def tratar_roteiro(texto, a, digitado):
 
 def ditar(q, chave, piso, campo):
     """Grava uma fala e devolve só o texto para a tela (um campo do report), sem passar pelo Claude."""
+    if not abrir_para_gravar():
+        bus.emitir("aviso", texto=AVISO_SEM_MIC, erro=False)
+        bus.emitir("estado", v="aguardando")
+        return
     time.sleep(0.3 if bipe(880, 120) else 0.15)
     drenar(q)
     bus.emitir("estado", v="ouvindo", seguimento=False)
-    pcm = gravar(q, piso)
+    try:
+        pcm = gravar(q, piso)
+    finally:
+        fechar_apos_gravar(q)
     if pcm is CANCELADO:
         bipe(440, 90)
         bus.emitir("escuta_cancelada")
@@ -2151,6 +2186,10 @@ def ditar(q, chave, piso, campo):
 def escutar(a, q, modelo, chave, piso, seguimento=False, avisar_cancelamento=True):
     """Abre o microfone, grava até o silêncio e transcreve. Devolve (texto, tempo da transcrição, motivo): com texto vazio, o motivo diz por quê
     ("cancelado" = Esc ou clique, "silencio" = ninguém falou, "erro" = a transcrição falhou)."""
+    if not abrir_para_gravar():
+        bus.emitir("aviso", texto=AVISO_SEM_MIC, erro=False)
+        bus.emitir("estado", v="aguardando")
+        return "", None, "erro"
     if seguimento:
         time.sleep(0.35)  # o final da voz do guardião no ar não pode virar uma pergunta
     else:
@@ -2184,7 +2223,10 @@ def escutar(a, q, modelo, chave, piso, seguimento=False, avisar_cancelamento=Tru
                 bus.emitir("previa", texto=texto_vivo)
             return texto_local
 
-    pcm = gravar(q, piso, ao_vivo)
+    try:
+        pcm = gravar(q, piso, ao_vivo)
+    finally:
+        fechar_apos_gravar(q)
     if ao_vivo:
         print()
     if pcm is CANCELADO:  # Esc ou clique no microfone: a escuta acaba aqui e nada é enviado
@@ -2397,7 +2439,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, saudacao=False, segu
 def continuar(a, q, modelo, chave, piso, seguir):
     """Enquanto o guardião espera resposta, novas rodadas com o microfone aberto (no máximo 12 seguidas)."""
     n = 0
-    while seguir and n < 12 and not getattr(a, "sem_escuta_aberta", False) and preferencias().get("escuta_aberta", True):
+    while seguir and n < 12 and not getattr(a, "sem_escuta_aberta", False) and preferencias().get("escuta_aberta", True) and escuta_continua():
         n += 1
         seguir = atender(a, q, modelo, chave, piso, seguimento=True)
 
@@ -2499,14 +2541,18 @@ def main():
     q = queue.Queue()
     piso = 120.0
     escuta_aberta_original = bool(getattr(a, "sem_escuta_aberta", False))
-    mic = Microfone(a, q)
-    mic.tentar(chave)
-    sem_mic = mic.stream is None
+    global MIC
+    mic = MIC = Microfone(a, q)
+    continuo = escuta_continua()
+    if continuo:  # escuta contínua (opção): o microfone abre já e fica esperando "Ei guardião"
+        mic.tentar(chave)
+    # no padrão o microfone só abre durante uma gravação por botão; "pronto" = tem chave e aparelho
+    sem_mic = (mic.stream is None) if continuo else not (chave and mic.existe())
     if sem_mic:
         a.sem_escuta_aberta = True  # sem microfone, ninguém fica esperando uma resposta falada
     try:
         modo = "com o cérebro (Claude)" if a.cerebro else "só transcrevendo"
-        print(f"Pronto, {modo}. " + ("Microfone desligado: escreva no painel." if sem_mic else "Diga 'Ei guardião', espere o bipe e fale.") + " Ctrl+C para sair.")
+        print(f"Pronto, {modo}. " + ("Microfone desligado: escreva no painel." if sem_mic else "Diga 'Ei guardião', espere o bipe e fale." if continuo else "Microfone fechado: ele só liga quando você clica no botão do microfone.") + " Ctrl+C para sair.")
         saude = {"mic": not sem_mic, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
         bus.emitir("saude", **saude)
         revisar_em = mic_em = claude_em = time.time() + 5
@@ -2525,15 +2571,22 @@ def main():
                 revisar_em = time.time() + 5
                 if not chave:
                     chave = chave_groq()
-                if chave and mic.stream is None and time.time() > mic_em:
+                continuo = escuta_continua()  # a pessoa muda isso nas preferências com o guardião aberto
+                if not continuo and mic.stream is not None:
+                    mic.parar()  # escuta contínua desligada: o microfone fecha agora
+                    drenar(q)
+                    print("Escuta contínua desligada. Microfone fechado.")
+                if continuo and chave and mic.stream is None and time.time() > mic_em:
                     mic_em = time.time() + 30
                     if mic.tentar(chave):
                         a.sem_escuta_aberta = escuta_aberta_original
                         print("Microfone ligado. Diga 'Ei guardião', espere o bipe e fale.")
+                if not continuo:
+                    a.sem_escuta_aberta = not (chave and mic.existe())
                 if a.cerebro and not achar_claude() and time.time() > claude_em:
                     claude_em = time.time() + 30
                     threading.Thread(target=lambda: achar_claude(refazer=True), daemon=True).start()  # a conferência executa o Claude: fora do laço do áudio
-                agora_saude = {"mic": mic.stream is not None, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
+                agora_saude = {"mic": (mic.stream is not None) if continuo else bool(chave and mic.existe()), "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
                 if agora_saude != saude:
                     saude = agora_saude
                     bus.emitir("saude", **saude)
@@ -2591,7 +2644,7 @@ def main():
                         drenar(q)
                         bus.emitir("estado", v="aguardando")
                         continuar(a, q, modelo, chave, piso, fala.rstrip().endswith("?"))
-                elif sem_mic and tipo in ("ditar", "acionar"):  # botão do microfone sem microfone: explica, em vez de ficar esperando uma fala
+                elif tipo in ("ditar", "acionar") and not (mic.stream is not None or (chave and mic.existe())):  # botão do microfone sem microfone: explica, em vez de ficar esperando uma fala
                     bus.emitir("aviso", texto=AVISO_SEM_MIC if chave else AVISO_SEM_CHAVE, erro=False)
                     bus.emitir("estado", v="aguardando")
                 elif tipo == "ditar":
@@ -2614,7 +2667,7 @@ def main():
                 rec = reconhecedor(modelo)
                 print("Aguardando 'Ei guardião'...")
                 continue
-            if dado is None:
+            if dado is None or not continuo:  # sem a escuta contínua nada é analisado fora de uma gravação por botão
                 continue
 
             rms = rms_de(dado)
