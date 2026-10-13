@@ -451,6 +451,9 @@ def classificar(nome, entrada):
     if nome in LIVRES:
         return "permitir", False, ""
     m = _mcp(nome)
+    if m and m[1] == "clickup_create_task" and not entrada.get("parent") and h.lista_conteudos_id() and str(entrada.get("list_id") or "") == h.lista_conteudos_id():
+        return "negar", False, ("Tarefa de conteúdo nunca nasce solta: crie como subtarefa, com o campo parent apontando para a tarefa mãe do post "
+                                "(posts_maes.json na pasta operacional). Se a mãe não existe, não crie nada: diga isso à pessoa.")
     if m:
         palavras = set(m[2])
         if palavras & P_SENSIVEL:

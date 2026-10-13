@@ -469,6 +469,13 @@ def achar_parecida(titulo, tarefas):
     return (melhor[1], False) if melhor else (None, False)
 
 
+def lista_conteudos_id():
+    """Id da lista de conteúdos (config.clickup.posts.lista): nela toda tarefa é subtarefa de uma mãe, nunca solta."""
+    c = _config().get("clickup") or {}
+    nome = (c.get("posts") or {}).get("lista") or "Conteúdos"
+    return next((str(l["id"]) for l in c.get("listas", []) if l.get("nome") == nome), "")
+
+
 def aprovar_plano():
     """Aprova o plano de hoje. Cada bloco novo (com lista_id e sem clickup_id) vira tarefa no ClickUp, com dono, hora e estimativa."""
     plano, caminho = _plano_e_caminho()
@@ -523,6 +530,9 @@ def aprovar_plano():
                     erros.append(f"{b.get('titulo')}: não achei a tarefa mãe do post '{b['post']}' e não criei uma tarefa solta.")
                     continue
             if b.get("clickup_id") or not b.get("lista_id"):
+                continue
+            if lista_conteudos_id() and str(b["lista_id"]) == lista_conteudos_id() and not b.get("pai"):
+                erros.append(f"{b.get('titulo')}: tarefa de conteúdo sem tarefa mãe (campo pai ou post). Não criei uma tarefa solta.")
                 continue
             existente, _ = achar_parecida(b.get("titulo"), abertas)
             if existente:  # mesmo assunto com outras palavras: não cria, a pessoa decide se é a mesma

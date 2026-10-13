@@ -83,6 +83,17 @@ try:
             and c("mcp__claude_ai_Google_Calendar__list_events", {})[0] == "permitir")
     confere("criar ou alterar num conector pergunta, e pode virar 'sempre'", c("mcp__claude_ai_ClickUp__clickup_create_task", {})[:2] == ("perguntar", False)
             and c("mcp__claude_ai_ClickUp__clickup_update_task", {})[:2] == ("perguntar", False))
+    antes = gs.h.lista_conteudos_id
+    gs.h.lista_conteudos_id = lambda: "L9"
+    confere("tarefa na lista de conteúdo sem parent é negada, com a orientação de achar a mãe",
+            c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "name": "Design"})[0] == "negar"
+            and "parent" in c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9"})[2])
+    confere("com parent, ou em outra lista, segue a regra normal (pergunta)",
+            c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "parent": "M1"})[0] == "perguntar"
+            and c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "OUTRA"})[0] == "perguntar")
+    gs.h.lista_conteudos_id = lambda: ""
+    confere("sem lista de conteúdo configurada, a trava não bloqueia nada", c("mcp__claude_ai_ClickUp__clickup_create_task", {})[0] == "perguntar")
+    gs.h.lista_conteudos_id = antes
     confere("enviar, apagar, publicar e executar perguntam sempre (sem 'sempre')", all(c(n, {})[:2] == ("perguntar", True) for n in (
         "mcp__claude_ai_Evolution_WhatsApp__send_message", "mcp__claude_ai_Gmail__send_message", "mcp__claude_ai_ClickUp__clickup_delete_task",
         "mcp__claude_ai_Meta__ads_activate_entity", "mcp__claude_ai_Supabase__execute_sql", "mcp__claude_ai_n8n__execute_workflow")))

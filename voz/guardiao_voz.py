@@ -896,8 +896,28 @@ def arquivo_prompt_sessao():
                 f"\n\nPASTAS DO GUARDIÃO. Operacional (plano_do_dia.json, registros, resumo do ClickUp, scripts): {OPER}. Memória (perfil, estado, decisões, POPs): {pasta_memoria()}."
                 f"\n\nPLANO DE HOJE EM ARQUIVO. Para montar ou refazer o plano de hoje (inclusive um plano já aprovado), grave plano_do_dia.json na pasta operacional. {REGRAS_DO_PLANO} "
                 "Depois diga em voz alta o que mudou e pergunte se ele quer revisar o plano. Plano de outro dia vai em planos\\plano_AAAA-MM-DD.json, na mesma pasta."
+                f"\n\nREGRAS LOCAIS DA PESSOA (valem sempre, mesmo sem acionar a skill; só somam às regras da skill):\n{_regras_locais()}"
                 f"\n\nPERFIL:\n{_perfil()}")
     return arq
+
+
+def _regras_locais():
+    """extensoes-*.md da skill e aprendizados.md da memória, sempre carregados na sessão do app: a sessão roda na pasta operacional,
+    sem o CLAUDE.md nem a memória do projeto, e só leria isso se decidisse acionar a skill."""
+    partes = []
+    skill = os.path.join(os.path.expanduser("~"), ".claude", "skills", "guardiao-triwer")
+    try:
+        arquivos = sorted(os.path.join(skill, n) for n in os.listdir(skill) if n.startswith("extensoes-") and n.endswith(".md"))
+    except OSError:
+        arquivos = []
+    arquivos.append(os.path.join(pasta_memoria(), "aprendizados.md"))
+    for caminho in arquivos:
+        try:
+            with open(caminho, encoding="utf-8-sig") as f:
+                partes.append(f"[{os.path.basename(caminho)}]\n{f.read()}")
+        except OSError:
+            continue
+    return "\n\n".join(partes) or "(nenhuma)"
 
 
 def mensagem_da_sessao(pergunta, conversa):
