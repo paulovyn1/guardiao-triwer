@@ -661,12 +661,12 @@ def _plano_do_dia_data(data):
 def resolver_ref(ref):
     """Traduz o que o guardião cita (b2, AAAA-MM-DD:b1, cu:ID) para a tarefa de verdade. None se não existir."""
     ref = str(ref or "").strip()
-    if re.fullmatch(r"b\d+", ref):
+    if re.fullmatch(r"[\w-]+", ref):  # o id do bloco pode ser b1, b2... ou um nome (pensar, copy_a): vale o que existe no plano de hoje
         plano = _plano_de_hoje() or {}
         b = next((x for x in plano.get("blocos", []) if x.get("id") == ref), None)
         if b:
             return {"ref": ref, "tipo": "bloco", "bloco": b, "cid": b.get("clickup_id"), "titulo": b.get("titulo")}
-    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2}):(b\d+)", ref)
+    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2}):([\w-]+)", ref)
     if m:
         plano = _plano_do_dia_data(m.group(1)) or {}
         b = next((x for x in plano.get("blocos", []) if x.get("id") == m.group(2)), None)
@@ -970,11 +970,7 @@ def agir(tipo, ref=None, texto=None, dados=None):
                 if not info.get("cid"):
                     r = {"ok": False, "erro": "Essa tarefa não existe no ClickUp."}
                 else:
-                    if concluir:
-                        if not (texto or "").strip():
-                            raise ValueError("Falta o comentário do que foi feito.")
-                        clickup_comentar(info["cid"], f"Atualização de status: {texto.strip()}")
-                    r = {"ok": True, "status": clickup_mudar_status(info["cid"], concluir)}
+                    r = {"ok": True, "status": clickup_mudar_status(info["cid"], concluir)}  # sem comentário de status: o ClickUp já registra quando fechou
         elif tipo == "comentar":
             if not info.get("cid"):
                 r = {"ok": False, "erro": "Essa tarefa não existe no ClickUp."}
