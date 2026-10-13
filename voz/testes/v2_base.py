@@ -107,6 +107,7 @@ def preparar(porta, plano=None, hora="09:50", feitos=("b1", "b2"), prefs=None):
     relogio = Relogio(hora)
     h.time = relogio
     h.ARQ_PREFS = os.path.join(tempfile.mkdtemp(prefix="gv_prefs_"), "preferencias.json")
+    v2.ARQ_CATALOGO_PADRAO = os.path.join(tmp, "sem_catalogo_padrao.json")  # o teste nunca lê o catálogo de verdade da escola
     if prefs:
         with open(h.ARQ_PREFS, "w", encoding="utf-8") as f:
             json.dump(prefs, f)

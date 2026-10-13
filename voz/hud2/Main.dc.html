@@ -1160,6 +1160,9 @@ body{margin:0;background:#07080a}
                   <sc-if value="{{pops.emptyOn}}" hint-placeholder-val="{{false}}">
                     <div class="pstate"><h3>Você ainda não tem POPs</h3><p>Abra uma tarefa feita e use "Criar POP desta tarefa", ou comece um do zero. Cada POP vira um arquivo na sua pasta de memória.</p><div style="display:flex;gap:8px"><button class="btn-pri sm" onClick="{{popNovo}}">Novo POP</button><button class="btn-gh" onClick="{{popGoSchool}}">Ver POPs da escola</button></div></div>
                   </sc-if>
+                  <sc-if value="{{pops.schoolEmptyOn}}" hint-placeholder-val="{{false}}">
+                    <div class="pstate"><h3>A escola ainda não publicou POPs</h3><p>Quando ela publicar, eles aparecem aqui para você instalar. Os seus POPs continuam valendo.</p></div>
+                  </sc-if>
                   <sc-if value="{{pops.noResOn}}" hint-placeholder-val="{{false}}">
                     <div class="pstate"><h3>Nada encontrado</h3><p>Não achei POP para "{{popQ}}". Quer que o Guardião monte um rascunho?</p><div style="display:flex;gap:8px"><button class="btn-pri sm" onClick="{{popAskDraft}}">Montar rascunho</button><button class="btn-gh" onClick="{{popClear}}">Limpar busca</button></div></div>
                   </sc-if>
@@ -3147,6 +3150,7 @@ class Component extends DCLogic {
     const filtered = base.filter((x) => (S.popFront === 'Todas' || x.frente === S.popFront) && (!q || norm(x.nome + ' ' + x.proposito + ' ' + x.frente).indexOf(q) >= 0));
     const escolaFora = S.popTab === 'school' && !PP.escola.ok;
     const emptyOn = S.popTab === 'mine' && PP.meus.length === 0 && !S.popDraft, draftOn = !!S.popDraft && S.popTab === 'mine';
+    const schoolEmptyOn = S.popTab === 'school' && PP.escola.ok && PP.escola.itens.length === 0;  // a escola ainda não publicou nenhum POP
     const pops = {
       tabs: [{ label: 'Meus POPs (' + PP.meus.length + ')', id: 'mine' }, { label: 'POPs da escola', id: 'school' }].map((t) => ({ label: t.label, cls: S.popTab === t.id ? 'on' : '', on: S.popTab === t.id, go: () => this.setPopTab(t.id) })),
       sugg: !!PP.sugestao && !S.popDraft, suggText: PP.sugestao ? 'Você concluiu "' + PP.sugestao.titulo + '" ' + PP.sugestao.vezes + ' vezes. Criar um POP?' : '',
@@ -3156,7 +3160,7 @@ class Component extends DCLogic {
       errOn: escolaFora, errTitle: PP.escola.motivo === 'nao_configurado' ? 'O catálogo da escola ainda não foi publicado' : PP.escola.motivo === 'carregando' ? 'Carregando' : 'O catálogo da escola está indisponível',
       errText: PP.escola.motivo === 'nao_configurado' ? 'Quando a escola publicar a página de POPs, eles aparecem aqui para instalar. Seus POPs continuam valendo.' : PP.escola.motivo === 'carregando' ? 'Buscando os POPs.' : 'Não consegui falar com a página da escola agora. Seus POPs continuam aqui.',
       errRetry: PP.escola.motivo === 'indisponivel',
-      emptyOn, noResOn: !escolaFora && !emptyOn && filtered.length === 0 && !draftOn,
+      emptyOn, schoolEmptyOn, noResOn: !escolaFora && !emptyOn && !schoolEmptyOn && filtered.length === 0 && !draftOn,
       cards: escolaFora ? [] : filtered.map((x) => ({ id: x.id, name: x.nome, purpose: x.proposito, steps: x.etapas.length + (x.etapas.length === 1 ? ' etapa' : ' etapas'), avg: x.tempo_medio ? x.tempo_medio + ' médio' : 'sem média ainda', uses: x.usos === 0 ? 'Nunca usado' : 'Usado ' + x.usos + (x.usos === 1 ? ' vez' : ' vezes'), ver: x.versao, cls: S.popNewId === x.id ? 'new' : '', cta: x.meu ? 'Ver' : (x.instalado ? 'Instalado' : 'Ver e instalar'), aria: x.nome + '. ' + x.proposito, open: () => this.openDetail('pop', x.id) }))
     };
 

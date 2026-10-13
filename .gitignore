@@ -2,3 +2,5 @@ memoria.md
 extensoes-*.md
 .repo-path
 perfil_edge/
+__pycache__/
+*.pyc

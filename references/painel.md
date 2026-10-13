@@ -10,7 +10,7 @@ Sem a chave do Groq (`voz\definir_chave_groq.bat`) o painel funciona do mesmo je
 - `calibragem\eventos.jsonl`: uma linha por fato (aviso de tempo, extensão, adiamento, imprevisto, conclusão com planejado e real). Todo "por que não deu para terminar" fica no campo `motivo`.
 - `calibragem\reports\AAAA-MM-DD.json`: o **report do dia** (ajustes, picos, o que funcionou, última hora), enviado pela tela ou por voz. `calibragem\estado.json` guarda o dia 1 da calibragem de 30 dias (só dias de trabalho contam).
 - `tempos.json`: preenchido sozinho a cada conclusão, por tipo (a `frente` do bloco). Guarda os 10 últimos registros, marca `confirmado` quando o tempo foi medido no modo execução e calcula a média a partir de 3 confirmados. No fim do dia o guardião só confere.
-- `pops\POP - nome.md` na pasta da memória: POPs criados ou instalados pela tela (mesmo modelo, com as linhas `Frente:` e `Origem:`). O catálogo da escola vem do campo `pops.catalogo` do `config.json`.
+- `pops\POP - nome.md` na pasta da memória: POPs criados ou instalados pela tela (mesmo modelo, com as linhas `Frente:` e `Origem:`). O catálogo da escola vem da internet (`voz\catalogo_pops.json`, só leitura, só POPs publicados), sem a pessoa configurar nada; o campo `pops.catalogo` do `config.json`, se existir, troca por outro catálogo.
 
 ## 2. O que acontece durante o dia (sem o guardião do chat)
 
@@ -53,4 +53,4 @@ Ligado em Preferências, Comportamento. Com ele, a conversa do painel é uma ses
 - Cada conversa fica em `conversas\` na pasta operacional: `indice.json` (a lista), `<id>.jsonl` (o que foi dito) e `permissoes.json` (o que a pessoa mandou permitir sempre).
 - O que o painel resolve sozinho (saudação, comando de tela, aviso de tempo) chega à sessão na fala seguinte, num bloco de contexto. Não trate esse bloco como fala da pessoa.
 - Ação que altera algo fora do computador passa pelo cartão de permissão do painel. No chat comum do Claude Code nada muda.
-- `pops.catalogo`: endereço ou arquivo do catálogo de POPs da escola. Sem o campo, a tela diz que o catálogo ainda não foi publicado.
+- `pops.catalogo` (opcional): endereço ou arquivo de outro catálogo de POPs, no lugar do da escola. Sem o campo vale o da escola; se nenhum POP foi publicado ainda, a aba "POPs da escola" aparece vazia.

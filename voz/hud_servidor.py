@@ -494,7 +494,7 @@ def aprovar_plano():
     if not plano.get("exemplo"):
         token = _token_clickup()
         if any(b.get("lista_id") and not b.get("clickup_id") for b in plano.get("blocos", [])):
-            atualizar_resumo_clickup()  # alguém (o Zapia, o Vitor) pode ter criado a tarefa depois da última leitura agendada
+            atualizar_resumo_clickup()  # outra pessoa ou outra automação pode ter criado a tarefa depois da última leitura agendada
         abertas = (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", [])
         for b in plano.get("blocos", []):  # título igual ao de uma tarefa aberta: o bloco passa a usar ela (e ela muda de hora abaixo)
             if b.get("lista_id") and not b.get("clickup_id") and not b.get("post"):

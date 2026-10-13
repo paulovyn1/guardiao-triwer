@@ -120,7 +120,7 @@ try:
     ditos = [v for t, v in comandos() if t == "dizer"]
     confere("cada passo foi mandado para a voz", len(ditos) == 3 and "até as 11:00" in ditos[-1], ditos)
 
-    # ---------------- concluir: o check fecha a tarefa na hora, sem pedir frase e sem comentar (decisão da Milena em 13/10/2026)
+    # ---------------- concluir: o check fecha a tarefa na hora, sem pedir frase e sem comentar (decisão de produto de 13/10/2026)
     relogio.hora = "10:40"
     h.bus.emitir("plano")
     espera("document.querySelector('.st.cur .btn-pri').innerText.toLowerCase().includes('10:40')", 8)
@@ -221,6 +221,24 @@ try:
     confere("catálogo da escola: diz que ainda não foi publicado, sem inventar POPs", espera("document.querySelector('.st.cur .pstate h3').innerText.toLowerCase().includes('ainda não foi publicado')", 4), texto(".st.cur .pgrid"))
     time.sleep(0.8)
     foto("17_pops_escola")
+    # catálogo da escola no ar, mas sem nenhum POP publicado ainda: diz isso, em vez de "Nada encontrado"
+    with open(os.path.join(tmp, "catalogo_vazio.json"), "w", encoding="utf-8") as f:
+        json.dump({"pops": []}, f)
+    cfg_pops = h._config()
+    cfg_pops["pops"] = {"catalogo": "catalogo_vazio.json"}
+    with open(os.path.join(tmp, "config.json"), "w", encoding="utf-8") as f:
+        json.dump(cfg_pops, f, ensure_ascii=False)
+    js("[...document.querySelectorAll('.tab')][0].click()")
+    time.sleep(0.8)
+    js("[...document.querySelectorAll('.tab')][4].click()")
+    espera("document.querySelector('.gd').classList.contains('scr-pops')", 3)
+    js("[...document.querySelectorAll('.st.cur .seg-b')].find(b => b.textContent.includes('escola')).click()")
+    confere("catálogo da escola sem POPs publicados diz que a escola ainda não publicou, e não 'Nada encontrado'",
+            espera("document.querySelector('.st.cur .pstate h3') && document.querySelector('.st.cur .pstate h3').innerText.toLowerCase().includes('escola ainda não publicou')", 5)
+            and "nada encontrado" not in texto(".st.cur .pgrid").lower(), texto(".st.cur .pgrid"))
+    cfg_pops.pop("pops")
+    with open(os.path.join(tmp, "config.json"), "w", encoding="utf-8") as f:
+        json.dump(cfg_pops, f, ensure_ascii=False)
     r = v2.rascunho_pop({"bloco": "b3"})
     js("[...document.querySelectorAll('.tab')][1].click()")
     espera("document.querySelector('.gd').classList.contains('scr-dia')", 3)
