@@ -120,7 +120,7 @@ try:
     ditos = [v for t, v in comandos() if t == "dizer"]
     confere("cada passo foi mandado para a voz", len(ditos) == 3 and "até as 11:00" in ditos[-1], ditos)
 
-    # ---------------- concluir: tarefa do ClickUp só fecha com a frase do que foi feito
+    # ---------------- concluir: o check fecha a tarefa na hora, sem pedir frase e sem comentar (decisão de produto de 13/10/2026)
     relogio.hora = "10:40"
     h.bus.emitir("plano")
     espera("document.querySelector('.st.cur .btn-pri').innerText.toLowerCase().includes('10:40')", 8)
@@ -128,13 +128,11 @@ try:
     js("document.querySelector('.st.cur .btn-pri').click()")
     confere("concluir carimba a hora", espera("document.querySelector('.st.cur .btn-pri').classList.contains('stamped')", 3) and contem(".st.cur .btn-pri", "CONCLUÍDO · 10:40"), texto(".st.cur .btn-pri"))
     foto("07_concluir_carimbo")
-    confere("pede a frase do que foi feito", espera("document.querySelector('.st.cur .arow .tin')", 5) and espera("document.querySelector('.gl-g').innerText.toLowerCase().includes('o que foi feito')", 5), texto(".after"))
-    confere("nada foi para o ClickUp antes da frase", len(B.ClickUpFalso.chamadas) == n_antes)
+    confere("não pede frase nenhuma: o check conclui na hora", not js("!!document.querySelector('.st.cur .arow .tin')"), texto(".after"))
     confere("a próxima tarefa já subiu", contem(".f-title", "Revisar o roteiro"), texto(".f-title"))
     time.sleep(1.0)
-    foto("08_concluir_nota")
-    digitar(".st.cur .arow .tin", "Campanhas montadas e revisadas.", enter=True)
-    confere("com a frase, comenta e conclui no ClickUp", pausa(1.2) and any(m == "POST" and "cid3/comment" in u and "Campanhas montadas" in str(c) and "Guardião do Rafa" in str(c) for m, u, c in B.ClickUpFalso.chamadas), (B.ClickUpFalso.chamadas[-3:], js("[...document.querySelectorAll('.toast')].map(e => e.innerText)"), texto(".after"), js("document.querySelector('.st.cur .arow .tin') ? document.querySelector('.st.cur .arow .tin').value : null")))
+    foto("08_concluir_sem_frase")
+    confere("fecha no ClickUp na hora: sem comentário e com início e fim reais", pausa(1.5) and not any(m == "POST" and "cid3/comment" in u for m, u, c in B.ClickUpFalso.chamadas) and any(m == "PUT" and "cid3" in u and isinstance(c, dict) and "start_date" in c and c.get("status") == "complete" for m, u, c in B.ClickUpFalso.chamadas), B.ClickUpFalso.chamadas[n_antes:][-3:])
     reg = {b["id"]: b for b in h._registro_de_hoje()["blocos"]}
     confere("o registro guarda o horário real medido", reg["b3"]["estado"] == "feito" and reg["b3"]["real"] == {"inicio": "09:50", "fim": "10:40", "minutos": 50} and reg["b3"].get("nao_confirmado") is False, reg["b3"])
     confere("o tempo real entra no tempos.json", h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]["Tráfego"]["registros"][-1]["real"] == 50)
@@ -223,6 +221,24 @@ try:
     confere("catálogo da escola: diz que ainda não foi publicado, sem inventar POPs", espera("document.querySelector('.st.cur .pstate h3').innerText.toLowerCase().includes('ainda não foi publicado')", 4), texto(".st.cur .pgrid"))
     time.sleep(0.8)
     foto("17_pops_escola")
+    # catálogo da escola no ar, mas sem nenhum POP publicado ainda: diz isso, em vez de "Nada encontrado"
+    with open(os.path.join(tmp, "catalogo_vazio.json"), "w", encoding="utf-8") as f:
+        json.dump({"pops": []}, f)
+    cfg_pops = h._config()
+    cfg_pops["pops"] = {"catalogo": "catalogo_vazio.json"}
+    with open(os.path.join(tmp, "config.json"), "w", encoding="utf-8") as f:
+        json.dump(cfg_pops, f, ensure_ascii=False)
+    js("[...document.querySelectorAll('.tab')][0].click()")
+    time.sleep(0.8)
+    js("[...document.querySelectorAll('.tab')][4].click()")
+    espera("document.querySelector('.gd').classList.contains('scr-pops')", 3)
+    js("[...document.querySelectorAll('.st.cur .seg-b')].find(b => b.textContent.includes('escola')).click()")
+    confere("catálogo da escola sem POPs publicados diz que a escola ainda não publicou, e não 'Nada encontrado'",
+            espera("document.querySelector('.st.cur .pstate h3') && document.querySelector('.st.cur .pstate h3').innerText.toLowerCase().includes('escola ainda não publicou')", 5)
+            and "nada encontrado" not in texto(".st.cur .pgrid").lower(), texto(".st.cur .pgrid"))
+    cfg_pops.pop("pops")
+    with open(os.path.join(tmp, "config.json"), "w", encoding="utf-8") as f:
+        json.dump(cfg_pops, f, ensure_ascii=False)
     r = v2.rascunho_pop({"bloco": "b3"})
     js("[...document.querySelectorAll('.tab')][1].click()")
     espera("document.querySelector('.gd').classList.contains('scr-dia')", 3)

@@ -115,10 +115,12 @@ g.bus.sair(painel)
 
 # ---- frases inventadas pelo Whisper ----
 for frase in ["Legenda por Sônia Ruberti", "Legendas pela comunidade Amara.org", "Legenda Adriana Zanotto".replace("Legenda ", "Legenda por "), "Legendado por Fulano de Tal",
-              "Obrigado por assistir!", "Transcrição e Legendas pela comunidade Amara.org", "♪♪", "Tradução e legendas por Maria Silva", "  ", ""]:
+              "Obrigado por assistir!", "Transcrição e Legendas pela comunidade Amara.org", "♪♪", "Tradução e legendas por Maria Silva", "  ", "",
+              "[Música]", "(Aplausos)", "Se inscreva no canal e ative o sininho!", "Até a próxima!", "Obrigado por ter assistido.", "Até o próximo vídeo!"]:
     confere(f"frase inventada some: '{frase}'", g.limpar_alucinacao(frase) == "", g.limpar_alucinacao(frase))
 for frase in ["Coloca a legenda por cima do vídeo e me avisa.", "Revisa as pendências de sábado e domingo.", "Obrigado, pode aprovar.", "Sim.",
-              "A legenda de hoje ficou boa?", "Preciso da tradução do contrato da Marina até sexta."]:
+              "A legenda de hoje ficou boa?", "Preciso da tradução do contrato da Marina até sexta.",
+              "Toca uma música para mim.", "Até a próxima reunião, move isso para sexta.", "Se inscreva na lista de espera do curso hoje."]:
     confere(f"fala de verdade fica igual: '{frase}'", g.limpar_alucinacao(frase) == frase, g.limpar_alucinacao(frase))
 confere("frase inventada no fim de uma fala de verdade é cortada", g.limpar_alucinacao("Move a reunião para as três. Legendas pela comunidade Amara.org") == "Move a reunião para as três",
         g.limpar_alucinacao("Move a reunião para as três. Legendas pela comunidade Amara.org"))

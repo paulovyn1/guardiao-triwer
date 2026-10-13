@@ -1160,6 +1160,9 @@ body{margin:0;background:#07080a}
                   <sc-if value="{{pops.emptyOn}}" hint-placeholder-val="{{false}}">
                     <div class="pstate"><h3>Você ainda não tem POPs</h3><p>Abra uma tarefa feita e use "Criar POP desta tarefa", ou comece um do zero. Cada POP vira um arquivo na sua pasta de memória.</p><div style="display:flex;gap:8px"><button class="btn-pri sm" onClick="{{popNovo}}">Novo POP</button><button class="btn-gh" onClick="{{popGoSchool}}">Ver POPs da escola</button></div></div>
                   </sc-if>
+                  <sc-if value="{{pops.schoolEmptyOn}}" hint-placeholder-val="{{false}}">
+                    <div class="pstate"><h3>A escola ainda não publicou POPs</h3><p>Quando ela publicar, eles aparecem aqui para você instalar. Os seus POPs continuam valendo.</p></div>
+                  </sc-if>
                   <sc-if value="{{pops.noResOn}}" hint-placeholder-val="{{false}}">
                     <div class="pstate"><h3>Nada encontrado</h3><p>Não achei POP para "{{popQ}}". Quer que o Guardião monte um rascunho?</p><div style="display:flex;gap:8px"><button class="btn-pri sm" onClick="{{popAskDraft}}">Montar rascunho</button><button class="btn-gh" onClick="{{popClear}}">Limpar busca</button></div></div>
                   </sc-if>
@@ -1334,7 +1337,6 @@ body{margin:0;background:#07080a}
       <sc-if value="{{dt.doneOpen}}" hint-placeholder-val="{{false}}">
         <div class="doneform">
           <div class="row2"><label for="df-a">Começou às</label><input id="df-a" class="tf" value="{{dForm.a}}" onChange="{{onDfA}}"><label for="df-b">Terminou às</label><input id="df-b" class="tf" value="{{dForm.b}}" onChange="{{onDfB}}"></div>
-          <input class="tin" placeholder="O que foi feito? Uma frase" value="{{dForm.note}}" onChange="{{onDfNote}}" aria-label="O que foi feito">
           <div class="row2"><button class="btn-pri sm" onClick="{{dfConfirm}}">Confirmar</button><button class="btn-lnk" onClick="{{dfCancel}}">Cancelar</button></div>
         </div>
       </sc-if>
@@ -1698,7 +1700,7 @@ const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julh
 const MESES3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 const ESTADOS = { aguardando: 'idle', ouvindo: 'listening', transcrevendo: 'transcribing', pensando: 'thinking', falando: 'speaking' };
 /* preferências: nome na tela -> chave no servidor (voz\preferencias.json) */
-const PF_MAP = { sound: 'sons', typing: 'som_digitacao', motion: 'som_movimento', touch: 'som_toques', confirm: 'som_avisos', stateSnd: 'som_estados', track: 'som_abertura', introAnim: 'abertura_animada', greet: 'saudacao', openMic: 'escuta_aberta', openExec: 'abrir_em_execucao', session: 'sessao', voice: 'voz_guardiao', light: 'modo_leve', glass: 'vidro' };
+const PF_MAP = { sound: 'sons', typing: 'som_digitacao', motion: 'som_movimento', touch: 'som_toques', confirm: 'som_avisos', stateSnd: 'som_estados', track: 'som_abertura', introAnim: 'abertura_animada', greet: 'saudacao', alwaysMic: 'mic_sempre_ligado', openMic: 'escuta_aberta', openExec: 'abrir_em_execucao', session: 'sessao', voice: 'voz_guardiao', light: 'modo_leve', glass: 'vidro' };
 const QS = (() => { try { return new URLSearchParams(location.search); } catch (e) { return new URLSearchParams(''); } })();
 const isoDia = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 const primeiroNome = (s) => String(s || '').trim().split(' ')[0];
@@ -1746,7 +1748,7 @@ class Component extends DCLogic {
       diaLayer: 0, noticeOpen: false,
       detail: null, detailOpen: false, extra: {}, dForm: { a: '', b: '', note: '', open: false },
       prefsOpen: false, pfSec: '', hdPin: false, hdPeek: false,
-      pf: { sound: true, stateSnd: true, volume: 70, typing: true, motion: true, touch: true, confirm: true, track: true, introAnim: true, greet: true, openMic: true, openExec: false, session: false, voice: true, light: false, glass: true, variant: 'N' },
+      pf: { sound: true, stateSnd: true, volume: 70, typing: true, motion: true, touch: true, confirm: true, track: true, introAnim: true, greet: true, alwaysMic: false, openMic: true, openExec: false, session: false, voice: true, light: false, glass: true, variant: 'N' },
       saude: null, pessoa: 'você', gname: 'Guardião',
       scene: null, sceneOn: false, toasts: [],
       cal: null, calForm: false, calFields: ['', '', '', ''], calBusy: false,
@@ -2412,7 +2414,7 @@ class Component extends DCLogic {
     if (!quiet) this.sayLocal('Saí da execução. Estou por aqui se precisar.');
   }
   exitExecBtn() { this.exitExec(); }
-  openCurDetail() { const p = this.curTask(); if (p) this.openDetail('task', p.id); }
+  openCurDetail() { const p = this.proxFixo() || this.curTask(); if (p) this.openDetail('task', p.id); }
   showList(kind, quieto) {
     if (this.state.sceneOn && this.state.scene && this.state.scene.kind === 'focus') this.closeScene(true);
     this.setState({ detail: { kind }, detailOpen: true, dForm: { open: false, a: '', b: '', note: '' }, prefsOpen: false });
@@ -2431,6 +2433,10 @@ class Component extends DCLogic {
   /* ---------- plano e tarefas ---------- */
   pendList() { return this.state.tasks.filter((t) => !t.fixed && t.status === 'todo').sort((a, b) => a.s - b.s); }
   curTask() { return this.pendList()[0] || null; }
+  proxFixo() {  // almoço, live, pausa: compromisso fixo que vem antes da próxima tarefa, quando ainda não há tarefa em andamento
+    const S = this.state, p = this.curTask(); if (!p || this.homeMode() !== 'between') return null;
+    return S.tasks.filter((t) => t.fixed && t.status === 'todo' && t.s > S.now - 1 && t.s < p.s).sort((a, b) => a.s - b.s)[0] || null;
+  }
   homeMode() {
     const S = this.state;
     if (S.planState === 'none' || !S.tasks.length) return 'noplan';
@@ -2466,7 +2472,8 @@ class Component extends DCLogic {
     this._t(() => this.setState({ phase: 'leave' }), 1050);
     this._t(() => {
       const done = { id: p.id, at, title: p.title, needNote: !!p.needNote, sent: false, a: h.a, b: h.b, medido: h.medido };
-      if (p.needNote) {  // tarefa do ClickUp: fica "feita" na tela e só fecha de verdade quando vier a frase do que foi feito
+      const pedeFrase = false;  // o check conclui na hora, inclusive tarefa do ClickUp; a frase do comentário deixou de ser obrigatória
+      if (p.needNote && pedeFrase) {  // tarefa do ClickUp: fica "feita" na tela e só fecha de verdade quando vier a frase do que foi feito
         this.pend[p.id] = { a: h.a, b: h.b, medido: h.medido }; this.salvarPend();
         API.post('/execucao', { acao: 'aguardar', id: p.id }).catch(() => {});  // o relógio desta tarefa para; o da próxima começa
         const tasks = this.state.tasks.map((t) => (t.id === p.id ? Object.assign({}, t, { status: 'done', aguarda: true, startedAt: h.a, doneAt: h.b }) : t));
@@ -2750,11 +2757,10 @@ class Component extends DCLogic {
     const S = this.state, id = S.detail && S.detail.id, t = this.findTask(id), a = parseHM(S.dForm.a), b = parseHM(S.dForm.b), nota = String(S.dForm.note || '').trim();
     if (!t) return;
     if (a == null || b == null || b <= a) { this.toast('Confira os horários. Use o formato 09:30.', true); return; }
-    if (t.needNote && !nota) { this.toast('Escreva em uma frase o que foi feito. Ela vai como comentário no ClickUp.', true); return; }
     this.setState({ detailOpen: false, dForm: { open: false, a: '', b: '', note: '' } });
     API.post('/concluir', { id, concluido: true, nota, inicio: hhmm(a), fim: hhmm(b) }).then((r) => {
       if (!r || !r.ok) { this.toast((r && r.erro) || 'Não consegui concluir.', true); return; }
-      this.toast('Marcada como feita às ' + hhmm(b) + (t.needNote ? '. Comentário enviado ao ClickUp.' : '.')); this.sfx('done');
+      this.toast('Marcada como feita às ' + hhmm(b) + '.'); this.sfx('done');
       this.setState({ breath: this.state.breath + 1 });
     }).catch((e) => this.falha(e));
   }
@@ -2932,8 +2938,15 @@ class Component extends DCLogic {
       focus.kick = 'Passou do horário · ' + hhmm(p.e); focus.kickCls = 'late'; focus.progSt = 'opacity:1'; focus.barSt = barSt(1);
       primary.label = 'Concluir · ' + hhmm(now); primary.showPost = true; primary.aria = 'Concluir a tarefa agora, ' + hhmm(now);
     } else if (mode === 'between') {
-      focus.kick = 'A seguir em ' + fmtRem(Math.ceil(p.s - now)) + ' · ' + hhmm(p.s); focus.progSt = 'opacity:.35';
-      primary.label = 'Começar agora · ' + hhmm(now); primary.cls = 'alt'; primary.showPost = true; primary.aria = 'Começar a próxima tarefa agora';
+      const fx = this.proxFixo();
+      if (fx) {  // o compromisso fixo vem antes da próxima tarefa: ele é o "a seguir", e a tarefa aparece como "depois"
+        focus.kick = 'A seguir em ' + fmtRem(Math.max(1, Math.ceil(fx.s - now))) + ' · ' + hhmm(fx.s) + ' · compromisso fixo'; focus.progSt = 'opacity:.35';
+        focus.title = fx.title; focus.tracked = 'Depois: ' + p.title + ' · ' + hhmm(p.s);
+        primary.label = 'Adiantar a próxima tarefa · ' + hhmm(now); primary.cls = 'alt'; primary.showPost = false; primary.aria = 'Começar já a próxima tarefa, ' + p.title;
+      } else {
+        focus.kick = 'A seguir em ' + fmtRem(Math.ceil(p.s - now)) + ' · ' + hhmm(p.s); focus.progSt = 'opacity:.35';
+        primary.label = 'Começar agora · ' + hhmm(now); primary.cls = 'alt'; primary.showPost = true; primary.aria = 'Começar a próxima tarefa agora';
+      }
     } else if (mode === 'suggested') {
       focus.kick = 'Sugerida · ' + hhmm(p.s) + ' às ' + hhmm(p.e); focus.progSt = 'opacity:.35';
       primary.label = 'Começa às ' + hhmm(p.s); primary.cls = 'alt'; primary.dis = true; primary.aria = 'Disponível depois de aprovar o plano';
@@ -3137,6 +3150,7 @@ class Component extends DCLogic {
     const filtered = base.filter((x) => (S.popFront === 'Todas' || x.frente === S.popFront) && (!q || norm(x.nome + ' ' + x.proposito + ' ' + x.frente).indexOf(q) >= 0));
     const escolaFora = S.popTab === 'school' && !PP.escola.ok;
     const emptyOn = S.popTab === 'mine' && PP.meus.length === 0 && !S.popDraft, draftOn = !!S.popDraft && S.popTab === 'mine';
+    const schoolEmptyOn = S.popTab === 'school' && PP.escola.ok && PP.escola.itens.length === 0;  // a escola ainda não publicou nenhum POP
     const pops = {
       tabs: [{ label: 'Meus POPs (' + PP.meus.length + ')', id: 'mine' }, { label: 'POPs da escola', id: 'school' }].map((t) => ({ label: t.label, cls: S.popTab === t.id ? 'on' : '', on: S.popTab === t.id, go: () => this.setPopTab(t.id) })),
       sugg: !!PP.sugestao && !S.popDraft, suggText: PP.sugestao ? 'Você concluiu "' + PP.sugestao.titulo + '" ' + PP.sugestao.vezes + ' vezes. Criar um POP?' : '',
@@ -3146,7 +3160,7 @@ class Component extends DCLogic {
       errOn: escolaFora, errTitle: PP.escola.motivo === 'nao_configurado' ? 'O catálogo da escola ainda não foi publicado' : PP.escola.motivo === 'carregando' ? 'Carregando' : 'O catálogo da escola está indisponível',
       errText: PP.escola.motivo === 'nao_configurado' ? 'Quando a escola publicar a página de POPs, eles aparecem aqui para instalar. Seus POPs continuam valendo.' : PP.escola.motivo === 'carregando' ? 'Buscando os POPs.' : 'Não consegui falar com a página da escola agora. Seus POPs continuam aqui.',
       errRetry: PP.escola.motivo === 'indisponivel',
-      emptyOn, noResOn: !escolaFora && !emptyOn && filtered.length === 0 && !draftOn,
+      emptyOn, schoolEmptyOn, noResOn: !escolaFora && !emptyOn && !schoolEmptyOn && filtered.length === 0 && !draftOn,
       cards: escolaFora ? [] : filtered.map((x) => ({ id: x.id, name: x.nome, purpose: x.proposito, steps: x.etapas.length + (x.etapas.length === 1 ? ' etapa' : ' etapas'), avg: x.tempo_medio ? x.tempo_medio + ' médio' : 'sem média ainda', uses: x.usos === 0 ? 'Nunca usado' : 'Usado ' + x.usos + (x.usos === 1 ? ' vez' : ' vezes'), ver: x.versao, cls: S.popNewId === x.id ? 'new' : '', cta: x.meu ? 'Ver' : (x.instalado ? 'Instalado' : 'Ver e instalar'), aria: x.nome + '. ' + x.proposito, open: () => this.openDetail('pop', x.id) }))
     };
 
@@ -3190,7 +3204,7 @@ class Component extends DCLogic {
       ver: vTem ? 'Versão ' + V.instalada + (V.nova ? ' · nova: ' + V.remota : '') : '',
       groups: [
         { id: 'som', title: 'Voz e sons', rows: [sw('voice', 'Voz do Guardião', 'Ligada por padrão. Desligada, ele só escreve. O seu microfone continua valendo.'), sw('sound', 'Ligar todos os sons', 'Tudo sintetizado, sem arquivos. Desligue para silêncio total.'), rng('volume', 'Volume'), sw('typing', 'Digitação e escrita', 'Teclas quando você digita e o Guardião escrevendo a resposta.'), sw('motion', 'Movimento', 'Troca de tela, painéis abrindo e fechando, entrar e sair da execução.'), sw('touch', 'Toques', 'Cliques nos botões e o microfone ligando e desligando.'), sw('confirm', 'Confirmações e avisos', 'Sucesso, concluído, erro, cancelamento e avisos.'), sw('stateSnd', 'Estados do Guardião', 'Sininhos suaves enquanto ele pensa. Ligando e desligando quando o guardião cai ou volta.'), sw('track', 'Trilha da abertura', 'Atmosfera, carregamento e o impacto final da abertura.')] },
-        { id: 'comp', title: 'Comportamento', rows: [sw('introAnim', 'Animação de abertura', 'Completa na primeira vez do dia em que você olha o painel e quando reabre depois de 3 horas. Clique, Esc, Espaço ou Enter pulam.'), btn('Rever a abertura', 'Toca a animação agora, uma vez, sem mudar a regra do dia.', 'Rever', C('verAbertura')), sw('greet', 'Saudação ao abrir', 'Ele cumprimenta e propõe revisar o plano. Também respeita as 3 horas.'), sw('openMic', 'Microfone aberto', 'Reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Abrir direto em execução', 'Pula a tela só com a bolinha e já mostra a tarefa de agora.'), sw('session', 'Conversa com memória', 'Cada conversa vira uma sessão do seu Claude Code: lembra do que foi dito e usa conectores, skills e agentes. Ele começa a responder cerca de um segundo depois.')] },
+        { id: 'comp', title: 'Comportamento', rows: [sw('introAnim', 'Animação de abertura', 'Completa na primeira vez do dia em que você olha o painel e quando reabre depois de 3 horas. Clique, Esc, Espaço ou Enter pulam.'), btn('Rever a abertura', 'Toca a animação agora, uma vez, sem mudar a regra do dia.', 'Rever', C('verAbertura')), sw('greet', 'Saudação ao abrir', 'Ele cumprimenta e propõe revisar o plano. Também respeita as 3 horas.'), sw('alwaysMic', 'Escuta contínua (Ei guardião)', 'Desligada, o microfone fica fechado e só abre quando você clica no botão dele. Ligada, ele fica aberto esperando você chamar o Guardião.'), sw('openMic', 'Reabrir depois de uma pergunta', 'Só vale com a escuta contínua ligada: reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Abrir direto em execução', 'Pula a tela só com a bolinha e já mostra a tarefa de agora.'), sw('session', 'Conversa com memória', 'Cada conversa vira uma sessão do seu Claude Code: lembra do que foi dito e usa conectores, skills e agentes. Ele começa a responder cerca de um segundo depois.')] },
         { id: 'apar', title: 'Aparência', rows: [sw('glass', 'Vidro com desfoque', 'Painéis translúcidos. Desligue se o computador engasgar. O modo leve também desliga.'), sw('light', 'Modo leve', 'Menos animação, fundo simples e bolinha 2D. Bom para computadores fracos.'), seg('Bolinha', 'Núcleo: cristal 3D com onda de voz. Relógio: o instrumento clássico, com o dia em volta e o tempo no centro.', ['N', 'A'].map((v) => ({ label: v === 'N' ? 'Núcleo 3D' : 'Relógio', on: pf.variant === v, cls: pf.variant === v ? 'on' : '', go: () => { this.setPf('variant', v); this.sfx('click'); } }))), seg('Formato da janela', 'Compacta é a janela pequena, para deixar num canto da tela.', [{ label: 'Completa', on: !compact, cls: !compact ? 'on' : '', go: () => { if (compact) this.toggleCompact(); } }, { label: 'Compacta', on: compact, cls: compact ? 'on' : '', go: () => { if (!compact) this.toggleCompact(); } }])] },
         { id: 'ver', title: 'Versão', rows: vRows },
         { id: 'serv', title: 'Serviços', rows: [stat('Guardião', off ? 'desligado' : 'ligado', off ? 'bad' : ''), stat('Microfone', sMic[0], sMic[1]), stat('Transcrição', sStt[0], sStt[1]), stat('Voz do Guardião', voiceOn ? 'ligada' : 'silenciada', voiceOn ? '' : 'off'), stat('Claude', sCl[0], sCl[1]), stat('Plano de hoje', S.planState === 'none' ? 'sem plano' : S.planState === 'suggested' ? 'aguardando aprovação' : 'aprovado', S.planState === 'none' ? 'off' : '')] }
@@ -3231,7 +3245,7 @@ class Component extends DCLogic {
       stHome: stn(0), stDia: stn(1), stPlan: stn(2), stCal: stn(3), stPops: stn(4),
       glTag: S.userLine && !usando ? 'Você' : '', glU: S.userLine && !usando ? '“' + S.userLine + '”' : statusTxt.toUpperCase(), glG, glCls,
       conv: { on: !!pf.session && !mini && !compact, label: S.conv && S.conv.atual && S.conv.atual.turnos ? S.conv.atual.titulo : 'Conversa nova', open: C('openChats'), nova: C('novaConversa') },
-      focus, primary, stageCls, fwrapHidden: execOn ? 'false' : 'true', openCurDetail: C('openCurDetail'), dtCU: C('dtCU'), hasCU: !!(p && p.url), exitExecBtn: C('exitExecBtn'), onPrimary: C('onPrimary'), onPostpone: C('onPostpone'), setSealBtn: this.setSealBtn, setSealScene: this.setSealScene, setSealAch: this.setSealAch,
+      focus, primary, stageCls, fwrapHidden: execOn ? 'false' : 'true', openCurDetail: C('openCurDetail'), dtCU: C('dtCU'), hasCU: !!(p && p.url && !(mode === 'between' && this.proxFixo())), exitExecBtn: C('exitExecBtn'), onPrimary: C('onPrimary'), onPostpone: C('onPostpone'), setSealBtn: this.setSealBtn, setSealScene: this.setSealScene, setSealAch: this.setSealAch,
       done: doneRow, ask, adj: { cls: S.adjOn ? 'show' : '', a: S.adjA, b: S.adjB }, onNote: E('onNote'), onNoteKey: E('onNoteKey'), toggleAdj: C('toggleAdj'), undo: C('undo'), onAdjA: E('onAdjA'), onAdjB: E('onAdjB'), saveAdj: C('saveAdj'),
       doneCount, totalCount, cmdPh: S.net === 'offline' ? 'Guardião desligado' : execOn ? 'Fale ou escreva. Ex.: concluí, preciso de mais tempo' : voiceOn ? 'Fale ou escreva. Ex.: vou executar' : 'Escreva. Ex.: vou executar', cmdText: listenHome ? S.userLine : S.cmdText, cmdDis: S.net === 'offline', onCmdInput: E('onCmdInput'), onCmdKey: E('onCmdKey'),
       micCls: S.listening ? 'on' : '', micOn: S.listening, micAria: S.listening ? 'Ouvindo' : 'Falar com o Guardião', micDis: S.net === 'offline', micLabel: S.listening ? 'Ouvindo' : 'Falar', onMic: C('onMic'), onSend: C('onSend'),

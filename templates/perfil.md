@@ -11,6 +11,12 @@ Fonte: entrevista de {{data}}. Tudo aqui foi dito por {{nome}}. O que for suposi
 ## Frentes (as "skins" entre as quais {{nome}} troca)
 [preencher: lista numerada das frentes de trabalho. Para cada uma, uma linha: o que é e se {{nome}} gosta, evita ou adia.]
 
+## O que é importante (a régua da matriz de prioridade)
+- Gera caixa com data: [preencher: o que no negócio de {{nome}} traz dinheiro com data marcada (campanha, lançamento, proposta)]
+- Gera visibilidade: [preencher: o que mantém {{nome}} aparecendo para quem compra]
+- Entrega algo com data: [preencher: compromissos com cliente ou parceiro que têm data e não podem escorregar]
+- Tarefa que {{nome}} chama de "opcional" mas serve ao foco da semana: [preencher, com um exemplo]
+
 ## Frente de receita (a que gera dinheiro, reservada primeiro)
 - Qual é: [preencher]
 - Meta mínima por semana: [preencher: quantas entregas]
@@ -39,6 +45,14 @@ Fonte: entrevista de {{data}}. Tudo aqui foi dito por {{nome}}. O que for suposi
 - Melhor horário: [preencher]
 - Zona morta (horário em que não rende): [preencher] Nela, só tarefa leve, operacional, recarga e aprovações.
 - Pausas: [preencher]
+
+## Faixas do dia por tipo de trabalho
+- Pesado (copy, decisão, estratégia, pensar): só entre [preencher horários exatos].
+- Leve (design com modelo pronto, mensagens, aprovações, consumo): [preencher horários exatos].
+- Recarga: [preencher horários exatos].
+
+## Sobra do dia
+Quando o trabalho do dia termina antes da hora de parar, a sobra vira: [preencher: consumo de conteúdo com uma pergunta, curso, descanso criativo, o que {{nome}} escolher], com horário marcado.
 
 ## Vida pessoal (o guardião respeita e nunca coloca no ClickUp)
 [preencher: horário de parar, folgas, compromissos pessoais fixos, o que protege (descanso, família, casa). Este assunto vive só aqui.]

@@ -905,9 +905,25 @@ def meus_pops():
     return saida
 
 
-def _catalogo():
-    """POPs da escola: o endereço (ou arquivo) vem de pops.catalogo no config.json. Sem isso, a tela diz que o catálogo ainda não existe."""
+ARQ_CATALOGO_PADRAO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "catalogo_pops.json")  # de onde vem o catálogo da escola, sem configurar nada
+
+
+def _fonte_do_catalogo():
+    """De onde ler os POPs da escola: (endereço ou arquivo, cabeçalhos). Vale pops.catalogo do config.json, se a pessoa quiser outro catálogo;
+    sem isso, o catálogo da escola (catalogo_pops.json: endereço e chave pública do Supabase da escola, que só deixa ler os POPs publicados)."""
     fonte = ((h._config().get("pops") or {}).get("catalogo") or "").strip()
+    if fonte:
+        return fonte, {}
+    padrao = h._ler_json(ARQ_CATALOGO_PADRAO) or {}
+    if not (padrao.get("url") and padrao.get("chave") and padrao.get("schema")):
+        return "", {}
+    url = padrao["url"] + "?select=*&publicado=eq.true&order=ordem.asc,nome.asc"
+    return url, {"apikey": padrao["chave"], "Accept-Profile": padrao["schema"], "Accept": "application/json"}
+
+
+def _catalogo():
+    """POPs da escola (veja _fonte_do_catalogo). Sem fonte nenhuma, a tela diz que o catálogo ainda não existe; sem rede, mostra o último que veio."""
+    fonte, cabecalhos = _fonte_do_catalogo()
     if not fonte:
         return {"ok": False, "motivo": "nao_configurado", "itens": []}
     guardado = _CACHE_CATALOGO.get(fonte)
@@ -915,7 +931,7 @@ def _catalogo():
         return guardado[1]
     try:
         if re.match(r"https?://", fonte):
-            r = requests.get(fonte, timeout=8)
+            r = requests.get(fonte, headers=cabecalhos, timeout=8)
             r.raise_for_status()
             dados = r.json()
         else:
@@ -923,7 +939,7 @@ def _catalogo():
             if dados is None:
                 raise ValueError("arquivo não encontrado")
     except (requests.RequestException, ValueError, OSError):
-        return {"ok": False, "motivo": "indisponivel", "itens": []}
+        return guardado[1] if guardado else {"ok": False, "motivo": "indisponivel", "itens": []}
     itens = []
     for i, p in enumerate((dados.get("pops") if isinstance(dados, dict) else dados) or []):
         if not isinstance(p, dict) or not p.get("nome"):

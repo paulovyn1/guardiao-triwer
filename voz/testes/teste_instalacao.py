@@ -136,8 +136,8 @@ else:
     avisos = open(os.path.join(oper, "avisos.ps1"), encoding="utf-8-sig").read()
     tarefas = open(os.path.join(skill, "scripts", "registrar_tarefas.ps1"), encoding="utf-8-sig").read()
     abrir = open(os.path.join(VOZ, "abrir_guardiao_v2.ps1"), encoding="utf-8-sig").read()
-    confere("caminho com espaço no nome do usuário: o programa agendado e o janela_edge.py vão entre aspas (e a pasta do perfil, pelo Popen em lista)",
-            '-Execute "`"$pythonw`""' in tarefas and 'janela_edge.py`"' in abrir)
+    confere("caminho com espaço no nome do usuário: o programa agendado e o janela_painel.py vão entre aspas",
+            '-Execute "`"$pythonw`""' in tarefas and 'janela_painel.py`"' in abrir)
     instalar = open(os.path.join(raiz, "instalar.bat"), encoding="ascii").read()
     confere("instalar.bat aberto de dentro do zip avisa para extrair, em vez de falhar sem explicar", "goto :faltando" in instalar and "Extrair tudo" in instalar and "\r\n" in open(os.path.join(raiz, "instalar.bat"), newline="").read())
     confere("o atalho da pasta e o pop-up de aviso abrem o painel", "abrir_guardiao_v2.ps1" in bat and "servidor_tela" not in bat and "http://localhost:8767/v2/" in avisos)

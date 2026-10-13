@@ -229,11 +229,15 @@ else:
 
 # ---------------- a janela ----------------
 titulo("Janela do painel")
-import janela_edge  # noqa: E402
+import janela_painel  # noqa: E402
 
-dizer(f"Edge: {janela_edge.caminho_do_edge() or 'NÃO ACHEI'}")
-if janela_edge.perfil_contaminado():
-    dizer("O perfil do Edge do painel já entrou numa conta e sincronizou (versão antiga). Ele é apagado e recriado limpo na próxima abertura.")
+_nav = janela_painel.navegador_padrao()
+if _nav:
+    dizer(f"Navegador padrão: {_nav['progid']} ({_nav['exe']}). O painel abre " + ("como janela de aplicativo, no seu perfil." if _nav["app"] else "numa aba, no seu perfil."))
+else:
+    dizer("Não consegui descobrir o navegador padrão. O painel abre numa aba nova pelo Windows.")
+if os.path.isdir(janela_painel.PERFIL_ANTIGO):
+    dizer("Sobrou a pasta do perfil antigo do painel (voz\\perfil_edge). Ela é apagada na próxima abertura do painel.")
 try:
     import requests
     v = requests.get("http://localhost:8767/versao", timeout=3).json()

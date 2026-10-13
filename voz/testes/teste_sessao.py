@@ -264,8 +264,13 @@ try:
     r = g.pedir_permissao(A(), None, None, None, 0, pedido, por_voz=False)
     confere("resposta digitada vale, e os outros comandos da fila não se perdem", r == ("nao", "") and h.bus.comandos.get_nowait()[0] == "checkin")
     g.escutar = lambda a, q, modelo, chave, piso, seguimento=False, avisar_cancelamento=True: (escutas.append(avisar_cancelamento) or ("pode criar", 0.5, "ok"))
+    h.salvar_preferencias({"mic_sempre_ligado": False})
+    h.bus.comandos.put(("perguntar", "pode"))  # sem a escuta contínua (padrão) o microfone não reabre: a resposta vem por clique ou texto
     r = g.pedir_permissao(A(), None, None, None, 0, pedido, por_voz=True)
-    confere("resposta falada vale (o microfone abre sozinho depois da pergunta)", r == ("sim", "") and escutas == [False])
+    confere("escuta contínua desligada (padrão): depois da pergunta o microfone não abre sozinho", r == ("sim", "") and escutas == [], (r, escutas))
+    h.salvar_preferencias({"mic_sempre_ligado": True})  # com a escuta contínua (opção), a resposta falada vale
+    r = g.pedir_permissao(A(), None, None, None, 0, pedido, por_voz=True)
+    confere("resposta falada vale (com a escuta contínua, o microfone abre sozinho depois da pergunta)", r == ("sim", "") and escutas == [False], (r, escutas))
     g.escutar = lambda *a, **k: ("", None, "cancelado")
     r = g.pedir_permissao(A(), None, None, None, 0, pedido, por_voz=True)
     confere("Esc durante a pergunta vale como não", r == ("nao", "") and [d for t, d in eventos if t == "permissao_fim"][-1]["resultado"] == "negada")
@@ -279,8 +284,8 @@ try:
     confere("sem uma pergunta do guardião, o sim sozinho não libera nada", not g.permitido("concluir", "sim"))
     g.CONVERSA[:] = []
     rapido_txt, completo_txt, sessao_txt = g.texto_acoes(), g.prompt_completo("junta as duas tarefas", "plano_do_dia.json"), open(g.arquivo_prompt_sessao(), encoding="utf-8").read()
-    confere("no modo rápido ele encerra tarefa repetida, não manda a pessoa ao ClickUp e não fala em guardião completo",
-            "Tarefa repetida, o trabalho segue em" in rapido_txt and "Nunca mande o Rafa ir ao ClickUp" in rapido_txt and "nunca diga guardião completo em voz alta" in rapido_txt)
+    confere("no modo rápido ele encerra tarefa repetida (sem comentário de status), não manda a pessoa ao ClickUp e não fala em guardião completo",
+            "tarefa repetida, cópia de outra, use {{concluir:ID}}" in rapido_txt and "o trabalho segue em" not in rapido_txt and "Nunca mande o Rafa ir ao ClickUp" in rapido_txt and "nunca diga guardião completo em voz alta" in rapido_txt)
     confere("o pedido em segundo plano volta oferecendo resolver o que sobrou, sem falar de si mesmo",
             "não mande a pessoa fazer" in completo_txt and "não cite esta execução" in completo_txt and "Ao gravar o plano de hoje" in completo_txt)
     confere("na sessão ele faz pelo conector e sabe gravar o plano de hoje", "Nunca mande o Rafa fazer num conector" in sessao_txt and "PLANO DE HOJE EM ARQUIVO" in sessao_txt

@@ -50,7 +50,7 @@ Pulou esse passo? O painel funciona do mesmo jeito, por texto. Para ligar o micr
 - **Ele não me ouve quando chamo:** diga "Ei guardião" junto, no começo da frase, e espere o som antes de falar o resto.
 - **Ele diz que atingiu o limite do plano ou que o Claude Code não está conectado:** é a conta do Claude, não o guardião. O limite volta na hora que ele informa; para entrar na conta, abra o Claude Code e faça o login.
 - **Ele demora para responder, ou a voz tem pausas entre as frases:** dê dois cliques em `Guardiao-do-dia\voz\diagnostico.bat`. Ele mede o Claude, a voz e o computador, diz onde está o problema e escreve `Guardiao-do-dia\logs\diagnostico.txt`. Se pedirem, mande também `logs\latencia.jsonl`.
-- **A janela do painel abriu com os favoritos ou uma extensão do Edge:** era de uma versão antiga. Feche a janela e abra pelo atalho Guardião: o perfil do painel é recriado limpo, sem conta e sem sincronização.
+- **O painel abre no seu navegador padrão, no seu perfil:** o guardião não cria perfil, não entra em conta e não mexe em extensão. No Chrome e no Edge ele abre como janela de aplicativo (sem abas); no Opera, Brave, Vivaldi, Firefox e nos outros, numa aba do navegador que já está aberto. Os sons da abertura podem esperar o seu primeiro clique, porque o navegador não deixa uma página tocar som sozinha.
 - **Nada disso resolveu:** abra o Claude Code e escreva "o guardião não está funcionando, confere a instalação". Ele sabe conferir o que falta.
 
 ## Atualizar e desinstalar
@@ -61,4 +61,4 @@ Pulou esse passo? O painel funciona do mesmo jeito, por texto. Para ligar o micr
 
 ## O que fica no seu computador
 
-Tudo. O plano, o perfil e as conversas ficam em `Guardiao-do-dia`. O seu áudio só sai do computador depois de você dizer "Ei guardião", e vai apenas para o Groq, para virar texto. A voz do guardião é gerada no próprio computador. As tarefas vão para o seu ClickUp, com o seu token, que fica guardado só no seu Windows.
+Tudo. O plano, o perfil e as conversas ficam em `Guardiao-do-dia`. O seu áudio só sai do computador depois de você dizer "Ei guardião", e vai apenas para o Groq, para virar texto. A voz do guardião é gerada no próprio computador. As tarefas vão para o seu ClickUp, com o seu token, que fica guardado só no seu Windows. A lista de "POPs da escola" é baixada da internet (só leitura: o painel pede os POPs publicados e nada seu vai junto).

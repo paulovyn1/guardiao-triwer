@@ -224,7 +224,7 @@ CopiarApp $op
 
 # Esqueletos da memória: só criados se ainda não existirem (nunca sobrescreve o que a pessoa já tem).
 $mapa = @{
-    'perfil.md' = 'perfil.md'; 'semana-base.md' = 'semana-base.md'; 'equipe.md' = 'equipe.md'; 'estado.md' = 'estado.md'
+    'perfil.md' = 'perfil.md'; 'semana-base.md' = 'semana-base.md'; 'equipe.md' = 'equipe.md'; 'estado.md' = 'estado.md'; 'aprendizados.md' = 'aprendizados.md'
     'decisoes.md' = 'decisoes.md'; 'campanhas.md' = 'campanhas.md'; 'Index.md' = 'Index.md'
     'campanhas\_modelo.md' = 'campanhas\_modelo.md'; 'pops\_modelo.md' = 'pops\_modelo.md'; "decisoes\$mesTxt.md" = 'decisoes\mes.md'
 }

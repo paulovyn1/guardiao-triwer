@@ -177,10 +177,14 @@ r = g.atender(a, q, None, None, 0, seguimento=True)
 confere("seguimento: sem bipe; se ninguém falar, a conversa termina", r is False)
 g.REVISAO = None
 
-# ---- conversar: repete enquanto o guardião espera resposta, com limite
+# ---- conversar: repete enquanto o guardião espera resposta, com limite (só com a escuta contínua, que é opção)
 turnos = []
 sequencia = [True, True, True, False]
 g.atender = lambda *x, **k: turnos.append(k) or sequencia[len(turnos) - 1]
+g.conversar(a, q, None, None, 0)
+confere("escuta contínua desligada (padrão): o microfone não reabre sozinho, mesmo com pergunta do guardião", len(turnos) == 1, len(turnos))
+turnos.clear()
+h.salvar_preferencias({"mic_sempre_ligado": True})
 g.conversar(a, q, None, None, 0)
 confere("conversar repete até o guardião não esperar mais resposta (3 seguimentos)", len(turnos) == 4 and [bool(t.get("seguimento")) for t in turnos] == [False, True, True, True], turnos)
 turnos.clear()

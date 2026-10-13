@@ -6,6 +6,7 @@ import json
 import os
 import queue
 import re
+import subprocess
 import threading
 import time
 import webbrowser
@@ -141,7 +142,8 @@ PREFS_PADRAO = {
     "som_abertura": True,      # a trilha da abertura
     "abertura_animada": True,  # a animação de ~7 s ao abrir o app
     "saudacao": True,          # o guardião cumprimenta ao abrir o app
-    "escuta_aberta": True,     # o microfone reabre sozinho quando o guardião espera resposta
+    "mic_sempre_ligado": False,  # OPÇÃO: escuta contínua ("Ei guardião"). Desligada, o microfone só abre num clique e fecha no fim da gravação
+    "escuta_aberta": True,     # o microfone reabre sozinho quando o guardião espera resposta (só vale com a escuta contínua)
     # painel novo (v2)
     "som_estados": True,       # sininhos enquanto ele pensa, ligando e desligando quando a conexão cai ou volta
     "voz_guardiao": True,      # o guardião fala em voz alta; desligado, ele só escreve (o microfone continua valendo)
@@ -368,14 +370,14 @@ def concluir_bloco(dados):
             return {"ok": False, "erro": "Não achei o token do ClickUp neste computador."}
         cab = {"Authorization": token}
         try:
-            if concluido:
-                if not nota:
-                    return {"ok": False, "erro": "Escreva em uma frase o que foi feito. Ela vai como comentário na tarefa."}
-                r = requests.post(
-                    f"https://api.clickup.com/api/v2/task/{cid}/comment", headers=cab, timeout=20,
-                    json={"comment_text": f"Atualização de status: {nota}\n\n{assinatura()}"},
-                )
-                r.raise_for_status()
+            datas = {}
+            if concluido:  # sem comentário de status: o horário real vira o início e o fim da própria tarefa
+                ini_dt = datetime.strptime(f"{plano['data']} {real['inicio']}", "%Y-%m-%d %H:%M").astimezone()
+                fim_dt = datetime.strptime(f"{plano['data']} {real['fim']}", "%Y-%m-%d %H:%M").astimezone()
+                if fim_dt <= ini_dt:  # atravessou a meia-noite
+                    fim_dt = datetime.fromtimestamp(fim_dt.timestamp() + 86400).astimezone()
+                datas = {"start_date": int(ini_dt.timestamp() * 1000), "start_date_time": True,
+                         "due_date": int(fim_dt.timestamp() * 1000), "due_date_time": True}
             tarefa = requests.get(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, timeout=20)
             tarefa.raise_for_status()
             lista = requests.get(f"https://api.clickup.com/api/v2/list/{tarefa.json()['list']['id']}", headers=cab, timeout=20)
@@ -388,7 +390,7 @@ def concluir_bloco(dados):
                 alvo = next((s for s in estados if abertos and s.get("status") == abertos[0]), None) or next((s for s in estados if s.get("type") == "open"), None)
             if not alvo:
                 return {"ok": False, "erro": "A lista dessa tarefa não tem um status de destino."}
-            r = requests.put(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, json={"status": alvo["status"]}, timeout=20)
+            r = requests.put(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, json={"status": alvo["status"], **datas}, timeout=20)
             r.raise_for_status()
             status = alvo["status"]
         except requests.RequestException as erro:
@@ -398,6 +400,12 @@ def concluir_bloco(dados):
         _v2().ao_concluir(bloco, real, bool(dados.get("nao_confirmado")), concluido)
     except Exception as erro:
         print("  (não consegui registrar o tempo da tarefa:", erro, ")")
+    if concluido and bloco.get("posts_previstos"):  # bloco de criação de posts: mede o que rendeu (posts previstos x que apareceram), uma vez
+        try:
+            import posts_maes
+            threading.Thread(target=posts_maes.registrar_rendimento, args=(_config(), _token_clickup(), OPER, bloco, real, _v2().registrar_evento), daemon=True).start()
+        except Exception as erro:
+            print("  (rendimento do bloco não rodou:", erro, ")")
     bus.emitir("plano")
     return {"ok": True, "status": status}
 
@@ -413,6 +421,54 @@ def adiar_bloco(dados):
     return {"ok": True, "vezes": entrada["vezes_adiada"]}
 
 
+_PALAVRAS_FRACAS = {"para", "com", "das", "dos", "uma", "que", "por", "sobre", "ate", "como", "mais", "fazer", "enviar", "preparar"}
+
+
+def atualizar_resumo_clickup():
+    """Confere o ClickUp ao vivo antes de criar tarefa: roda o mesmo script das leituras agendadas (ler_clickup.ps1), sem Claude e sem
+    conector. Devolve True se o resumo foi regravado agora. Se falhar, o resumo antigo segue valendo e o motivo vai para o terminal."""
+    script = os.path.join(OPER, "ler_clickup.ps1")
+    if not os.path.exists(script):
+        return False
+    try:
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script], capture_output=True, timeout=90,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if r.returncode != 0:
+            print("  (a leitura ao vivo do ClickUp falhou, uso o resumo antigo:", r.stderr.decode("utf-8", "replace")[:200], ")")
+        return r.returncode == 0
+    except (OSError, subprocess.SubprocessError) as erro:
+        print("  (não consegui rodar a leitura ao vivo do ClickUp, uso o resumo antigo:", erro, ")")
+        return False
+
+
+def _palavras_do_titulo(titulo):
+    return {p[:5] for p in _norm(titulo).split() if len(p) >= 4 and p not in _PALAVRAS_FRACAS}
+
+
+def _marca_do_titulo(titulo):
+    """O que separa tarefas irmãs: a letra solta (carrossel A, B) e os números entre parênteses (posta qua 14)."""
+    t = str(titulo or "")
+    return set(re.findall(r"\b[A-Z]\b", t)) | {n for trecho in re.findall(r"\(([^)]*)\)", t) for n in re.findall(r"\d+", trecho)}
+
+
+def achar_parecida(titulo, tarefas):
+    """Procura no resumo uma tarefa aberta que parece ser a mesma do título. Devolve (tarefa, exata): exata = mesmo título.
+    Parecida = o mesmo assunto com outras palavras: 3 palavras em comum e a mesma "marca" (a letra do carrossel, o número do dia).
+    "Copy do carrossel A" e "Copy do carrossel B", ou "Copy" e "Design" do mesmo carrossel, são tarefas diferentes e não contam."""
+    alvo = _palavras_do_titulo(titulo)
+    marca = _marca_do_titulo(titulo)
+    melhor = None
+    for t in tarefas:
+        if _norm(t.get("nome")).split() == _norm(titulo).split():
+            return t, True
+        if _marca_do_titulo(t.get("nome")) != marca:
+            continue
+        comuns = len(alvo & _palavras_do_titulo(t.get("nome")))
+        if comuns >= 3 and (not melhor or comuns > melhor[0]):
+            melhor = (comuns, t)
+    return (melhor[1], False) if melhor else (None, False)
+
+
 def aprovar_plano():
     """Aprova o plano de hoje. Cada bloco novo (com lista_id e sem clickup_id) vira tarefa no ClickUp, com dono, hora e estimativa."""
     plano, caminho = _plano_e_caminho()
@@ -425,6 +481,14 @@ def aprovar_plano():
     criadas, reagendadas, erros = 0, 0, []
     if not plano.get("exemplo"):
         token = _token_clickup()
+        if any(b.get("lista_id") and not b.get("clickup_id") for b in plano.get("blocos", [])):
+            atualizar_resumo_clickup()  # outra pessoa ou outra automação pode ter criado a tarefa depois da última leitura agendada
+        abertas = (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", [])
+        for b in plano.get("blocos", []):  # título igual ao de uma tarefa aberta: o bloco passa a usar ela (e ela muda de hora abaixo)
+            if b.get("lista_id") and not b.get("clickup_id") and not b.get("post"):
+                achada, exata = achar_parecida(b.get("titulo"), abertas)
+                if achada and exata:
+                    b["clickup_id"], b["reagendado"] = achada["id"], True
         for b in plano.get("blocos", []):
             if b.get("clickup_id") and b.get("reagendado"):  # movido na revisão: a tarefa existente muda de hora no ClickUp
                 try:
@@ -442,7 +506,28 @@ def aprovar_plano():
                 except Exception as erro:
                     erros.append(f"{b.get('titulo')} (novo horário): {erro}")
                 continue
+            if b.get("post") and not b.get("pai") and not b.get("clickup_id") and b.get("lista_id"):
+                # etapa de um post (copy, design...): o app acha a tarefa mãe sozinho, em Python, e a etapa vira subtarefa dela
+                mae = None
+                try:
+                    import posts_maes
+                    mae = posts_maes.achar_mae(OPER, b["post"])
+                    if not mae and token:
+                        posts_maes.atualizar(cfg, token, OPER)
+                        mae = posts_maes.achar_mae(OPER, b["post"])
+                except Exception as erro:
+                    print("  (não consegui achar a tarefa mãe do post:", erro, ")")
+                if mae:
+                    b["pai"] = mae
+                else:
+                    erros.append(f"{b.get('titulo')}: não achei a tarefa mãe do post '{b['post']}' e não criei uma tarefa solta.")
+                    continue
             if b.get("clickup_id") or not b.get("lista_id"):
+                continue
+            existente, _ = achar_parecida(b.get("titulo"), abertas)
+            if existente:  # mesmo assunto com outras palavras: não cria, a pessoa decide se é a mesma
+                erros.append(f"{b.get('titulo')}: não criei porque já existe uma tarefa parecida no ClickUp ({existente.get('nome')}: {existente.get('url')}). "
+                             f"Se for a mesma, peça para usar ela; se for outra, peça para criar.")
                 continue
             try:
                 if not token:
@@ -661,12 +746,12 @@ def _plano_do_dia_data(data):
 def resolver_ref(ref):
     """Traduz o que o guardião cita (b2, AAAA-MM-DD:b1, cu:ID) para a tarefa de verdade. None se não existir."""
     ref = str(ref or "").strip()
-    if re.fullmatch(r"b\d+", ref):
+    if re.fullmatch(r"[\w-]+", ref):  # o id do bloco pode ser b1, b2... ou um nome (pensar, copy_a): vale o que existe no plano de hoje
         plano = _plano_de_hoje() or {}
         b = next((x for x in plano.get("blocos", []) if x.get("id") == ref), None)
         if b:
             return {"ref": ref, "tipo": "bloco", "bloco": b, "cid": b.get("clickup_id"), "titulo": b.get("titulo")}
-    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2}):(b\d+)", ref)
+    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2}):([\w-]+)", ref)
     if m:
         plano = _plano_do_dia_data(m.group(1)) or {}
         b = next((x for x in plano.get("blocos", []) if x.get("id") == m.group(2)), None)
@@ -918,6 +1003,12 @@ def criar_tarefa(dados):
     lista = resolver_lista(dados.get("lista"))
     if not lista:
         return {"ok": False, "erro": "Não achei nenhuma lista do ClickUp na configuração."}
+    if not dados.get("forcar"):  # confere o ClickUp ao vivo: alguém pode ter criado a mesma tarefa minutos atrás
+        atualizar_resumo_clickup()
+        achada, _ = achar_parecida(titulo, (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", []))
+        if achada:
+            return {"ok": False, "erro": f"Já existe uma tarefa parecida no ClickUp: {achada.get('nome')} ({achada.get('url')}). Não criei outra. "
+                                         f"Se for a mesma, use ela; se for outra, peça para criar mesmo assim."}
     corpo = {
         "name": titulo,
         "markdown_description": f"{str(dados.get('descricao') or '').strip()}\n\n*Criada pelo Guardião a pedido {pessoa()['do']}.*".strip(),
@@ -970,11 +1061,7 @@ def agir(tipo, ref=None, texto=None, dados=None):
                 if not info.get("cid"):
                     r = {"ok": False, "erro": "Essa tarefa não existe no ClickUp."}
                 else:
-                    if concluir:
-                        if not (texto or "").strip():
-                            raise ValueError("Falta o comentário do que foi feito.")
-                        clickup_comentar(info["cid"], f"Atualização de status: {texto.strip()}")
-                    r = {"ok": True, "status": clickup_mudar_status(info["cid"], concluir)}
+                    r = {"ok": True, "status": clickup_mudar_status(info["cid"], concluir)}  # sem comentário de status: o ClickUp já registra quando fechou
         elif tipo == "comentar":
             if not info.get("cid"):
                 r = {"ok": False, "erro": "Essa tarefa não existe no ClickUp."}

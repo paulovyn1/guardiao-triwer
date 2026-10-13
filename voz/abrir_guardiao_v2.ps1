@@ -26,6 +26,6 @@ elseif (PrecisaReiniciar) {
     Ligar
 }
 
-# Quem abre a janela é o janela_edge.py: perfil só do guardião, sem entrar na conta Microsoft da pessoa, sem sincronizar e sem extensões,
-# e limpa um perfil antigo que já tenha entrado na conta. (Os argumentos do Edge ficam num lugar só, nele.)
-Start-Process -FilePath $pythonw -ArgumentList "`"$voz\janela_edge.py`"", "http://localhost:$porta/v2/" -WorkingDirectory $voz -WindowStyle Hidden
+# Quem abre a janela é o janela_painel.py: no navegador padrão da pessoa e no perfil dela (nada de perfil novo, conta ou extensão por conta do guardião),
+# e apaga a pasta do perfil que as versões antigas criaram. (O jeito de abrir fica num lugar só, nele.)
+Start-Process -FilePath $pythonw -ArgumentList "`"$voz\janela_painel.py`"", "http://localhost:$porta/v2/" -WorkingDirectory $voz -WindowStyle Hidden

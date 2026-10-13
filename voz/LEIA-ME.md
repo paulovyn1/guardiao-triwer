@@ -19,7 +19,7 @@ Roda na pasta `voz\` dentro da pasta operacional do guardião. Só Windows.
 | `definir_chave_groq.bat` | guarda a chave gratuita do Groq, com o passo a passo na tela |
 | `ouvir_vozes.bat` | toca as três vozes do guardião para escolher (a escolhida vai em `agente.voz` do `config.json`) |
 | `diagnostico.bat` | confere cada peça (Claude, voz, escuta, microfone, Groq, janela), mede onde o tempo vai e escreve `logs\diagnostico.txt` |
-| `janela_edge.py` | abre a janela do painel no Edge sem conta, sem sincronização e sem extensões, e limpa o perfil antigo que já tinha entrado na conta |
+| `janela_painel.py` | abre o painel no navegador padrão da pessoa, no perfil dela (janela de aplicativo no Chrome e no Edge; aba nova nos outros, porque o Opera ignora o `--app`), e apaga a pasta do perfil que as versões antigas criaram |
 | `controle_fala.py`, `latencia.py` | parar a fala quando a janela fecha; os tempos de cada resposta em `logs\latencia.jsonl` |
 | `memoria_conversa.py` | as últimas 10 trocas em arquivo e o resumo do dia (modo rápido) |
 | `conferir_instalacao.py` | confere de verdade se a escuta, a voz e o painel funcionam. O instalador roda no fim |
@@ -36,6 +36,6 @@ O que precisa existir no computador além disso:
 
 1. Comando `claude` (Claude Code), com a skill `guardiao-triwer` instalada e configurada. É ele que pensa.
 2. Chave gratuita do Groq (`definir_chave_groq.bat`). A transcrição da fala usa o Whisper do Groq. Sem ela o programa abre do mesmo jeito, com o microfone desligado e a conversa por texto.
-3. Microsoft Edge, para a janela do painel (já vem com o Windows).
+3. Um navegador, para a janela do painel: o que a pessoa já usa como padrão no Windows (Chrome, Edge, Opera, Brave, Firefox e outros).
 
-Nenhum dado da pessoa fica nesta pasta do repositório. O que é dela (`preferencias.json`, `pronuncias.json`, `perfil_edge\`) nasce no computador dela e a atualização não toca.
+Nenhum dado da pessoa fica nesta pasta do repositório. O que é dela (`preferencias.json`, `pronuncias.json`) nasce no computador dela e a atualização não toca.

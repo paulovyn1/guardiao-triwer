@@ -32,7 +32,7 @@ from vosk import KaldiRecognizer, SetLogLevel
 import controle_fala
 import guardiao_sessao
 import guardiao_v2 as v2
-import janela_edge
+import janela_painel
 import latencia
 import memoria_conversa
 import nativo
@@ -148,6 +148,34 @@ class Microfone:
                 pass
             self.stream = None
 
+    def existe(self):
+        """Há um aparelho de entrada? Só consulta a lista, não abre nada (abrir acende o indicador de microfone em uso do Windows)."""
+        try:
+            return any(d.get("max_input_channels", 0) > 0 for d in sd.query_devices())
+        except Exception:
+            return False
+
+
+MIC = None  # o Microfone do main(); as gravações por botão abrem e fecham por ele
+
+
+def escuta_continua():
+    """Preferência "Escuta contínua" (mic_sempre_ligado). Desligada (padrão), o microfone fica fechado e só abre durante uma gravação
+    pedida por botão; ligada, ele fica aberto esperando "Ei guardião" e reabre sozinho depois de uma pergunta do guardião."""
+    return bool(preferencias().get("mic_sempre_ligado", False))
+
+
+def abrir_para_gravar():
+    """Começo de uma gravação por botão. Devolve False se o microfone não abriu (a gravação não pode esperar um áudio que não vem)."""
+    return MIC is None or MIC.tentar(chave_groq())
+
+
+def fechar_apos_gravar(q):
+    """Fim da gravação: sem a escuta contínua o microfone fecha de verdade, para o indicador do Windows apagar."""
+    if MIC is not None and not escuta_continua():
+        MIC.parar()
+        drenar(q)
+
 
 def rms_de(dado):
     x = np.frombuffer(dado, dtype=np.int16).astype(np.float32)
@@ -262,7 +290,9 @@ ALUCINACAO = re.compile(
     r"(?:[Ll]egendas?|[Ll]egendad[oa]s?|[Tt]ranscri[cç][aã]o|[Tt]radu[cç][aã]o|[Rr]evis[aã]o)\s+(?:e\s+\w+\s+)?(?:por|pela|pelo|de|da|do)\s+(?:a\s+|o\s+)?"
     r"(?:comunidade(?:\s+[\wÀ-ú.]+){0,3}|[A-ZÀ-Ú][\wÀ-ú]+(?:\s+(?:d[aeo]s?\s+)?[A-ZÀ-Ú][\wÀ-ú.]+)*)"
     r"|[^.!?]*\b[Aa]mara\.org[^.!?]*|[^.!?]*\b[Ss][oô]nia [Rr]uberti[^.!?]*|[Oo]brigad[oa] por assistir[^.!?]*|[Ii]nscreva-se no canal[^.!?]*"
-    r"|[^.!?]*\bdeixe (?:o|seu) like\b[^.!?]*|\bwww\.\S+|[♪♫]+")
+    r"|[^.!?]*\bdeixe (?:o|seu) like\b[^.!?]*|\bwww\.\S+|[♪♫]+"
+    r"|[\[(](?:[Mm][úu]sica|[Aa]plausos|[Rr]isos|[Rr]isadas)[\])]|[Oo]brigad[oa] por ter assistido[^.!?]*|[Ss]e inscreva no canal[^.!?]*|[Aa]tive o sininho[^.!?]*"
+    r"|[Aa]té a próxima[.!]?(?=\s*$)|[Aa]té o próximo v[ií]deo[^.!?]*")
 _PONTAS = " \"'“”.,;:!?-"
 
 
@@ -280,7 +310,7 @@ def limpar_alucinacao(texto):
 
 # Uma palavra só, dita em menos de um segundo e meio, quase sempre é ruído que o Whisper "transcreve" mesmo assim (um clique vira "Mãe.", o silêncio vira
 # "Obrigado."). Vale como fala só se for um comando ou uma resposta conhecida; palavra curta de até 3 letras que não está na lista também cai.
-RUIDO_COMUM = {"obrigado", "obrigada", "tchau", "mae", "ah", "eh", "hm", "hum", "uhum", "ne", "ta", "to", "tudo", "bom", "tá"}
+RUIDO_COMUM = {"obrigado", "obrigada", "tchau", "mae", "ah", "eh", "hm", "hum", "uhum", "ne", "ta", "to", "tudo", "bom", "tá", "valeu", "aplausos", "musica", "gente", "pai", "papai"}
 CURTAS_VALIDAS = {"sim", "nao", "ok", "oi", "ola", "pare", "para", "pode", "isso", "certo", "claro", "aprova", "aprovar", "cancela", "cancelar", "volta", "voltar",
                   "sempre", "feito", "pronto", "conclui", "ajuda", "agora", "hoje", "plano", "amanha", "resumo", "pendencias", "continua", "continue", "repete", "repita"}
 
@@ -428,6 +458,79 @@ def tocar_revisao():
 def avisar_modelo(texto):
     AVISOS_AO_MODELO.append(texto)
     del AVISOS_AO_MODELO[:-5]
+
+
+# ---------------- ação por voz que não deu certo ----------------
+# O guardião diz "estou concluindo" na hora em que a frase sai, e o resultado só chega depois: quem já falou não volta atrás.
+# Aqui o programa fecha a conta. Se a ação falhou, ou foi recusada porque a pessoa não a pediu, ele mesmo diz isso em voz alta no fim
+# da resposta e avisa o modelo, que não deve repetir nem afirmar que deu certo. (O toast de erro na tela já existia.)
+VERBO_ACAO = {"concluir": ("concluir", "conclua"), "reabrir": ("reabrir", "reabra"), "comentar": ("anotar em", "anote em"),
+              "criar": ("criar a tarefa", "crie a tarefa"), "aprovar": ("aprovar o plano", "aprove o plano")}
+ACOES_EM_CURSO = 0
+_TRAVA_ACOES = threading.Lock()
+CORRECOES = []  # frases a dizer quando a resposta termina
+
+
+def _titulo_da_acao(ref):
+    try:
+        import hud_servidor
+        info = hud_servidor.resolver_ref(ref) if ref else None
+    except Exception:
+        info = None
+    return str((info or {}).get("titulo") or "")
+
+
+def registrar_falha_de_acao(nome, ref, erro):
+    verbo = VERBO_ACAO.get(nome, (nome, nome))[0]
+    titulo = _titulo_da_acao(ref)
+    motivo = str(erro or "algo deu errado").strip().rstrip(".")
+    with _TRAVA_ACOES:
+        CORRECOES.append(f"Não consegui {verbo}{' ' + titulo if titulo else ''}: {motivo}.")
+    avisar_modelo(f"A ação '{nome}'{' em ' + titulo if titulo else ''} NÃO deu certo ({motivo}). A pessoa já foi avisada em voz alta: não repita e nunca diga que deu certo.")
+
+
+def registrar_recusa_de_acao(nome, ref):
+    infinitivo, subjuntivo = VERBO_ACAO.get(nome, (nome, nome))
+    titulo = _titulo_da_acao(ref)
+    alvo = f" {titulo}" if titulo else " isso"
+    with _TRAVA_ACOES:
+        CORRECOES.append(f"Não fiz nada ainda: você não me pediu para {infinitivo}{alvo}. Quer que eu {subjuntivo}{alvo}?")
+    avisar_modelo(f"A ação '{nome}' NÃO foi feita, porque a pessoa não pediu. A pessoa já foi avisada em voz alta: não repita e nunca diga que fez.")
+
+
+def agir_e_contar(nome, ref=None, texto=None):
+    """Roda agir() e guarda o que precisa ser dito se não deu certo. Conta as ações em curso para o fim da resposta esperar por elas."""
+    global ACOES_EM_CURSO
+    with _TRAVA_ACOES:
+        ACOES_EM_CURSO += 1
+    try:
+        r = agir(nome, ref, texto)
+        if not (r or {}).get("ok"):
+            registrar_falha_de_acao(nome, ref, (r or {}).get("erro"))
+    except Exception as erro:
+        registrar_falha_de_acao(nome, ref, erro)
+    finally:
+        with _TRAVA_ACOES:
+            ACOES_EM_CURSO -= 1
+
+
+def falar_correcoes(a, espera=15.0):
+    """No fim da resposta: espera as ações que ainda rodam e diz o que não deu certo. Devolve o que falou ('' se nada).
+    A fala entra na conversa: se terminou em pergunta ("Quer que eu conclua?"), o sim da pessoa vale como pedido."""
+    fim = time.time() + espera
+    while ACOES_EM_CURSO > 0 and time.time() < fim and not controle_fala.PARAR.is_set():
+        time.sleep(0.1)
+    with _TRAVA_ACOES:
+        frases = list(CORRECOES)
+        CORRECOES.clear()
+    if not frases or controle_fala.PARAR.is_set():  # a pessoa mandou calar (fechou a janela): não fala depois
+        return ""
+    fala = " ".join(frases)
+    dizer(fala, a)
+    if CONVERSA:
+        quando, pessoa_disse, guardiao_disse = CONVERSA[-1]
+        CONVERSA[-1] = (quando, pessoa_disse, (str(guardiao_disse or "") + " " + fala).strip())
+    return fala
 
 
 def situacao_plano():
@@ -758,9 +861,8 @@ def texto_acoes(sessao=False):
         "- {{detalhe:ID}} quando <o Fulano> perguntar sobre UMA tarefa específica: o cartão dela abre no centro enquanto você fala.\n"
         "Só quando <o Fulano> pedir de forma explícita, e dizendo em voz alta o que vai fazer, use as marcas a seguir, escritas logo antes da frase em que você diz o que vai fazer "
         "(nunca soltas no fim da resposta), para a ação acontecer na tela enquanto você fala:\n"
-        "- {{concluir:ID|o que foi feito, em uma frase}}. Sem a frase do que foi feito, pergunte o que registrar e NÃO use a marca. "
-        "Repetir o nome da tarefa (\"revisão concluída\") não conta como o que foi feito: só vale o que <o Fulano> disser sobre o resultado, como \"aprovei\" ou \"mandei as correções\". "
-        "Exceção: tarefa repetida. Se ele mandar encerrar uma tarefa que é cópia de outra, use concluir com o texto: Tarefa repetida, o trabalho segue em, seguido do título da outra.\n"
+        "- {{concluir:ID}}. Basta ele dizer que terminou: não peça nem escreva \"o que foi feito\", não existe comentário de status. "
+        "Se for uma tarefa repetida, cópia de outra, use {{concluir:ID}} do mesmo jeito.\n"
         "Nunca mande <o Fulano> ir ao ClickUp fazer o que estas marcas fazem (concluir, reabrir, anotar): ofereça em uma frase e, com o sim dele, faça você.\n"
         "- {{reabrir:ID}}\n"
         "- {{comentar:ID|texto da anotação}}\n"
@@ -1000,7 +1102,7 @@ def pedir_permissao(a, q, modelo, chave, piso, pedido, por_voz):
                 bus.emitir("voce", texto=r[1])
                 decisao = interpretar_permissao(r[1], pedido["sempre"])
             continue
-        if por_voz and escutas < 3 and not getattr(a, "sem_escuta_aberta", False):
+        if por_voz and escutas < 3 and not getattr(a, "sem_escuta_aberta", False) and escuta_continua():
             escutas += 1
             texto, _, motivo = escutar(a, q, modelo, chave, piso, seguimento=True, avisar_cancelamento=False)
             if texto:
@@ -1254,8 +1356,9 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
             ref, _, texto = arg.partition("|")
             if not permitido(nome, texto_usuario):
                 print(f"  (ignorei a ação '{nome}': a pessoa não pediu isso)")
+                registrar_recusa_de_acao(nome, ref.strip())  # ele já disse que ia fazer: no fim da resposta conta que não fez e pergunta
                 continue
-            threading.Thread(target=agir, args=(nome, ref.strip(), texto.strip() or None), daemon=True).start()
+            threading.Thread(target=agir_e_contar, args=(nome, ref.strip(), texto.strip() or None), daemon=True).start()
         elif nome == "criar":
             if not permitido("criar", texto_usuario):
                 print("  (ignorei a proposta de tarefa: a pessoa não pediu isso)")
@@ -1336,7 +1439,7 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
                 continue
             if EXPLICITO_APROVAR.search(_norm(texto_usuario)) and not NAO.search(_norm(texto_usuario)):
                 encerrar_revisao()
-                threading.Thread(target=agir, args=("aprovar",), daemon=True).start()
+                threading.Thread(target=agir_e_contar, args=("aprovar",), daemon=True).start()
             else:
                 resumo = resumo_aprovacao()
                 PROPOSTA = {"tipo": "aprovar", "dados": resumo, "quando": time.time()}
@@ -1926,11 +2029,11 @@ def vigiar_avisos():
         time.sleep(30)
 
 
-# a janela do guardião tem um perfil só dela: assim o som da abertura toca sem precisar de um clique antes
-# (a regra de "autoplay" só vale para um Edge que nasce com essa opção) e as preferências da tela ficam guardadas lá
+# o painel abre no navegador padrão da pessoa, no perfil dela. Nesse caso o navegador pode segurar o som da abertura até o primeiro clique:
+# a página já espera o clique (o áudio só liga depois de um gesto), então não há o que fazer do lado de cá
 def abrir_tela(url):
-    """Abre o painel numa janela só dele (sem abas nem barra de endereço) no Edge, sem entrar na conta da pessoa nem sincronizar (veja janela_edge.py)."""
-    janela_edge.abrir(url, "1500,940")
+    """Abre o painel no navegador padrão da pessoa: janela de aplicativo (sem abas nem barra de endereço) no Chrome e no Edge, aba nova nos outros (veja janela_painel.py)."""
+    janela_painel.abrir(url, "1500,940")
 
 
 # ---------------- pedidos que a própria máquina resolve (painel novo), sem gastar uma chamada ao Claude ----------------
@@ -1960,8 +2063,55 @@ def _limpar_comando(texto):
     return re.sub(r"\s+", " ", t).strip()
 
 
+CONCLUI = re.compile(r"^(ja )?(conclui|terminei|acabei|finalizei|fechei|encerrei|fiz tudo)\b|^ja fiz\b")
+NEGA_CONCLUSAO = re.compile(r"\b(nao|ainda nao|quase|metade|falta|faltam|so falta)\b")
+LIGACAO = {"para", "como", "com", "uma", "dois", "tres", "sobre", "essa", "esse", "isso", "depois", "antes", "ainda", "hoje", "todos", "todas"}
+
+
+def _palavras(texto):
+    return {w for w in re.findall(r"[a-z]{4,}", _norm(texto or "")) if w not in LIGACAO}
+
+
+def concluir_local(texto):
+    """"Concluí...", "terminei...", "acabei...": conclui a tarefa de agora direto, sem chamar o Claude (que gasta dezenas de milhares de tokens para registrar uma frase).
+    O que a pessoa contou fica no registro de eventos para a análise e o report. Na dúvida (a fala cita outra tarefa, ou nega), devolve None e o Claude responde."""
+    t = _limpar_comando(texto)
+    if not t or not CONCLUI.match(t) or NEGA_CONCLUSAO.search(t):
+        return None
+    plano = _plano_de_hoje() or {}
+    atual = v2.bloco_atual(plano)
+    if not atual:
+        return None
+    falado = _palavras(texto)
+    estados = {b.get("id"): b.get("estado") for b in _registro_de_hoje().get("blocos", [])}
+    pontos = lambda b: len(_palavras(b.get("titulo")) & falado)
+    for b in plano.get("blocos", []):
+        if b.get("id") != atual.get("id") and estados.get(b.get("id")) not in ("feito", "adiado") and pontos(b) > pontos(atual):
+            return None  # ele fala de outra tarefa que não é a de agora: o Claude decide
+    if pontos(atual) == 0 and len(t.split()) > 4:
+        return None  # fala longa que não cita nada da tarefa de agora: pode ser outra, o Claude decide
+    agora = time.strftime("%H:%M")
+    d = v2._ler_exec()
+    sessao = v2._sessao(d, atual.get("id"))
+    inicio = sessao["trechos"][0]["de"] if sessao and sessao.get("trechos") else None
+    medido = bool(inicio)
+    inicio = inicio or atual["inicio"]
+    if v2.h._min(agora) <= v2.h._min(inicio):
+        m = max(0, v2.h._min(agora) - 1)
+        inicio = f"{m // 60:02d}:{m % 60:02d}"
+    r = v2.h.concluir_bloco({"id": atual["id"], "concluido": True, "nota": "", "inicio": inicio, "fim": agora, "nao_confirmado": not medido})
+    if not r.get("ok"):
+        return {"fala": f"Não consegui concluir {atual.get('titulo')}: {r.get('erro') or 'erro desconhecido'}."}
+    v2.registrar_evento("relato", atual, texto=str(texto).strip()[:800])
+    proximo = v2.bloco_atual(_plano_de_hoje() or {})
+    return {"fala": f"Feito às {agora}. " + (f"A seguir: {proximo['titulo']}, às {proximo['inicio']}." if proximo else "Era a última do dia.")}
+
+
 def comando_local(texto):
     """Devolve {"fala": ..., "roteiro": ...} se o pedido é um comando da tela (modo execução, abrir uma aba, silenciar...), ou None para o Claude responder."""
+    feito = concluir_local(texto)
+    if feito:
+        return feito
     t = _limpar_comando(texto)
     if not t or len(t.split()) > 9:
         return None
@@ -2083,10 +2233,17 @@ def tratar_roteiro(texto, a, digitado):
 
 def ditar(q, chave, piso, campo):
     """Grava uma fala e devolve só o texto para a tela (um campo do report), sem passar pelo Claude."""
+    if not abrir_para_gravar():
+        bus.emitir("aviso", texto=AVISO_SEM_MIC, erro=False)
+        bus.emitir("estado", v="aguardando")
+        return
     time.sleep(0.3 if bipe(880, 120) else 0.15)
     drenar(q)
     bus.emitir("estado", v="ouvindo", seguimento=False)
-    pcm = gravar(q, piso)
+    try:
+        pcm = gravar(q, piso)
+    finally:
+        fechar_apos_gravar(q)
     if pcm is CANCELADO:
         bipe(440, 90)
         bus.emitir("escuta_cancelada")
@@ -2105,6 +2262,10 @@ def ditar(q, chave, piso, campo):
 def escutar(a, q, modelo, chave, piso, seguimento=False, avisar_cancelamento=True):
     """Abre o microfone, grava até o silêncio e transcreve. Devolve (texto, tempo da transcrição, motivo): com texto vazio, o motivo diz por quê
     ("cancelado" = Esc ou clique, "silencio" = ninguém falou, "erro" = a transcrição falhou)."""
+    if not abrir_para_gravar():
+        bus.emitir("aviso", texto=AVISO_SEM_MIC, erro=False)
+        bus.emitir("estado", v="aguardando")
+        return "", None, "erro"
     if seguimento:
         time.sleep(0.35)  # o final da voz do guardião no ar não pode virar uma pergunta
     else:
@@ -2138,7 +2299,10 @@ def escutar(a, q, modelo, chave, piso, seguimento=False, avisar_cancelamento=Tru
                 bus.emitir("previa", texto=texto_vivo)
             return texto_local
 
-    pcm = gravar(q, piso, ao_vivo)
+    try:
+        pcm = gravar(q, piso, ao_vivo)
+    finally:
+        fechar_apos_gravar(q)
     if ao_vivo:
         print()
     if pcm is CANCELADO:  # Esc ou clique no microfone: a escuta acaba aqui e nada é enviado
@@ -2339,6 +2503,9 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, saudacao=False, segu
             break
     for c in guardar:
         bus.comandos.put(c)
+    corrigiu = falar_correcoes(a)  # ação por voz que falhou ou foi recusada: diz isso, em vez de deixar valer o "estou concluindo" já falado
+    if corrigiu:
+        falado = (falado + " " + corrigiu).strip()
     tocar_revisao()
     # o microfone reabre quando ele precisa responder: depois da saudação, durante a revisão do plano,
     # com algo esperando o sim, ou quando o guardião terminou a fala com uma pergunta
@@ -2351,7 +2518,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, saudacao=False, segu
 def continuar(a, q, modelo, chave, piso, seguir):
     """Enquanto o guardião espera resposta, novas rodadas com o microfone aberto (no máximo 12 seguidas)."""
     n = 0
-    while seguir and n < 12 and not getattr(a, "sem_escuta_aberta", False) and preferencias().get("escuta_aberta", True):
+    while seguir and n < 12 and not getattr(a, "sem_escuta_aberta", False) and preferencias().get("escuta_aberta", True) and escuta_continua():
         n += 1
         seguir = atender(a, q, modelo, chave, piso, seguimento=True)
 
@@ -2453,14 +2620,18 @@ def main():
     q = queue.Queue()
     piso = 120.0
     escuta_aberta_original = bool(getattr(a, "sem_escuta_aberta", False))
-    mic = Microfone(a, q)
-    mic.tentar(chave)
-    sem_mic = mic.stream is None
+    global MIC
+    mic = MIC = Microfone(a, q)
+    continuo = escuta_continua()
+    if continuo:  # escuta contínua (opção): o microfone abre já e fica esperando "Ei guardião"
+        mic.tentar(chave)
+    # no padrão o microfone só abre durante uma gravação por botão; "pronto" = tem chave e aparelho
+    sem_mic = (mic.stream is None) if continuo else not (chave and mic.existe())
     if sem_mic:
         a.sem_escuta_aberta = True  # sem microfone, ninguém fica esperando uma resposta falada
     try:
         modo = "com o cérebro (Claude)" if a.cerebro else "só transcrevendo"
-        print(f"Pronto, {modo}. " + ("Microfone desligado: escreva no painel." if sem_mic else "Diga 'Ei guardião', espere o bipe e fale.") + " Ctrl+C para sair.")
+        print(f"Pronto, {modo}. " + ("Microfone desligado: escreva no painel." if sem_mic else "Diga 'Ei guardião', espere o bipe e fale." if continuo else "Microfone fechado: ele só liga quando você clica no botão do microfone.") + " Ctrl+C para sair.")
         saude = {"mic": not sem_mic, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
         bus.emitir("saude", **saude)
         revisar_em = mic_em = claude_em = time.time() + 5
@@ -2479,15 +2650,22 @@ def main():
                 revisar_em = time.time() + 5
                 if not chave:
                     chave = chave_groq()
-                if chave and mic.stream is None and time.time() > mic_em:
+                continuo = escuta_continua()  # a pessoa muda isso nas preferências com o guardião aberto
+                if not continuo and mic.stream is not None:
+                    mic.parar()  # escuta contínua desligada: o microfone fecha agora
+                    drenar(q)
+                    print("Escuta contínua desligada. Microfone fechado.")
+                if continuo and chave and mic.stream is None and time.time() > mic_em:
                     mic_em = time.time() + 30
                     if mic.tentar(chave):
                         a.sem_escuta_aberta = escuta_aberta_original
                         print("Microfone ligado. Diga 'Ei guardião', espere o bipe e fale.")
+                if not continuo:
+                    a.sem_escuta_aberta = not (chave and mic.existe())
                 if a.cerebro and not achar_claude() and time.time() > claude_em:
                     claude_em = time.time() + 30
                     threading.Thread(target=lambda: achar_claude(refazer=True), daemon=True).start()  # a conferência executa o Claude: fora do laço do áudio
-                agora_saude = {"mic": mic.stream is not None, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
+                agora_saude = {"mic": (mic.stream is not None) if continuo else bool(chave and mic.existe()), "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
                 if agora_saude != saude:
                     saude = agora_saude
                     bus.emitir("saude", **saude)
@@ -2545,7 +2723,7 @@ def main():
                         drenar(q)
                         bus.emitir("estado", v="aguardando")
                         continuar(a, q, modelo, chave, piso, fala.rstrip().endswith("?"))
-                elif sem_mic and tipo in ("ditar", "acionar"):  # botão do microfone sem microfone: explica, em vez de ficar esperando uma fala
+                elif tipo in ("ditar", "acionar") and not (mic.stream is not None or (chave and mic.existe())):  # botão do microfone sem microfone: explica, em vez de ficar esperando uma fala
                     bus.emitir("aviso", texto=AVISO_SEM_MIC if chave else AVISO_SEM_CHAVE, erro=False)
                     bus.emitir("estado", v="aguardando")
                 elif tipo == "ditar":
@@ -2568,7 +2746,7 @@ def main():
                 rec = reconhecedor(modelo)
                 print("Aguardando 'Ei guardião'...")
                 continue
-            if dado is None:
+            if dado is None or not continuo:  # sem a escuta contínua nada é analisado fora de uma gravação por botão
                 continue
 
             rms = rms_de(dado)

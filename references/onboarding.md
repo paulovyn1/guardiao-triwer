@@ -17,7 +17,7 @@ O painel é o aplicativo do guardião: mostra o plano, escuta "Ei guardião", fa
 
 Dizer isto à pessoa, com as suas palavras mas sem suavizar:
 
-"Vou te fazer muitas perguntas e vou insistir quando a resposta for curta ou genérica. Não é desconfiança. O guardião só vai ser tão bom quanto o que você me contar agora: cada horário protegido, cada regra de energia e cada jeito seu de travar vem das suas respostas. Se você responder rápido ou no automático, vai ganhar um gestor genérico que erra o seu dia. Se responder com atenção e com situações reais, vai ganhar um que conhece você. Separe uns 30 a 40 minutos sem pressa."
+"Vou te fazer muitas perguntas e vou insistir quando a resposta for curta ou genérica. Não é desconfiança. O guardião só vai ser tão bom quanto o que você me contar agora: cada horário protegido, cada regra de energia e cada jeito seu de travar vem das suas respostas. Se você responder rápido ou no automático, vai ganhar um gestor genérico que erra o seu dia. Se responder com atenção e com situações reais, vai ganhar um que conhece você. Separe uns 30 a 40 minutos sem pressa. E a primeira semana é de calibragem: cada vez que eu errar o seu dia e você me corrigir, a correção vira uma regra escrita, e eu melhoro na sua frente."
 
 Se a pessoa disser que está sem tempo, propor remarcar. Não rodar o onboarding pela metade.
 
@@ -66,7 +66,8 @@ Para cada bloco, a linha "Vai para" diz onde a resposta é gravada.
 - O que você vende e para quem, em duas frases.
 - Liste tudo que você faz numa semana normal, sem filtrar (conteúdo, atendimento, financeiro, gravação...).
 - Dessas frentes, qual gera dinheiro e qual você mais adia?
-Vai para: `config.json` (pessoa.nome, pessoa.artigo "o" ou "a" ou vazio, agente.nome); `perfil.md` (Quem é, Frentes, Frente de receita). Avisar: qualquer que seja o nome escolhido, a palavra para chamar pelo microfone é sempre "Ei guardião".
+- O que, no seu negócio, é importante de verdade: o que traz dinheiro com data marcada, o que mantém você aparecendo para quem compra, e o que você entrega a alguém com data que não pode escorregar? Tem tarefa que você chama de "opcional" e que na verdade serve ao foco da semana? Me dá um exemplo.
+Vai para: `config.json` (pessoa.nome, pessoa.artigo "o" ou "a" ou vazio, agente.nome); `perfil.md` (Quem é, Frentes, O que é importante, Frente de receita). Avisar: qualquer que seja o nome escolhido, a palavra para chamar pelo microfone é sempre "Ei guardião".
 
 **Bloco 2: papéis e equipe.**
 - Quem trabalha com você, e o que cada um faz?
@@ -77,19 +78,21 @@ Vai para: `perfil.md` (Papéis); `equipe.md` (Donos; Canais e agentes); `config.
 
 **Bloco 3: relógio e vida.**
 - Quais dias você trabalha? Que horas chega, almoça e para?
+- Dia a dia, de segunda a domingo: onde você está (casa, escritório, fora) e até que horas trabalha naquele dia? Os dias costumam ser diferentes, então um horário único de parar não serve.
 - O que repete toda semana ou todo mês e já tem horário (reunião, live, mentoria, aula)?
 - O que é inegociável na sua vida fora do trabalho (horário de parar, folgas, família, casa)?
 - Sábado e domingo: trabalha, e quanto?
-Vai para: `config.json` (rotina); `semana-base.md`; `perfil.md` (Vida pessoal).
+Vai para: `config.json` (rotina); `semana-base.md` (Agenda por dia, Compromissos fixos); `perfil.md` (Vida pessoal).
 
 **Bloco 4: energia.**
 - O que drena sua energia e o que recarrega?
 - Qual seu melhor horário e qual o pior (aquele em que nada rende)?
+- Em que horários exatos você faz o trabalho pesado (copy, decisão, estratégia, pensar), o leve (mensagens, aprovações, design com modelo pronto) e a recarga? E quando o trabalho do dia acaba antes da hora de parar, o que a sobra deve virar (consumo de conteúdo, curso, descanso)?
 - Depois de um dia pesado (mentoria, gravação, reunião longa), o que você NÃO consegue fazer?
 - Me conta de um dia ruim recente: o que aconteceu, e o que você faria no mínimo para o dia não ser perdido?
 - Quando você troca de uma frente para outra (conteúdo para atendimento, por exemplo), o que custa? Quantas frentes diferentes cabem num dia sem você se esgotar?
 - Ideia e criatividade: nos dias em que as ideias vieram fácil, o que tinha acontecido antes (consumo de conteúdo, descanso, conversa)? E nos dias em que não vieram? Se você marca horário para ter ideia, o que acontece?
-Vai para: `perfil.md` (Energia, Relógio, Troca de frente e limite por dia, Ideias e criação, Regras de decisão: dia ruim).
+Vai para: `perfil.md` (Energia, Relógio, Faixas do dia por tipo de trabalho, Sobra do dia, Troca de frente e limite por dia, Ideias e criação, Regras de decisão: dia ruim).
 
 **Bloco 5: cobrança.**
 - Notificação funciona com você, ou você ignora? Já desligou alguma?
@@ -98,7 +101,9 @@ Vai para: `perfil.md` (Energia, Relógio, Troca de frente e limite por dia, Idei
 - Prefere cobrança mais firme ou mais gentil?
 - Como você decide quando está cansado, ansioso ou animado? Já tomou uma decisão de negócio nesse estado e se arrependeu? Me conta uma.
 - Pedidos rápidos de outras pessoas (aprovar algo, responder uma dúvida) interrompem o que você está fazendo. Quanto tempo cada um pode esperar sem prejuízo real?
-Vai para: `perfil.md` (Como cobrar, Decisão e interrupções); `config.json` (rotina.abrir_tela_as, se ela deu um horário). Se notificação não funciona, confirmar que o painel ao ligar o PC é a cobrança e registrar isso.
+- Qual foi a pior vez que um gestor, assistente ou ferramenta errou o seu plano? O que ele fez de errado e o que você teve de refazer?
+- Antes de afirmar algo sobre o seu dia (se uma tarefa está feita, se o computador está ligado, que horas você sai), o que o guardião precisa conferir em vez de supor?
+Vai para: `perfil.md` (Como cobrar, Decisão e interrupções); `config.json` (rotina.abrir_tela_as, se ela deu um horário); `aprendizados.md` (a pior vez que erraram o plano dela vira a primeira linha, no formato "quando X, faça Y, teste sim ou não"; o que conferir antes de afirmar vira outra). Se notificação não funciona, confirmar que o painel ao ligar o PC é a cobrança e registrar isso.
 
 **Bloco 6: frente de receita e tempos.**
 - Quantas entregas por semana da frente que gera dinheiro você quer como mínimo (posts, aulas, propostas, vídeos)?
@@ -143,7 +148,7 @@ Vai para: `perfil.md` (Frente de receita); `equipe.md` (Tempos).
 1. `powershell -ExecutionPolicy Bypass -File "<pasta da skill>\scripts\configurar.ps1" -Respostas "<respostas.json>"`. Falha de validação lista o que falta: voltar à pergunta certa, não inventar valor.
 2. Abrir `perfil.md`, `semana-base.md` e `equipe.md` na pasta de memória e preencher cada `[preencher]` com as respostas da entrevista, nas palavras da pessoa. Suposições levam HIPÓTESE. Respeitar os tetos de linhas (SKILL.md, seção 4.1). Não pode sobrar nenhum `[preencher]`: `Select-String -Path "<memória>\*.md" -Pattern "\[preencher"` deve voltar vazio.
 3. Conferir o perfil contra o teste da regra 3: cada linha precisa ser acionável (o guardião consegue agir com ela amanhã) e rastreável (vem de uma situação real ou está marcada HIPÓTESE). Linha genérica ("prefere trabalhar de manhã") volta para a pessoa como pergunta.
-4. Registrar o primeiro combinado em `estado.md` (data do onboarding e foco da semana, se a pessoa já souber).
+4. Registrar o primeiro combinado em `estado.md` (data do onboarding e foco da semana, se a pessoa já souber). O `aprendizados.md` nasce com as linhas do bloco 5 e o resto vazio: a primeira semana é de calibragem.
 
 ## Etapa 6: testar e ligar
 
