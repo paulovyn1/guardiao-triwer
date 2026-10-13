@@ -2931,7 +2931,8 @@ class Component extends DCLogic {
       focus.kick = 'Passou do horário · ' + hhmm(p.e); focus.kickCls = 'late'; focus.progSt = 'opacity:1'; focus.barSt = barSt(1);
       primary.label = 'Concluir · ' + hhmm(now); primary.showPost = true; primary.aria = 'Concluir a tarefa agora, ' + hhmm(now);
     } else if (mode === 'between') {
-      focus.kick = 'A seguir em ' + fmtRem(Math.ceil(p.s - now)) + ' · ' + hhmm(p.s); focus.progSt = 'opacity:.35';
+      const fx = S.tasks.filter((t) => t.fixed && t.status === 'todo' && t.s > now - 1 && t.s < p.s).sort((a, b) => a.s - b.s)[0];  // almoço, live, pausa: compromisso fixo que vem antes da próxima tarefa também é "a seguir"
+      focus.kick = fx ? 'A seguir: ' + fx.title + ' às ' + hhmm(fx.s) + ' · em ' + fmtRem(Math.max(1, Math.ceil(fx.s - now))) + ' · próxima tarefa às ' + hhmm(p.s) : 'A seguir em ' + fmtRem(Math.ceil(p.s - now)) + ' · ' + hhmm(p.s); focus.progSt = 'opacity:.35';
       primary.label = 'Começar agora · ' + hhmm(now); primary.cls = 'alt'; primary.showPost = true; primary.aria = 'Começar a próxima tarefa agora';
     } else if (mode === 'suggested') {
       focus.kick = 'Sugerida · ' + hhmm(p.s) + ' às ' + hhmm(p.e); focus.progSt = 'opacity:.35';
