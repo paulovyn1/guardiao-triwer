@@ -16,3 +16,10 @@ Cada bloco do plano guarda o `clickup_id`. Ao fim do dia o guardião lê o regis
 
 ## Adiamentos
 [nenhum ainda]
+
+## Aguardando gatilho
+Cliente ou tarefa que depende de um evento incerto (pagamento, contrato, resposta). Fica sem data até o gatilho acontecer.
+
+| O que | Gatilho | Desde quando |
+|---|---|---|
+

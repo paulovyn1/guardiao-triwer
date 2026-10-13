@@ -4,6 +4,18 @@ Teto: 60 linhas. Compromissos fixos e janelas de cada dia. O guardião lê este 
 
 [preencher: uma linha com a chegada, o almoço e a hora de parar nos dias de trabalho. Valores já estão em config.json (rotina).]
 
+## Agenda por dia (obrigatória: o guardião só monta o dia até a hora de parar daquele dia)
+| Dia | Onde {{nome}} está | Começa | Para |
+|---|---|---|---|
+| Seg | [preencher] | [preencher] | [preencher] |
+| Ter | [preencher] | [preencher] | [preencher] |
+| Qua | [preencher] | [preencher] | [preencher] |
+| Qui | [preencher] | [preencher] | [preencher] |
+| Sex | [preencher] | [preencher] | [preencher] |
+| Sáb | [preencher] | [preencher] | [preencher] |
+| Dom | [preencher] | [preencher] | [preencher] |
+
+## Compromissos fixos
 | Quando | O que |
 |---|---|
 | Seg | [preencher] |
