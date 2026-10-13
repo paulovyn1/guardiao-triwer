@@ -368,13 +368,14 @@ def concluir_bloco(dados):
             return {"ok": False, "erro": "Não achei o token do ClickUp neste computador."}
         cab = {"Authorization": token}
         try:
-            if concluido:
-                if nota:  # a frase é opcional: sem ela a tarefa fecha do mesmo jeito, só sem comentário
-                    r = requests.post(
-                        f"https://api.clickup.com/api/v2/task/{cid}/comment", headers=cab, timeout=20,
-                        json={"comment_text": f"Atualização de status: {nota}\n\n{assinatura()}"},
-                    )
-                    r.raise_for_status()
+            datas = {}
+            if concluido:  # sem comentário de status: o horário real vira o início e o fim da própria tarefa
+                ini_dt = datetime.strptime(f"{plano['data']} {real['inicio']}", "%Y-%m-%d %H:%M").astimezone()
+                fim_dt = datetime.strptime(f"{plano['data']} {real['fim']}", "%Y-%m-%d %H:%M").astimezone()
+                if fim_dt <= ini_dt:  # atravessou a meia-noite
+                    fim_dt = datetime.fromtimestamp(fim_dt.timestamp() + 86400).astimezone()
+                datas = {"start_date": int(ini_dt.timestamp() * 1000), "start_date_time": True,
+                         "due_date": int(fim_dt.timestamp() * 1000), "due_date_time": True}
             tarefa = requests.get(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, timeout=20)
             tarefa.raise_for_status()
             lista = requests.get(f"https://api.clickup.com/api/v2/list/{tarefa.json()['list']['id']}", headers=cab, timeout=20)
@@ -387,7 +388,7 @@ def concluir_bloco(dados):
                 alvo = next((s for s in estados if abertos and s.get("status") == abertos[0]), None) or next((s for s in estados if s.get("type") == "open"), None)
             if not alvo:
                 return {"ok": False, "erro": "A lista dessa tarefa não tem um status de destino."}
-            r = requests.put(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, json={"status": alvo["status"]}, timeout=20)
+            r = requests.put(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, json={"status": alvo["status"], **datas}, timeout=20)
             r.raise_for_status()
             status = alvo["status"]
         except requests.RequestException as erro:

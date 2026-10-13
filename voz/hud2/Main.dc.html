@@ -1334,7 +1334,6 @@ body{margin:0;background:#07080a}
       <sc-if value="{{dt.doneOpen}}" hint-placeholder-val="{{false}}">
         <div class="doneform">
           <div class="row2"><label for="df-a">Começou às</label><input id="df-a" class="tf" value="{{dForm.a}}" onChange="{{onDfA}}"><label for="df-b">Terminou às</label><input id="df-b" class="tf" value="{{dForm.b}}" onChange="{{onDfB}}"></div>
-          <input class="tin" placeholder="O que foi feito? Uma frase" value="{{dForm.note}}" onChange="{{onDfNote}}" aria-label="O que foi feito">
           <div class="row2"><button class="btn-pri sm" onClick="{{dfConfirm}}">Confirmar</button><button class="btn-lnk" onClick="{{dfCancel}}">Cancelar</button></div>
         </div>
       </sc-if>
@@ -2754,7 +2753,7 @@ class Component extends DCLogic {
     this.setState({ detailOpen: false, dForm: { open: false, a: '', b: '', note: '' } });
     API.post('/concluir', { id, concluido: true, nota, inicio: hhmm(a), fim: hhmm(b) }).then((r) => {
       if (!r || !r.ok) { this.toast((r && r.erro) || 'Não consegui concluir.', true); return; }
-      this.toast('Marcada como feita às ' + hhmm(b) + (t.needNote && nota ? '. Comentário enviado ao ClickUp.' : '.')); this.sfx('done');
+      this.toast('Marcada como feita às ' + hhmm(b) + '.'); this.sfx('done');
       this.setState({ breath: this.state.breath + 1 });
     }).catch((e) => this.falha(e));
   }

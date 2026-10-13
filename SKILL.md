@@ -163,18 +163,17 @@ Terminar sempre com o plano para aprovação. Depois do ok, gravar `plano_do_dia
 
 **O que o painel faz sozinho, sem o guardião do chat:**
 - Ao **aprovar o plano**, cria as tarefas dos blocos novos no ClickUp (com dono, início, fim e estimativa) e grava os `clickup_id`.
-- Ao **concluir** uma tarefa (com início e fim reais), pede a frase do que foi feito, grava essa frase como comentário assinado e conclui a tarefa no ClickUp (status do tipo closed da lista). Reabrir desfaz.
+- Ao **concluir** uma tarefa (o check na tela), conclui na hora no ClickUp (status do tipo closed da lista) e grava o horário real de início e fim na própria tarefa. Não pede frase nem escreve comentário. Reabrir desfaz.
 - Grava `registros\registro_AAAA-MM-DD.json` a cada marcação.
 
-**Concluir tarefa pelo chat (comentário antes, assinatura sempre):**
-- Antes de concluir qualquer tarefa pelo chat, registrar um comentário na tarefa (`clickup_create_task_comment`) com o status: o que foi feito, o resultado e o próximo passo. Só depois mudar o status para o tipo closed da lista (`clickup_update_task`). Sem saber o que registrar, perguntar. Nunca inventar o conteúdo.
-- Todo comentário escrito pelo guardião termina com a assinatura: `agente.assinatura` do config.json ou, sem ela, o nome do guardião seguido do nome da pessoa (ex: "— Guardião da Marina"). Assim fica claro que foi o guardião, e não a pessoa, quem escreveu.
-- **"Já concluí X":** se a pessoa disser que concluiu uma tarefa e o ClickUp ainda a mostra aberta, a fala dela é a autorização, e vale só para a tarefa que ela citou. Comentar e concluir direto, sem montar plano nem pedir ok. Contar em uma linha o que mudou e registrar no registro do dia ou no `estado.md`. Sem horário real, marcar "não confirmado" e deixar fora da média de tempo.
+**Concluir tarefa pelo chat:**
+- Mudar o status para o tipo closed da lista (`clickup_update_task`) e gravar o início e o fim reais na própria tarefa. Sem comentário de status e sem assinatura: o ClickUp já registra quando a tarefa fechou. Só comentar se a pessoa pedir.
+- **"Já concluí X":** se a pessoa disser que concluiu uma tarefa e o ClickUp ainda a mostra aberta, a fala dela é a autorização, e vale só para a tarefa que ela citou. Concluir direto, sem montar plano nem pedir ok. Contar em uma linha o que mudou e registrar no registro do dia ou no `estado.md`. Sem horário real, marcar "não confirmado" e deixar fora da média de tempo.
 
 **Modo automático** (`gerar_plano.ps1`, no logon e no horário de `rotina.gerar_plano_as`, 1 vez por dia de trabalho): o guardião não pergunta nada, grava SÓ o `plano_do_dia.json` com `"status": "sugerido"` e nunca escreve no ClickUp. Quem cria as tarefas é o painel, quando a pessoa aprova.
 
 **Fim do dia, no chat, quando a pessoa chamar:**
-1. Ler `registros\registro_AAAA-MM-DD.json`. O que ela concluiu o painel já concluiu no ClickUp, com o comentário; conferir `clickup` de cada bloco (erro aparece ali).
+1. Ler `registros\registro_AAAA-MM-DD.json`. O que ela concluiu o painel já concluiu no ClickUp; conferir `clickup` de cada bloco (erro aparece ali).
 2. Para cada bloco NÃO concluído, reprogramar a tarefa no ClickUp (`clickup_update_task`, novo dia e hora) e refazer o plano, mostrando a mudança antes de gravar.
 3. Registrar o tempo real em `tempos.json` por tipo de tarefa. Bloco sem horário real: assumir o planejado e marcar "não confirmado", fora da média. Procurar o padrão do desvio (sempre estoura um tipo de tarefa? o bloco da tarde nunca acontece?).
 4. Tarefa adiada 3 vezes: perguntar o motivo. Atualizar `estado.md`.
