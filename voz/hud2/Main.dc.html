@@ -2411,7 +2411,7 @@ class Component extends DCLogic {
     if (!quiet) this.sayLocal('Saí da execução. Estou por aqui se precisar.');
   }
   exitExecBtn() { this.exitExec(); }
-  openCurDetail() { const p = this.curTask(); if (p) this.openDetail('task', p.id); }
+  openCurDetail() { const p = this.proxFixo() || this.curTask(); if (p) this.openDetail('task', p.id); }
   showList(kind, quieto) {
     if (this.state.sceneOn && this.state.scene && this.state.scene.kind === 'focus') this.closeScene(true);
     this.setState({ detail: { kind }, detailOpen: true, dForm: { open: false, a: '', b: '', note: '' }, prefsOpen: false });
@@ -2430,6 +2430,10 @@ class Component extends DCLogic {
   /* ---------- plano e tarefas ---------- */
   pendList() { return this.state.tasks.filter((t) => !t.fixed && t.status === 'todo').sort((a, b) => a.s - b.s); }
   curTask() { return this.pendList()[0] || null; }
+  proxFixo() {  // almoço, live, pausa: compromisso fixo que vem antes da próxima tarefa, quando ainda não há tarefa em andamento
+    const S = this.state, p = this.curTask(); if (!p || this.homeMode() !== 'between') return null;
+    return S.tasks.filter((t) => t.fixed && t.status === 'todo' && t.s > S.now - 1 && t.s < p.s).sort((a, b) => a.s - b.s)[0] || null;
+  }
   homeMode() {
     const S = this.state;
     if (S.planState === 'none' || !S.tasks.length) return 'noplan';
@@ -2931,9 +2935,15 @@ class Component extends DCLogic {
       focus.kick = 'Passou do horário · ' + hhmm(p.e); focus.kickCls = 'late'; focus.progSt = 'opacity:1'; focus.barSt = barSt(1);
       primary.label = 'Concluir · ' + hhmm(now); primary.showPost = true; primary.aria = 'Concluir a tarefa agora, ' + hhmm(now);
     } else if (mode === 'between') {
-      const fx = S.tasks.filter((t) => t.fixed && t.status === 'todo' && t.s > now - 1 && t.s < p.s).sort((a, b) => a.s - b.s)[0];  // almoço, live, pausa: compromisso fixo que vem antes da próxima tarefa também é "a seguir"
-      focus.kick = fx ? 'A seguir: ' + fx.title + ' às ' + hhmm(fx.s) + ' · em ' + fmtRem(Math.max(1, Math.ceil(fx.s - now))) + ' · próxima tarefa às ' + hhmm(p.s) : 'A seguir em ' + fmtRem(Math.ceil(p.s - now)) + ' · ' + hhmm(p.s); focus.progSt = 'opacity:.35';
-      primary.label = 'Começar agora · ' + hhmm(now); primary.cls = 'alt'; primary.showPost = true; primary.aria = 'Começar a próxima tarefa agora';
+      const fx = this.proxFixo();
+      if (fx) {  // o compromisso fixo vem antes da próxima tarefa: ele é o "a seguir", e a tarefa aparece como "depois"
+        focus.kick = 'A seguir em ' + fmtRem(Math.max(1, Math.ceil(fx.s - now))) + ' · ' + hhmm(fx.s) + ' · compromisso fixo'; focus.progSt = 'opacity:.35';
+        focus.title = fx.title; focus.tracked = 'Depois: ' + p.title + ' · ' + hhmm(p.s);
+        primary.label = 'Adiantar a próxima tarefa · ' + hhmm(now); primary.cls = 'alt'; primary.showPost = false; primary.aria = 'Começar já a próxima tarefa, ' + p.title;
+      } else {
+        focus.kick = 'A seguir em ' + fmtRem(Math.ceil(p.s - now)) + ' · ' + hhmm(p.s); focus.progSt = 'opacity:.35';
+        primary.label = 'Começar agora · ' + hhmm(now); primary.cls = 'alt'; primary.showPost = true; primary.aria = 'Começar a próxima tarefa agora';
+      }
     } else if (mode === 'suggested') {
       focus.kick = 'Sugerida · ' + hhmm(p.s) + ' às ' + hhmm(p.e); focus.progSt = 'opacity:.35';
       primary.label = 'Começa às ' + hhmm(p.s); primary.cls = 'alt'; primary.dis = true; primary.aria = 'Disponível depois de aprovar o plano';
@@ -3231,7 +3241,7 @@ class Component extends DCLogic {
       stHome: stn(0), stDia: stn(1), stPlan: stn(2), stCal: stn(3), stPops: stn(4),
       glTag: S.userLine && !usando ? 'Você' : '', glU: S.userLine && !usando ? '“' + S.userLine + '”' : statusTxt.toUpperCase(), glG, glCls,
       conv: { on: !!pf.session && !mini && !compact, label: S.conv && S.conv.atual && S.conv.atual.turnos ? S.conv.atual.titulo : 'Conversa nova', open: C('openChats'), nova: C('novaConversa') },
-      focus, primary, stageCls, fwrapHidden: execOn ? 'false' : 'true', openCurDetail: C('openCurDetail'), dtCU: C('dtCU'), hasCU: !!(p && p.url), exitExecBtn: C('exitExecBtn'), onPrimary: C('onPrimary'), onPostpone: C('onPostpone'), setSealBtn: this.setSealBtn, setSealScene: this.setSealScene, setSealAch: this.setSealAch,
+      focus, primary, stageCls, fwrapHidden: execOn ? 'false' : 'true', openCurDetail: C('openCurDetail'), dtCU: C('dtCU'), hasCU: !!(p && p.url && !(mode === 'between' && this.proxFixo())), exitExecBtn: C('exitExecBtn'), onPrimary: C('onPrimary'), onPostpone: C('onPostpone'), setSealBtn: this.setSealBtn, setSealScene: this.setSealScene, setSealAch: this.setSealAch,
       done: doneRow, ask, adj: { cls: S.adjOn ? 'show' : '', a: S.adjA, b: S.adjB }, onNote: E('onNote'), onNoteKey: E('onNoteKey'), toggleAdj: C('toggleAdj'), undo: C('undo'), onAdjA: E('onAdjA'), onAdjB: E('onAdjB'), saveAdj: C('saveAdj'),
       doneCount, totalCount, cmdPh: S.net === 'offline' ? 'Guardião desligado' : execOn ? 'Fale ou escreva. Ex.: concluí, preciso de mais tempo' : voiceOn ? 'Fale ou escreva. Ex.: vou executar' : 'Escreva. Ex.: vou executar', cmdText: listenHome ? S.userLine : S.cmdText, cmdDis: S.net === 'offline', onCmdInput: E('onCmdInput'), onCmdKey: E('onCmdKey'),
       micCls: S.listening ? 'on' : '', micOn: S.listening, micAria: S.listening ? 'Ouvindo' : 'Falar com o Guardião', micDis: S.net === 'offline', micLabel: S.listening ? 'Ouvindo' : 'Falar', onMic: C('onMic'), onSend: C('onSend'),
