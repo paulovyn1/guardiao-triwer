@@ -120,7 +120,7 @@ try:
     ditos = [v for t, v in comandos() if t == "dizer"]
     confere("cada passo foi mandado para a voz", len(ditos) == 3 and "até as 11:00" in ditos[-1], ditos)
 
-    # ---------------- concluir: tarefa do ClickUp só fecha com a frase do que foi feito
+    # ---------------- concluir: o check fecha a tarefa na hora, sem pedir frase e sem comentar (decisão da Milena em 13/10/2026)
     relogio.hora = "10:40"
     h.bus.emitir("plano")
     espera("document.querySelector('.st.cur .btn-pri').innerText.toLowerCase().includes('10:40')", 8)
@@ -128,13 +128,11 @@ try:
     js("document.querySelector('.st.cur .btn-pri').click()")
     confere("concluir carimba a hora", espera("document.querySelector('.st.cur .btn-pri').classList.contains('stamped')", 3) and contem(".st.cur .btn-pri", "CONCLUÍDO · 10:40"), texto(".st.cur .btn-pri"))
     foto("07_concluir_carimbo")
-    confere("pede a frase do que foi feito", espera("document.querySelector('.st.cur .arow .tin')", 5) and espera("document.querySelector('.gl-g').innerText.toLowerCase().includes('o que foi feito')", 5), texto(".after"))
-    confere("nada foi para o ClickUp antes da frase", len(B.ClickUpFalso.chamadas) == n_antes)
+    confere("não pede frase nenhuma: o check conclui na hora", not js("!!document.querySelector('.st.cur .arow .tin')"), texto(".after"))
     confere("a próxima tarefa já subiu", contem(".f-title", "Revisar o roteiro"), texto(".f-title"))
     time.sleep(1.0)
-    foto("08_concluir_nota")
-    digitar(".st.cur .arow .tin", "Campanhas montadas e revisadas.", enter=True)
-    confere("com a frase, comenta e conclui no ClickUp", pausa(1.2) and any(m == "POST" and "cid3/comment" in u and "Campanhas montadas" in str(c) and "Guardião do Rafa" in str(c) for m, u, c in B.ClickUpFalso.chamadas), (B.ClickUpFalso.chamadas[-3:], js("[...document.querySelectorAll('.toast')].map(e => e.innerText)"), texto(".after"), js("document.querySelector('.st.cur .arow .tin') ? document.querySelector('.st.cur .arow .tin').value : null")))
+    foto("08_concluir_sem_frase")
+    confere("fecha no ClickUp na hora: sem comentário e com início e fim reais", pausa(1.5) and not any(m == "POST" and "cid3/comment" in u for m, u, c in B.ClickUpFalso.chamadas) and any(m == "PUT" and "cid3" in u and isinstance(c, dict) and "start_date" in c and c.get("status") == "complete" for m, u, c in B.ClickUpFalso.chamadas), B.ClickUpFalso.chamadas[n_antes:][-3:])
     reg = {b["id"]: b for b in h._registro_de_hoje()["blocos"]}
     confere("o registro guarda o horário real medido", reg["b3"]["estado"] == "feito" and reg["b3"]["real"] == {"inicio": "09:50", "fim": "10:40", "minutos": 50} and reg["b3"].get("nao_confirmado") is False, reg["b3"])
     confere("o tempo real entra no tempos.json", h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]["Tráfego"]["registros"][-1]["real"] == 50)

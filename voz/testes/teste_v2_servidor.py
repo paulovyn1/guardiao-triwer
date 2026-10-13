@@ -90,7 +90,7 @@ comandos()
 # ---------------- concluir alimenta os tempos por tipo
 relogio.hora = "11:05"
 r = h.concluir_bloco({"id": "b3", "concluido": True, "nota": "Campanhas no ar.", "inicio": "09:50", "fim": "11:05"})
-confere("concluir pelo servidor segue funcionando (comentário no ClickUp falso)", r["ok"] and any(m == "POST" and "comment" in u for m, u, _ in B.ClickUpFalso.chamadas))
+confere("concluir pelo servidor fecha a tarefa sem comentário e grava início e fim reais", r["ok"] and not any(m == "POST" and "comment" in u for m, u, _ in B.ClickUpFalso.chamadas) and any(m == "PUT" and isinstance(c, dict) and "start_date" in c and "due_date" in c and c.get("status") == "complete" for m, u, c in B.ClickUpFalso.chamadas))
 tempos = h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]
 reg = tempos["Tráfego"]["registros"][-1]
 confere("tempos.json recebe o tempo medido (75 min) contra o planejado (90)", reg["real"] == 75 and reg["planejado"] == 90 and reg["confirmado"] is True, reg)
