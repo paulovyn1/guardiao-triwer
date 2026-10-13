@@ -1959,8 +1959,55 @@ def _limpar_comando(texto):
     return re.sub(r"\s+", " ", t).strip()
 
 
+CONCLUI = re.compile(r"^(ja )?(conclui|terminei|acabei|finalizei|fechei|encerrei|fiz tudo)\b|^ja fiz\b")
+NEGA_CONCLUSAO = re.compile(r"\b(nao|ainda nao|quase|metade|falta|faltam|so falta)\b")
+LIGACAO = {"para", "como", "com", "uma", "dois", "tres", "sobre", "essa", "esse", "isso", "depois", "antes", "ainda", "hoje", "todos", "todas"}
+
+
+def _palavras(texto):
+    return {w for w in re.findall(r"[a-z]{4,}", _norm(texto or "")) if w not in LIGACAO}
+
+
+def concluir_local(texto):
+    """"Concluí...", "terminei...", "acabei...": conclui a tarefa de agora direto, sem chamar o Claude (que gasta dezenas de milhares de tokens para registrar uma frase).
+    O que a pessoa contou fica no registro de eventos para a análise e o report. Na dúvida (a fala cita outra tarefa, ou nega), devolve None e o Claude responde."""
+    t = _limpar_comando(texto)
+    if not t or not CONCLUI.match(t) or NEGA_CONCLUSAO.search(t):
+        return None
+    plano = _plano_de_hoje() or {}
+    atual = v2.bloco_atual(plano)
+    if not atual:
+        return None
+    falado = _palavras(texto)
+    estados = {b.get("id"): b.get("estado") for b in _registro_de_hoje().get("blocos", [])}
+    pontos = lambda b: len(_palavras(b.get("titulo")) & falado)
+    for b in plano.get("blocos", []):
+        if b.get("id") != atual.get("id") and estados.get(b.get("id")) not in ("feito", "adiado") and pontos(b) > pontos(atual):
+            return None  # ele fala de outra tarefa que não é a de agora: o Claude decide
+    if pontos(atual) == 0 and len(t.split()) > 4:
+        return None  # fala longa que não cita nada da tarefa de agora: pode ser outra, o Claude decide
+    agora = time.strftime("%H:%M")
+    d = v2._ler_exec()
+    sessao = v2._sessao(d, atual.get("id"))
+    inicio = sessao["trechos"][0]["de"] if sessao and sessao.get("trechos") else None
+    medido = bool(inicio)
+    inicio = inicio or atual["inicio"]
+    if v2.h._min(agora) <= v2.h._min(inicio):
+        m = max(0, v2.h._min(agora) - 1)
+        inicio = f"{m // 60:02d}:{m % 60:02d}"
+    r = v2.h.concluir_bloco({"id": atual["id"], "concluido": True, "nota": "", "inicio": inicio, "fim": agora, "nao_confirmado": not medido})
+    if not r.get("ok"):
+        return {"fala": f"Não consegui concluir {atual.get('titulo')}: {r.get('erro') or 'erro desconhecido'}."}
+    v2.registrar_evento("relato", atual, texto=str(texto).strip()[:800])
+    proximo = v2.bloco_atual(_plano_de_hoje() or {})
+    return {"fala": f"Feito às {agora}. " + (f"A seguir: {proximo['titulo']}, às {proximo['inicio']}." if proximo else "Era a última do dia.")}
+
+
 def comando_local(texto):
     """Devolve {"fala": ..., "roteiro": ...} se o pedido é um comando da tela (modo execução, abrir uma aba, silenciar...), ou None para o Claude responder."""
+    feito = concluir_local(texto)
+    if feito:
+        return feito
     t = _limpar_comando(texto)
     if not t or len(t.split()) > 9:
         return None
