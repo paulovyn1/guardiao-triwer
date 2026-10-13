@@ -403,7 +403,7 @@ def concluir_bloco(dados):
     if concluido and bloco.get("posts_previstos"):  # bloco de criação de posts: mede o que rendeu (posts previstos x que apareceram), uma vez
         try:
             import posts_maes
-            threading.Thread(target=posts_maes.registrar_rendimento, args=(_config(), _token_clickup(), OPER, bloco, real, _v2().registrar_evento), daemon=True).start()
+            threading.Thread(target=posts_maes.registrar_rendimento, args=(_config(), _token_clickup(), OPER, bloco, real, _v2().registrar_evento), kwargs={"ao_mudar": lambda: bus.emitir("plano")}, daemon=True).start()
         except Exception as erro:
             print("  (rendimento do bloco não rodou:", erro, ")")
     bus.emitir("plano")
