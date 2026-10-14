@@ -7,6 +7,12 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.9.0 - 2026-10-14
+- Na primeira abertura do dia, o guardião monta o plano, lê cada tarefa e pede o ok.
+- Aprovado o plano, entra em execução; a tarefa só conta a partir do Iniciar.
+- A voz sai inteira, sem picotar, em 1x, 1,5x ou 2x, e o Esc corta a voz.
+- O painel abre no Edge, como um aplicativo.
+
 ## 0.8.2 - 2026-10-13
 - O plano automático já deixa pronto o rascunho de um trabalho do guardião que venceu.
 - A skill ficou mais leve: o fechamento do dia foi para um arquivo lido só quando precisa.

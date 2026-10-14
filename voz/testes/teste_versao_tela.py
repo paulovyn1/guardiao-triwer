@@ -1,4 +1,4 @@
-"""Versão 0.3.0 na tela (Edge sem janela): botão discreto de versão nova, cartão com as notas e atualizar, grupo Versão nas preferências,
+"""Versão 0.3.0 na tela (Edge sem janela): botão discreto de versão nova, cartão com as notas e atualizar, versão à vista no alto das preferências,
 "Esc cancela" na escuta, clique no microfone cancelando, aviso do guardião completo e a janela compacta pedindo para ficar por cima."""
 import json
 import os
@@ -67,10 +67,8 @@ try:
     confere("na primeira abertura do dia o guardião confere a versão sozinho", espera("true", 1) and (at._estado().get("verificado_em") or "")[:10] == time.strftime("%Y-%m-%d"), at._estado())
     confere("em dia: nenhum botão de versão no topo", js("!document.querySelector('.hd .upd')"))
     js("document.querySelector('.ibtn[aria-label=\"Preferências\"]').click()")
-    confere("as preferências abrem e a seção Versão resume o estado, mesmo fechada", espera("document.querySelector('.prefs.open')", 3)
-            and "0.3.0 · em dia" in js("[...document.querySelectorAll('.prefs .pg')].find(e => e.textContent.includes('Versão')).querySelector('.pg-s').textContent"))
-    js("[...document.querySelectorAll('.prefs .pg-h')].find(e => e.textContent.includes('Versão')).click()")
-    pausa(0.7)
+    confere("as preferências abrem com a versão à vista no alto, sem abrir seção nenhuma", espera("document.querySelector('.prefs.open')", 3)
+            and pausa(0.8) and "Guardião 0.3.0" in js("document.querySelector('.prefs .ptop').textContent"), js("document.querySelector('.prefs .ptop').textContent"))
     confere("preferências mostram a versão instalada", espera("document.querySelector('.prefs.open')", 3) and "Guardião 0.3.0" in texto(".prefs") and "EM DIA" in texto(".prefs").upper(), texto(".prefs")[-400:])
     confere("a versão aparece logo no alto das preferências", "VERSÃO 0.3.0" in texto(".prefs .pver").upper(), texto(".prefs .pver"))
     confere("e o botão de conferir, com a data da última conferência", "CONFERIR" in texto(".prefs").upper() and "Conferido em" in texto(".prefs"), texto(".prefs")[-500:])

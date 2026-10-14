@@ -140,16 +140,14 @@ PREFS_PADRAO = {
     "som_toques": True,        # clique em botões e itens
     "som_avisos": True,        # confirmação, erro, envio e o aviso de microfone aberto
     "som_abertura": True,      # a trilha da abertura
-    "abertura_animada": True,  # a animação de ~7 s ao abrir o app
-    "saudacao": True,          # o guardião cumprimenta ao abrir o app
     "mic_sempre_ligado": False,  # OPÇÃO: escuta contínua ("Ei guardião"). Desligada, o microfone só abre num clique e fecha no fim da gravação
     "escuta_aberta": True,     # o microfone reabre sozinho quando o guardião espera resposta (só vale com a escuta contínua)
     # painel novo (v2)
     "som_estados": True,       # sininhos enquanto ele pensa, ligando e desligando quando a conexão cai ou volta
     "voz_guardiao": True,      # o guardião fala em voz alta; desligado, ele só escreve (o microfone continua valendo)
-    "abrir_em_execucao": False,  # abre direto na tarefa de agora, sem passar pela tela só com a bolinha
-    "modo_leve": False,        # menos animação e bolinha 2D, para computador fraco
-    "vidro": True,             # painéis translúcidos com desfoque
+    "voz_velocidade": 1.0,     # 1, 1.5 ou 2 vezes
+    "execucao_ao_abrir": True,  # com o plano aprovado, as aberturas do dia vão direto para a tarefa de agora (substitui abrir_em_execucao, que nascia desligada)
+    "modo_leve": False,        # menos animação, sem vidro e bolinha 2D, para computador fraco
     "sessao": False,           # a conversa vira uma sessão do Claude Code: lembra do que foi dito e usa conectores, skills e agentes
     "bolinha": "N",            # N = Núcleo 3D, A = Relógio (o instrumento clássico)
 }
@@ -162,6 +160,8 @@ def _pref_valida(k, v):
         return v if isinstance(v, bool) else None
     if k == "volume":
         return round(min(1.0, max(0.0, float(v))), 2) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    if k == "voz_velocidade":
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and float(v) in (1.0, 1.5, 2.0) else None
     if k in PREFS_OPCOES:
         return v if v in PREFS_OPCOES[k] else None
     return None
@@ -579,6 +579,10 @@ def aprovar_plano():
         json.dump(plano, f, ensure_ascii=False, indent=2)
     HISTORICO_PLANO.clear()
     bus.emitir("plano")
+    try:  # aprovou, entra em execução sozinho (a tarefa só começa a contar quando a pessoa clica em Iniciar)
+        _v2().entrar()
+    except Exception as erro:
+        print("  (não consegui entrar em execução depois de aprovar:", erro, ")")
     return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros}
 
 
@@ -1221,14 +1225,17 @@ class Pedido(BaseHTTPRequestHandler):
             return self._json(202, {"ok": True})
         if caminho == "/preferencias":
             return self._json(200, salvar_preferencias(dados))
-        if caminho == "/saudacao":  # a tela pede a saudação (fase 'preparar', no começo da abertura) e libera a fala (fase 'liberar', no fim dela)
+        if caminho == "/saudacao":  # a tela pede a abertura do dia (fase 'preparar', no começo da animação) e libera a fala (fase 'liberar', no fim dela)
             fase = str(dados.get("fase") or "preparar")
             if fase == "liberar":
                 bus.portao_saudacao.set()
             else:
                 bus.portao_saudacao.clear()
-                bus.comandos.put(("saudacao", bool(dados.get("forcar"))))
+                bus.comandos.put(("abertura", {"primeira": bool(dados.get("primeira"))}))
             return self._json(202, {"ok": True})
+        if caminho == "/esc":  # Esc no painel: tira uma camada por vez (leitura do plano, voz, resposta, trabalho em segundo plano)
+            import controle_fala
+            return self._json(200, {"ok": True, "camada": controle_fala.esc()})
         if caminho == "/concluir":
             return self._json(200, concluir_bloco(dados))
         if caminho == "/adiar":

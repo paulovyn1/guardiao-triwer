@@ -1,6 +1,6 @@
-"""A janela do painel (janela_painel.py), sem abrir navegador nenhum: o navegador padrão é reconhecido pelo registro do Windows, só o Chrome e o Edge
-abrem como janela de aplicativo, e isso sem criar perfil, sem entrar em conta e sem opção que mexa no navegador da pessoa. Os outros (Opera, Brave,
-Vivaldi, Firefox...) abrem numa aba.
+"""A janela do painel (janela_painel.py), sem abrir navegador nenhum: desde a 0.9 o painel abre sempre no Edge, como janela de aplicativo
+(no Opera ele virava uma aba comum), sem criar perfil, sem entrar em conta e sem opção que mexa no navegador da pessoa. Sem Edge, o Chrome; sem os
+dois, uma aba no navegador padrão. O navegador padrão ainda é lido do registro, só para o diagnóstico.
 Também a limpeza do perfil antigo que as versões 0.6 e 0.7 criaram, que nunca mexe num perfil em uso."""
 import os
 import sys
@@ -62,7 +62,7 @@ except Exception as erro:
 
 # ---------------- abrir: o que acontece em cada caso (sem abrir nada de verdade) ----------------
 chamadas = {"popen": [], "web": []}
-orig = (jp.subprocess.Popen, jp.webbrowser.open, jp.navegador_padrao, jp.limpar_perfil_antigo)
+orig = (jp.subprocess.Popen, jp.webbrowser.open, jp.achar_edge, jp.achar_chrome, jp.limpar_perfil_antigo, jp.navegador_padrao)
 jp.subprocess.Popen = lambda cmd, *a, **k: chamadas["popen"].append(cmd)
 jp.webbrowser.open = lambda url, *a, **k: chamadas["web"].append(url)
 jp.limpar_perfil_antigo = lambda *a, **k: False
@@ -74,29 +74,36 @@ def zerar():
 
 
 try:
-    jp.navegador_padrao = lambda: {"progid": "ChromeHTML", "exe": "C:\\Chrome\\chrome.exe", "app": True}
-    modo = jp.abrir("http://localhost:8767/v2/", "1500,940")
-    confere("Chrome ou Edge: janela de aplicativo no navegador padrão, só com --app e o tamanho",
-            modo == "app" and chamadas["popen"] == [["C:\\Chrome\\chrome.exe", "--app=http://localhost:8767/v2/", "--window-size=1500,940"]] and not chamadas["web"], (modo, chamadas))
-    zerar()
-    for progid, exe in (("Opera GXStable", "C:\\Opera GX\\opera.exe"), ("FirefoxURL-1", "C:\\Firefox\\firefox.exe"), ("BraveHTML", "C:\\Brave\\brave.exe")):
-        jp.navegador_padrao = lambda progid=progid, exe=exe: {"progid": progid, "exe": exe, "app": jp.aceita_app(progid, exe)}
-        modo = jp.abrir("http://localhost:8767/v2/")
-        confere(f"{progid}: aba nova pelo Windows, sem lançar programa nenhum nem opção", modo == "aba" and chamadas["web"] == ["http://localhost:8767/v2/"] and not chamadas["popen"], (modo, chamadas))
+    jp.achar_edge = lambda: "C:\\Edge\\msedge.exe"
+    jp.achar_chrome = lambda: "C:\\Chrome\\chrome.exe"
+    for padrao in ({"progid": "Opera GXStable", "exe": "C:\\Opera GX\\opera.exe", "app": False}, {"progid": "ChromeHTML", "exe": "C:\\Chrome\\chrome.exe", "app": True}, None):
+        jp.navegador_padrao = lambda padrao=padrao: padrao
+        modo = jp.abrir("http://localhost:8767/v2/", "1500,940")
+        confere(f"com o navegador padrão {(padrao or {}).get('progid')}: abre no Edge, como janela de aplicativo, só com --app e o tamanho",
+                modo == "app" and chamadas["popen"] == [["C:\\Edge\\msedge.exe", "--app=http://localhost:8767/v2/", "--window-size=1500,940"]] and not chamadas["web"], (modo, chamadas))
         zerar()
-    jp.navegador_padrao = lambda: None
+    jp.achar_edge = lambda: ""
     modo = jp.abrir("http://localhost:8767/v2/")
-    confere("navegador não encontrado: aba nova pelo Windows", modo == "aba" and chamadas["web"] == ["http://localhost:8767/v2/"] and not chamadas["popen"], (modo, chamadas))
+    confere("sem Edge: o Chrome, também como janela de aplicativo", modo == "app" and chamadas["popen"] and chamadas["popen"][0][0] == "C:\\Chrome\\chrome.exe", (modo, chamadas))
+    zerar()
+    jp.achar_chrome = lambda: ""
+    modo = jp.abrir("http://localhost:8767/v2/")
+    confere("sem Edge e sem Chrome: aba nova no navegador padrão", modo == "aba" and chamadas["web"] == ["http://localhost:8767/v2/"] and not chamadas["popen"], (modo, chamadas))
     zerar()
 
     def quebra(cmd, *a, **k):
         raise OSError("programa sumiu")
     jp.subprocess.Popen = quebra
-    jp.navegador_padrao = lambda: {"progid": "ChromeHTML", "exe": "C:\\Chrome\\chrome.exe", "app": True}
+    jp.achar_edge = lambda: "C:\\Edge\\msedge.exe"
     modo = jp.abrir("http://localhost:8767/v2/")
-    confere("se o programa do navegador falhar ao abrir, cai na aba nova em vez de dar erro", modo == "aba" and chamadas["web"] == ["http://localhost:8767/v2/"], (modo, chamadas))
+    confere("se o Edge falhar ao abrir, cai na aba nova em vez de dar erro", modo == "aba" and chamadas["web"] == ["http://localhost:8767/v2/"], (modo, chamadas))
 finally:
-    jp.subprocess.Popen, jp.webbrowser.open, jp.navegador_padrao, jp.limpar_perfil_antigo = orig
+    jp.subprocess.Popen, jp.webbrowser.open, jp.achar_edge, jp.achar_chrome, jp.limpar_perfil_antigo, jp.navegador_padrao = orig
+
+# ---------------- o Edge deste computador ----------------
+edge = jp.achar_edge()
+confere("o Edge deste computador é achado (ele vem com o Windows) e o programa existe", bool(edge) and os.path.exists(edge) and edge.lower().endswith("msedge.exe"), edge)
+confere("o painel usa o Edge quando ele existe", jp.navegador_do_painel() == edge, jp.navegador_do_painel())
 
 # ---------------- o perfil antigo ----------------
 tmp = tempfile.mkdtemp(prefix="gv_painel_")

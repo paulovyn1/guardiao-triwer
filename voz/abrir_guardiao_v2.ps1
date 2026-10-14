@@ -26,6 +26,6 @@ elseif (PrecisaReiniciar) {
     Ligar
 }
 
-# Quem abre a janela é o janela_painel.py: no navegador padrão da pessoa e no perfil dela (nada de perfil novo, conta ou extensão por conta do guardião),
+# Quem abre a janela é o janela_painel.py: no Edge, como janela de aplicativo, no perfil da pessoa (nada de perfil novo, conta ou extensão por conta do guardião),
 # e apaga a pasta do perfil que as versões antigas criaram. (O jeito de abrir fica num lugar só, nele.)
 Start-Process -FilePath $pythonw -ArgumentList "`"$voz\janela_painel.py`"", "http://localhost:$porta/v2/" -WorkingDirectory $voz -WindowStyle Hidden

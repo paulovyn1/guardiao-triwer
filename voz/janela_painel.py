@@ -1,11 +1,11 @@
-# A janela do painel, aberta no navegador padrão da pessoa e no perfil dela. O guardião não cria perfil, não entra em conta, não liga
-# sincronização e não mexe em extensão: quem abre é o navegador que a pessoa já usa, do jeito que ela já usa.
+# A janela do painel. No Windows ela abre sempre no Microsoft Edge, como janela de aplicativo (sem abas nem barra de endereço), no perfil
+# que a pessoa já usa no Edge: o guardião não cria perfil, não entra em conta, não liga sincronização e não mexe em extensão.
 #
-# Chrome e Edge: abrem como janela de aplicativo (sem abas nem barra de endereço) com --app, sem nenhuma outra opção. Se o navegador já está
-# aberto, a janela nasce nele; se não, ele abre com o perfil de sempre.
-# Qualquer outro (Opera, Opera GX, Brave, Vivaldi, Firefox...), ou navegador que não se achou: abre numa aba nova pelo próprio Windows.
-# Por que só esses dois: medido no Opera GX de verdade, ele ignora o --app e abre uma janela vazia de "Discagem Rápida", sem o painel. Uma aba
-# no navegador da pessoa é feia, mas funciona sempre; uma janela vazia deixa a pessoa sem painel.
+# Por que o Edge e não o navegador padrão: o painel precisa parecer um aplicativo. Só Chrome e Edge abrem uma janela de aplicativo com --app;
+# o Opera (e o Opera GX) ignora a opção e abre como aba comum, com a interface do navegador em volta (medido no Opera GX de verdade). O Edge
+# vem com todo Windows 10 e 11, então é o mesmo para todo mundo.
+# Sem o Edge (raro), vale o Chrome em janela de aplicativo; sem os dois, uma aba nova no navegador padrão.
+# No Mac (quando houver versão para Mac) o painel abre no Safari.
 #
 # Uso: python janela_painel.py <endereço> [largura,altura]
 import os
@@ -21,7 +21,7 @@ except ImportError:  # fora do Windows
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 PERFIL_ANTIGO = os.path.join(BASE, "perfil_edge")  # as versões 0.6 e 0.7 abriam o Edge num perfil só do guardião: hoje não se usa mais
-ACEITAM_APP = ("chrome", "msedge")  # parte do identificador do navegador no Windows (ProgId) ou do nome do programa: os que abrem uma janela de aplicativo com --app
+ACEITAM_APP = ("chrome", "msedge")  # parte do nome do programa: os que abrem uma janela de aplicativo com --app
 
 
 def exe_do_comando(comando):
@@ -47,8 +47,45 @@ def _ler(raiz, caminho, valor=""):
         return ""
 
 
+def _app_paths(nome):
+    """Onde o Windows diz que está o programa (App Paths), para a pessoa e para a máquina."""
+    if winreg is None:
+        return ""
+    for raiz in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        exe = _ler(raiz, rf"Software\Microsoft\Windows\CurrentVersion\App Paths\{nome}")
+        if exe and os.path.exists(exe):
+            return exe
+    return ""
+
+
+def achar_edge():
+    """O msedge.exe deste computador, ou '' se não houver."""
+    exe = _app_paths("msedge.exe")
+    if exe:
+        return exe
+    for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"), os.environ.get("LOCALAPPDATA")):
+        if base:
+            caminho = os.path.join(base, "Microsoft", "Edge", "Application", "msedge.exe")
+            if os.path.exists(caminho):
+                return caminho
+    return ""
+
+
+def achar_chrome():
+    """O chrome.exe deste computador, ou '' se não houver (reserva para quem não tem o Edge)."""
+    exe = _app_paths("chrome.exe")
+    if exe:
+        return exe
+    for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("LOCALAPPDATA")):
+        if base:
+            caminho = os.path.join(base, "Google", "Chrome", "Application", "chrome.exe")
+            if os.path.exists(caminho):
+                return caminho
+    return ""
+
+
 def navegador_padrao():
-    """O navegador que a pessoa escolheu como padrão no Windows: {'progid', 'exe', 'chromium'}. None se não der para saber."""
+    """O navegador que a pessoa escolheu como padrão no Windows: {'progid', 'exe', 'app'}. None se não der para saber. Só informativo (diagnóstico)."""
     if winreg is None:
         return None
     progid = ""
@@ -62,6 +99,11 @@ def navegador_padrao():
     if not exe or not os.path.exists(exe):
         return None
     return {"progid": progid, "exe": exe, "app": aceita_app(progid, exe)}
+
+
+def navegador_do_painel():
+    """O programa que abre o painel em janela de aplicativo: o Edge, ou o Chrome se não houver Edge. '' se não houver nenhum dos dois."""
+    return achar_edge() or achar_chrome()
 
 
 def argumentos(url, tamanho="1456,939"):
@@ -94,12 +136,19 @@ def limpar_perfil_antigo(perfil=PERFIL_ANTIGO):
 
 
 def abrir(url, tamanho="1456,939"):
-    """Abre o painel. Devolve 'app' (janela de aplicativo, no Chrome ou no Edge padrão) ou 'aba' (aba nova no navegador padrão, pelo Windows)."""
-    limpar_perfil_antigo()
-    nav = navegador_padrao()
-    if nav and nav["app"]:
+    """Abre o painel. Devolve 'app' (janela de aplicativo no Edge, ou no Chrome sem Edge), 'safari' (Mac) ou 'aba' (aba nova no navegador padrão)."""
+    if sys.platform == "darwin":
         try:
-            subprocess.Popen([nav["exe"], *argumentos(url, tamanho)])
+            subprocess.Popen(["open", "-a", "Safari", url])
+            return "safari"
+        except OSError:
+            webbrowser.open(url)
+            return "aba"
+    limpar_perfil_antigo()
+    exe = navegador_do_painel()
+    if exe:
+        try:
+            subprocess.Popen([exe, *argumentos(url, tamanho)])
             return "app"
         except OSError:
             pass

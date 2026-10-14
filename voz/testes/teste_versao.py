@@ -68,7 +68,7 @@ confere("o prompt explica as pendências e o guardião completo", "PENDÊNCIAS" 
 confere("a frase antiga sobre a skill completa desligada saiu", "ainda nao esta ligada" not in prompt and "skill completa" not in prompt)
 config(pessoa={"nome": "Rafa Lima", "artigo": "o"}, agente={"nome": "Guardião", "assinatura": "Guardião do Rafa"})
 confere("assinatura escolhida no config vale", h.assinatura() == "— Guardião do Rafa", h.assinatura())
-confere("saudação cita a pessoa com o artigo", "Cumprimente o Rafa" in g.pedido_saudacao(), g.pedido_saudacao()[:160])
+confere("a abertura do dia cumprimenta pelo primeiro nome", g.saudacao_local().endswith(", Rafa."), g.saudacao_local())
 config(pessoa={})
 confere("sem nome no config nada quebra", h.pessoa()["o"] == "a pessoa" and "Fulano" not in g.prompt_sistema())
 config(pessoa={"nome": "Rafa Lima", "artigo": "o"})

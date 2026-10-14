@@ -17,7 +17,6 @@ import requests
 import hud_servidor as h
 
 _trava = threading.RLock()
-INTERVALO_ABERTURA = 3 * 3600  # a abertura animada completa não se repete se a janela for reaberta antes disso
 MOTIVOS = ["Subestimei o tempo", "Interrupções", "Faltou informação", "Me distraí", "Sem energia", "Depende de outra pessoa"]
 IMPREVISTOS = ["Ligação ou mensagem", "Pedido urgente", "Problema técnico", "Outro imprevisto"]
 DICAS = {  # uma estratégia curta e prática para cada motivo, dita logo depois de anotar
@@ -244,8 +243,15 @@ def _avisar_tela():
     h.bus.emitir("execucao", **estado_exec())
 
 
+def comecou(d, bloco_id):
+    """A pessoa já iniciou este bloco (clicou em Iniciar) e ele ainda não terminou?"""
+    s = _sessao(d, bloco_id)
+    return bool(s and s["trechos"])
+
+
 def entrar(iniciar=False):
-    """Liga o modo execução. O relógio do bloco começa a contar se o horário dele já chegou (ou se a pessoa pediu para começar já)."""
+    """Liga o modo execução. O relógio do bloco só conta depois que a pessoa inicia a tarefa (iniciar=True, o botão Iniciar):
+    chegar o horário não basta, senão o tempo medido seria o do relógio e não o do trabalho. Tarefa já iniciada e pausada volta a contar."""
     global CHECKIN
     with _trava:
         d = _ler_exec()
@@ -253,7 +259,7 @@ def entrar(iniciar=False):
         b = bloco_atual(plano)
         ja = bool(d["modo"].get("ativo"))
         d["modo"] = {"ativo": True, "desde": d["modo"].get("desde") if ja else _agora_hm()}
-        if b and plano.get("status") == "aprovado" and (iniciar or _agora_min() >= h._min(b["inicio"])):
+        if b and plano.get("status") == "aprovado" and (iniciar or comecou(d, b.get("id"))):
             _abrir_trecho(d, b)
         _gravar(_arq_exec(), d)
     if not ja:
@@ -290,6 +296,10 @@ def aguardar(bloco_id, esperar=True):
                 d["aguardando"].append(bloco_id)
         else:
             d["aguardando"] = [x for x in d["aguardando"] if x != bloco_id]
+            plano = h._plano_de_hoje() or {}
+            bloco = next((b for b in plano.get("blocos", []) if b.get("id") == bloco_id), None)
+            if bloco and d["modo"].get("ativo") and comecou(d, bloco_id):  # Desfazer: a tarefa que já tinha começado volta a contar
+                _abrir_trecho(d, bloco)
         _gravar(_arq_exec(), d)
         if esperar and CHECKIN and CHECKIN.get("bloco") == bloco_id:
             CHECKIN = None
@@ -452,7 +462,7 @@ def _marcas(duracao):
 
 
 def _tique():
-    """Uma olhada no relógio: abre a sessão do bloco quando o horário dele chega e dispara os avisos de tempo."""
+    """Uma olhada no relógio: dispara os avisos de tempo da tarefa que a pessoa iniciou. Não inicia tarefa sozinho (só o botão Iniciar)."""
     global CHECKIN
     plano = h._plano_de_hoje()
     if not plano or plano.get("status") != "aprovado":
@@ -467,12 +477,7 @@ def _tique():
         agora, ini, fim = _agora_min(), h._min(b["inicio"]), h._min(b["fim"])
         s = _sessao(d, b.get("id"))
         mudou = False
-        if agora >= ini and (not s or not s["trechos"] or s["trechos"][-1].get("ate")):
-            mudou = _abrir_trecho(d, b)
-            s = _sessao(d, b.get("id"))
-        if not s or not s["trechos"]:
-            if mudou:
-                _gravar(_arq_exec(), d)
+        if not s or not s["trechos"] or s["trechos"][-1].get("ate"):  # ainda não iniciada, ou pausada: nada de aviso de tempo
             return None
         if CHECKIN and (CHECKIN.get("bloco") != b.get("id") or time.time() - CHECKIN["quando"] > 900):
             CHECKIN = None  # o aviso era de outro bloco ou ficou velho
@@ -680,17 +685,18 @@ def acao_execucao(dados):
 # ---------------- sessão da janela (abertura animada) ----------------
 
 def sessao(marcar=False):
-    """Dados para a janela começar: se a abertura completa deve rodar (1ª vez do dia ou reaberta depois de 3 horas) e quem é quem."""
+    """Dados para a janela começar: a abertura animada roda sempre (Esc pula); primeira_do_dia diz se é a primeira abertura de hoje,
+    a que monta e revisa o plano. As outras do mesmo dia vão direto para a execução."""
     arq = os.path.join(h.OPER, "logs", "abertura.json")
     ultimo = (h._ler_json(arq) or {}).get("ts", 0)
-    passou = time.time() - ultimo > INTERVALO_ABERTURA or datetime.fromtimestamp(ultimo).date() != date.today()
+    primeira = datetime.fromtimestamp(ultimo).date() != date.today()
     if marcar:
         try:
             _gravar(arq, {"ts": time.time()})
         except OSError:
             pass
     cfg = h._config()
-    return {"abertura": bool(passou), "pessoa": _pessoa(), "agente": (cfg.get("agente") or {}).get("nome") or "Guardião",
+    return {"abertura": True, "primeira_do_dia": bool(primeira), "pessoa": _pessoa(), "agente": (cfg.get("agente") or {}).get("nome") or "Guardião",
             "rotina": {k: (cfg.get("rotina") or {}).get(k) for k in ("chegada", "almoco", "fim")},
             "saude": h.bus.ultimos.get("saude"), "estado": (h.bus.ultimos.get("estado") or {}).get("v"),
             "revisao": bool((h.bus.ultimos.get("revisao") or {}).get("ativa")), "execucao": estado_exec(), "preferencias": h.preferencias()}

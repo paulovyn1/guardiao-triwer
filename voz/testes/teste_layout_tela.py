@@ -8,7 +8,7 @@ import v2_base as B
 from v2_base import confere, h
 
 PORTA = 8796
-tmp, relogio = B.preparar(PORTA, hora="09:50")
+tmp, relogio = B.preparar(PORTA, hora="09:50", prefs={"execucao_ao_abrir": False})  # o layout é medido na Home em conversa
 LONGO = ("ATUALIZAÇÃO, proposta visual compartilhada no grupo da equipe.\n\nReferência: https://exemplo.com/" + "abcdefghij" * 14 + "\n\n"
          + "Ponto a conferir antes de fechar a entrega. " * 22)
 detalhes = h.detalhes_extra

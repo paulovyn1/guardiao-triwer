@@ -231,11 +231,15 @@ else:
 titulo("Janela do painel")
 import janela_painel  # noqa: E402
 
+_exe = janela_painel.navegador_do_painel()
+if _exe:
+    dizer(f"O painel abre como janela de aplicativo em {_exe}, no seu perfil.")
+else:
+    dizer("Não achei o Edge nem o Chrome. O painel abre numa aba nova do navegador padrão.")
+    avisos.append("Sem o Microsoft Edge o painel abre como aba comum. O Edge vem com o Windows; se foi removido, reinstale pelo site da Microsoft.")
 _nav = janela_painel.navegador_padrao()
 if _nav:
-    dizer(f"Navegador padrão: {_nav['progid']} ({_nav['exe']}). O painel abre " + ("como janela de aplicativo, no seu perfil." if _nav["app"] else "numa aba, no seu perfil."))
-else:
-    dizer("Não consegui descobrir o navegador padrão. O painel abre numa aba nova pelo Windows.")
+    dizer(f"Navegador padrão (só informativo): {_nav['progid']}.")
 if os.path.isdir(janela_painel.PERFIL_ANTIGO):
     dizer("Sobrou a pasta do perfil antigo do painel (voz\\perfil_edge). Ela é apagada na próxima abertura do painel.")
 try:

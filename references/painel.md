@@ -14,11 +14,14 @@ Sem a chave do Groq (`voz\definir_chave_groq.bat`) o painel funciona do mesmo je
 
 ## 2. O que acontece durante o dia (sem o guardião do chat)
 
-- A pessoa entra em execução pela tela ou dizendo "vou executar agora". O relógio do bloco só conta com o modo ligado.
+- **Abertura do app.** A animação roda em toda abertura (Esc pula). Na primeira abertura do dia o guardião cumprimenta, monta o plano se ele ainda não existe (pedido em segundo plano, sem perguntar), vai para a aba Dia, passa por cada tarefa e pede o ok. Esc durante essa leitura vai direto ao pedido de ok. Sem o ok não há execução. Aprovado o plano (pela voz, pelo texto ou pelo botão), o painel entra em execução sozinho, com a primeira tarefa em destaque. Nas outras aberturas do mesmo dia, com o plano aprovado, vai direto para a execução com uma frase de incentivo. Tudo isso é local, sem gastar o plano do Claude; só montar um plano que não existe chama o Claude.
+- A pessoa também entra em execução pela tela ou dizendo "vou executar agora". **O relógio de uma tarefa só conta depois que a pessoa clica em Iniciar**: chegar o horário não basta, para o tempo medido ser o do trabalho de verdade. Tarefa iniciada e pausada (saiu da execução) volta a contar ao entrar de novo.
 - **Avisos de tempo**: bloco de 60 minutos ou mais avisa aos 30 e aos 10 minutos do fim; de 25 a 59, aos 10; de 15 a 24, aos 5; e sempre no fim do horário. O guardião fala, a tela mostra as respostas e o microfone abre.
 - Sempre que a tarefa não termina no horário, a voz pergunta o porquê, uma vez e sem julgar, e oferece uma ajuda prática ligada ao motivo.
 - Estender muda só o fim do bloco no `plano_do_dia.json` (campo `estendido_min`). Não empurra os blocos seguintes nem mexe no ClickUp. Adiar pela tela sempre pede o motivo.
-- Concluir tarefa do ClickUp pela tela pede a frase do que foi feito. Ela vira o comentário de status antes de a tarefa fechar.
+- Concluir pela tela fecha a tarefa na hora. O início e o prazo combinados ficam intactos; o horário realizado vai num comentário curto e assinado.
+- **Voz.** A voz só começa a tocar com o áudio da resposta inteira pronto, numa saída só (com o computador ocupado, tocar frase a frase picotava). A velocidade pode ser 1x, 1,5x ou 2x: botão ao lado do campo de texto enquanto ele fala, ou em Preferências.
+- **Esc em camadas**, um toque por vez: na leitura do plano, pula para o pedido de ok; com a voz tocando, corta a voz, mostra o resto em texto e deixa a voz desligada até a pessoa religar; pensando ou escrevendo, cancela a resposta (e os subagentes da sessão); sem nada em primeiro plano, para o trabalho em segundo plano.
 - **Pendências**: quando a pessoa pergunta o que ficou para trás, a voz lê as tarefas com prazo vencido do `resumo_clickup.json`, aponta as urgentes e, com o plano ainda sugerido, traz para hoje a que ela escolher. O bloco entra com o `clickup_id` da tarefa e `"reagendado": true`: nada é duplicado, a data muda no ClickUp quando o plano é aprovado.
 - **Pedido grande pela voz** (refazer o plano, mexer em plano aprovado, planejar a semana): a voz chama esta skill inteira em segundo plano, sem conversa. Regras dessa execução: não perguntar nada, não tocar no ClickUp, não editar a memória, gravar só o arquivo de plano com `"status": "sugerido"` e responder em até 6 frases curtas para serem faladas.
 
@@ -51,6 +54,6 @@ Sem a chave do Groq (`voz\definir_chave_groq.bat`) o painel funciona do mesmo je
 Ligado em Preferências, Comportamento. Com ele, a conversa do painel é uma sessão normal do Claude Code: aparece no histórico do Claude Code daquela pasta e pode ser retomada lá.
 - O guardião do painel passa a ter os conectores, as skills e os agentes da pasta, e segue esta skill quando o pedido é de planejar, destrinchar ou decidir.
 - Cada conversa fica em `conversas\` na pasta operacional: `indice.json` (a lista), `<id>.jsonl` (o que foi dito) e `permissoes.json` (o que a pessoa mandou permitir sempre).
-- O que o painel resolve sozinho (saudação, comando de tela, aviso de tempo) chega à sessão na fala seguinte, num bloco de contexto. Não trate esse bloco como fala da pessoa.
+- O que o painel resolve sozinho (abertura do dia, comando de tela, aviso de tempo) chega à sessão na fala seguinte, num bloco de contexto. Não trate esse bloco como fala da pessoa.
 - Ação que altera algo fora do computador passa pelo cartão de permissão do painel. No chat comum do Claude Code nada muda.
 - `pops.catalogo` (opcional): endereço ou arquivo de outro catálogo de POPs, no lugar do da escola. Sem o campo vale o da escola; se nenhum POP foi publicado ainda, a aba "POPs da escola" aparece vazia.

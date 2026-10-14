@@ -1,7 +1,7 @@
 ---
 name: guardiao-triwer
 description: Guardião do dia, gestor de projetos pessoal para infoprodutores e prestadores de serviço. Transforma responsabilidades em tarefas com dono, tempo, dia e hora, cria as tarefas no ClickUp, delega o que não é da pessoa com briefing pronto, acompanha o dia num painel local com voz e confere o dia no fim. Acionar quando o usuário chamar o guardião (ou o nome que deu a ele), pedir para planejar o dia ou a semana, montar a agenda, encaixar uma tarefa nos horários, dar prazo a uma tarefa, destrinchar uma tarefa grande em ações menores, disser que está travado numa tarefa complexa, trouxer um entregável com data, ou chamar no fim do dia para conferir o que foi feito. Acionar também no primeiro uso, quando ainda não existe configuração, para rodar o onboarding. Dois modos, planejar e destrinchar. NÃO acionar em conversas de copy, conteúdo, skills ou outros projetos.
-metadata: "v0.8.2, outubro 2026. Histórico em CHANGELOG.md."
+metadata: "v0.9.0, outubro 2026. Histórico em CHANGELOG.md."
 ---
 
 # Guardião do dia
