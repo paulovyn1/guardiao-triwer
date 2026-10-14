@@ -58,7 +58,7 @@ $prompt = @"
 Use a skill guardiao-triwer no modo planejar e monte o plano do dia $alvo de $nome.
 Leia, na pasta de memoria $memoria, perfil.md, semana-base.md, equipe.md, estado.md, o indice campanhas.md (abra com Read a nota de uma campanha em campanhas\ SOMENTE se o plano do dia tocar nela), o indice decisoes.md, resumo_clickup.json (na pasta operacional), o registro de ontem em registros\ (se existir). Pasta operacional (scripts, plano, registros, resumo): $pasta.
 Siga a conta de horario da skill. Horarios de reunioes vem de inicio/fim do resumo. Nao pergunte nada: se faltar informacao, deixe o bloco de fora e diga em uma frase no campo aviso.
-Grave SOMENTE o arquivo $planoCaminho, em JSON valido no formato de plano_exemplo.json, com "status": "sugerido" e sem o campo "exemplo".
+Grave o arquivo $planoCaminho, em JSON valido no formato de plano_exemplo.json, com "status": "sugerido" e sem o campo "exemplo". Unica outra escrita permitida: o rascunho de um trabalho do guardiao vencido (veja abaixo).
 Regras do formato: em cada bloco "id" e a PRIMEIRA chave; todo bloco leva titulo, inicio, fim (HH:mm), dono, frente, descricao, primeiro_passo e por_que_agora.
 Ligacao com o ClickUp (o servidor cria as tarefas quando a pessoa aprovar):
 - Se o bloco e uma tarefa que ja existe no resumo, coloque "clickup_id" com o id dela e nao coloque lista_id.
@@ -69,7 +69,8 @@ $linhasListas
 $linhasDonos
   Briefing de tarefa de outra pessoa e escrito por voce na descricao, completo, sem deixar decisao em aberto.
 Reunioes e compromissos fixos do ClickUp vao em "fixos" (inicio, fim, titulo), nao em blocos.
-Nao crie nem altere nada no ClickUp ou em outro lugar. Nao decida estrategia nem sugira temas, ganchos ou briefing de conteudo: o guardiao so reserva e protege tempo.
+Trabalhos do guardiao: se estado.md tiver uma secao "Do guardiao" com um item cuja data de inicio ja chegou e cuja condicao esta cumprida (confira nos arquivos que o item cita, por exemplo decisoes.md), faca esse trabalho agora: grave o RASCUNHO no arquivo de memoria que o item indica, sem criar nada no ClickUp, e troque no item "a fazer" por "rascunho pronto em <arquivo>". Se a condicao nao estiver cumprida, diga em uma frase no campo aviso o que falta. Coloque no plano um aviso de que o rascunho esta pronto para a pessoa aprovar.
+Fora isso, nao crie nem altere nada no ClickUp ou em outro lugar. Nao decida estrategia nem sugira temas, ganchos ou briefing de conteudo: o guardiao so reserva e protege tempo.
 No fim, responda em ate 6 linhas: o que colocou, o que deixou de fora e por que.
 "@
 
