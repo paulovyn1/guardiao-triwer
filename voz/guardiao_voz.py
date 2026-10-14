@@ -639,7 +639,9 @@ def prompt_sistema():
     if PROMPT_ESTAVEL:
         perfil = _perfil()
         bloco_plano = "" if plano_vai_no_contexto() else f"\n\nPLANO DE HOJE:\n{_plano_texto()}"
-        return f"{_p(INTRO_VOZ)}{_p(COMO_LER_O_CONTEXTO)}{texto_acoes()}\n\nPERFIL:\n{perfil}{bloco_plano}\n\n{contexto_proximos_dias()}"
+        return (f"{_p(INTRO_VOZ)}{_p(COMO_LER_O_CONTEXTO)}{texto_acoes()}\n\nPERFIL:\n{perfil}"
+                f"\n\nREGRAS LOCAIS DA PESSOA (extensões e aprendizados; valem sempre e somam às regras acima):\n{_regras_locais()}"
+                f"{bloco_plano}\n\n{contexto_proximos_dias()}")
     return _prompt_sistema_antigo()
 
 
@@ -861,7 +863,8 @@ def texto_acoes(sessao=False):
         "- {{detalhe:ID}} quando <o Fulano> perguntar sobre UMA tarefa específica: o cartão dela abre no centro enquanto você fala.\n"
         "Só quando <o Fulano> pedir de forma explícita, e dizendo em voz alta o que vai fazer, use as marcas a seguir, escritas logo antes da frase em que você diz o que vai fazer "
         "(nunca soltas no fim da resposta), para a ação acontecer na tela enquanto você fala:\n"
-        "- {{concluir:ID}}. Basta ele dizer que terminou: não peça nem escreva \"o que foi feito\", não existe comentário de status. "
+        "- {{concluir:ID}}. Basta ele dizer que terminou: não peça nem escreva \"o que foi feito\" (o horário realizado vai sozinho num comentário). "
+        "Se houver dúvida de QUAL tarefa ele terminou, pergunte qual é, sem a marca, e só conclua depois da resposta. "
         "Se for uma tarefa repetida, cópia de outra, use {{concluir:ID}} do mesmo jeito.\n"
         "Nunca mande <o Fulano> ir ao ClickUp fazer o que estas marcas fazem (concluir, reabrir, anotar): ofereça em uma frase e, com o sim dele, faça você.\n"
         "- {{reabrir:ID}}\n"
@@ -971,8 +974,43 @@ def arquivo_prompt_sessao():
                 f"\n\nPASTAS DO GUARDIÃO. Operacional (plano_do_dia.json, registros, resumo do ClickUp, scripts): {OPER}. Memória (perfil, estado, decisões, POPs): {pasta_memoria()}."
                 f"\n\nPLANO DE HOJE EM ARQUIVO. Para montar ou refazer o plano de hoje (inclusive um plano já aprovado), grave plano_do_dia.json na pasta operacional. {REGRAS_DO_PLANO} "
                 "Depois diga em voz alta o que mudou e pergunte se ele quer revisar o plano. Plano de outro dia vai em planos\\plano_AAAA-MM-DD.json, na mesma pasta."
+                f"\n\nREGRAS LOCAIS DA PESSOA (valem sempre, mesmo sem acionar a skill; só somam às regras da skill):\n{_regras_locais()}"
                 f"\n\nPERFIL:\n{_perfil()}")
     return arq
+
+
+def _pastas_da_skill():
+    """Onde a skill pode estar instalada: na pasta do usuário, na pasta operacional ou na pasta da sessão (o projeto da pessoa, como o Paulo-geral)."""
+    import hud_servidor
+    pastas = [os.path.join(os.path.expanduser("~"), ".claude", "skills", "guardiao-triwer"), os.path.join(hud_servidor.OPER, ".claude", "skills", "guardiao-triwer")]
+    sessao_pasta = str((_config().get("sessao") or {}).get("pasta") or "").strip()
+    if sessao_pasta:
+        pastas.append(os.path.join(sessao_pasta, ".claude", "skills", "guardiao-triwer"))
+    return pastas
+
+
+def _regras_locais():
+    """extensoes-*.md da skill e aprendizados.md da memória, sempre carregados na sessão do app: a sessão roda na pasta operacional,
+    sem o CLAUDE.md nem a memória do projeto, e só leria isso se decidisse acionar a skill."""
+    partes = []
+    arquivos, vistos = [], set()
+    for skill in _pastas_da_skill():  # a skill pode estar na pasta do usuário, na pasta operacional ou na pasta da sessão (projeto da pessoa)
+        try:
+            nomes = sorted(n for n in os.listdir(skill) if n.startswith("extensoes-") and n.endswith(".md"))
+        except OSError:
+            continue
+        for n in nomes:
+            if n not in vistos:  # o mesmo arquivo em duas cópias da skill entra uma vez só
+                vistos.add(n)
+                arquivos.append(os.path.join(skill, n))
+    arquivos.append(os.path.join(pasta_memoria(), "aprendizados.md"))
+    for caminho in arquivos:
+        try:
+            with open(caminho, encoding="utf-8-sig") as f:
+                partes.append(f"[{os.path.basename(caminho)}]\n{f.read()}")
+        except OSError:
+            continue
+    return "\n\n".join(partes) or "(nenhuma)"
 
 
 def mensagem_da_sessao(pergunta, conversa):
@@ -1573,6 +1611,41 @@ def rodar_completo(pedido):
     bus.comandos.put(("completo_fim", {"pedido": pedido, "fala": fala, "mudou": mudou}))
 
 
+SUPERVISOR = {"dia": None, "vezes": 0, "ultimo": 0.0}
+SUPERVISOR_MAX_DIA = 3          # no máximo 3 propostas automáticas por dia
+SUPERVISOR_INTERVALO = 90 * 60  # e pelo menos 90 minutos entre uma e outra
+
+
+def supervisionar(agora=None):
+    """Replanejamento automático (decisão de produto, 13/10/2026): quando a tarefa de agora passa 30 minutos do previsto E o resto do dia não tem folga
+    para absorver o atraso, pede ao guardião completo uma proposta para o resto do dia. A proposta volta como plano "sugerido": nada muda no ClickUp
+    sem a pessoa aprovar. Regra em Python (sem gastar o plano) checada a cada minuto; só chama o Claude quando a regra manda. Devolve True se pediu."""
+    agora = agora or time.time()
+    hoje = time.strftime("%Y-%m-%d")
+    if SUPERVISOR["dia"] != hoje:
+        SUPERVISOR.update(dia=hoje, vezes=0, ultimo=0.0)
+    if COMPLETO or SUPERVISOR["vezes"] >= SUPERVISOR_MAX_DIA or (SUPERVISOR["ultimo"] and agora - SUPERVISOR["ultimo"] < SUPERVISOR_INTERVALO):
+        return False
+    try:
+        av = v2.avaliar_atraso()
+    except Exception as erro:
+        print("  (supervisor: não consegui avaliar o atraso:", erro, ")")
+        return False
+    if not av["precisa"]:
+        return False
+    titulo = (av["bloco"] or {}).get("titulo") or "a tarefa de agora"
+    pedido = (f"Replanejar o resto de hoje. A tarefa \"{titulo}\" passou {av['atraso']} minutos do horário previsto e o que falta não cabe até {av['fim_do_dia']} "
+              f"(faltam {-av['folga']} minutos). Monte o plano do resto do dia a partir de agora: mantenha o que já foi feito e os compromissos fixos, "
+              "siga a matriz de prioridade, passe para outros dias o que pode esperar e diga o que ficou de fora.")
+    if not iniciar_completo(pedido):
+        return False
+    SUPERVISOR["vezes"] += 1
+    SUPERVISOR["ultimo"] = agora
+    v2.registrar_evento("replanejamento_automatico", av["bloco"], atraso=av["atraso"], folga=av["folga"])
+    bus.emitir("aviso", texto=f"{titulo} passou {av['atraso']} minutos do previsto e o resto do dia não cabe. Estou montando uma proposta para o resto do dia.", erro=False)
+    return True
+
+
 def iniciar_completo(pedido):
     """Liga o trabalho em segundo plano. Devolve False se já houver um pedido em andamento."""
     global COMPLETO
@@ -2087,31 +2160,157 @@ def concluir_local(texto):
     pontos = lambda b: len(_palavras(b.get("titulo")) & falado)
     for b in plano.get("blocos", []):
         if b.get("id") != atual.get("id") and estados.get(b.get("id")) not in ("feito", "adiado") and pontos(b) > pontos(atual):
-            return None  # ele fala de outra tarefa que não é a de agora: o Claude decide
+            return _perguntar_antes("concluir", b, texto)  # ele parece falar de outra tarefa: na dúvida, pergunta (decisão de produto, 13/10/2026)
     if pontos(atual) == 0 and len(t.split()) > 4:
-        return None  # fala longa que não cita nada da tarefa de agora: pode ser outra, o Claude decide
+        return _perguntar_antes("concluir", atual, texto)  # fala longa que não cita nada da tarefa de agora: pergunta antes de fechar
+    return _concluir_agora(atual, texto)
+
+
+def _concluir_agora(bloco, texto):
     agora = time.strftime("%H:%M")
     d = v2._ler_exec()
-    sessao = v2._sessao(d, atual.get("id"))
+    sessao = v2._sessao(d, bloco.get("id"))
     inicio = sessao["trechos"][0]["de"] if sessao and sessao.get("trechos") else None
     medido = bool(inicio)
-    inicio = inicio or atual["inicio"]
+    inicio = inicio or bloco["inicio"]
     if v2.h._min(agora) <= v2.h._min(inicio):
         m = max(0, v2.h._min(agora) - 1)
         inicio = f"{m // 60:02d}:{m % 60:02d}"
-    r = v2.h.concluir_bloco({"id": atual["id"], "concluido": True, "nota": "", "inicio": inicio, "fim": agora, "nao_confirmado": not medido})
+    r = v2.h.concluir_bloco({"id": bloco["id"], "concluido": True, "nota": "", "inicio": inicio, "fim": agora, "nao_confirmado": not medido})
     if not r.get("ok"):
-        return {"fala": f"Não consegui concluir {atual.get('titulo')}: {r.get('erro') or 'erro desconhecido'}."}
-    v2.registrar_evento("relato", atual, texto=str(texto).strip()[:800])
+        return {"fala": f"Não consegui concluir {bloco.get('titulo')}: {r.get('erro') or 'erro desconhecido'}."}
+    v2.registrar_evento("relato", bloco, texto=str(texto).strip()[:800])
     proximo = v2.bloco_atual(_plano_de_hoje() or {})
     return {"fala": f"Feito às {agora}. " + (f"A seguir: {proximo['titulo']}, às {proximo['inicio']}." if proximo else "Era a última do dia.")}
 
 
+# ---------------- ações rápidas sem o Claude: confirmar na dúvida, mais tempo, adiar e motivo ----------------
+# Decisões de produto de 13/10/2026: o que é mecânico (concluir, estender, adiar, guardar o motivo) se resolve aqui, na hora e sem gastar o plano;
+# "concluí" só pergunta quando há dúvida de qual tarefa é. O que não for reconhecido continua indo ao Claude.
+PENDENTE_LOCAL = None  # {"tipo": "concluir" | "motivo", "bloco": {...}, "texto": ..., "contexto": ..., "quando": time}
+VALIDADE_PENDENTE = 180  # segundos
+SIM_LOCAL = re.compile(r"^(sim|isso|pode|pode sim|claro|exato|isso mesmo|certo|ok|fecha|pode fechar|conclui|sim pode|uhum)\b")
+NAO_LOCAL = re.compile(r"^(nao|negativo|deixa|ainda nao|espera|cancela)\b")
+NUMEROS_FALADOS = {"um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "cinco": 5, "dez": 10, "quinze": 15, "vinte": 20, "vinte e cinco": 25, "trinta": 30,
+                   "quarenta": 40, "quarenta e cinco": 45, "cinquenta": 50, "sessenta": 60, "noventa": 90}
+ESTENDE = re.compile(r"^(?:(?:me )?dar?|preciso(?: de)?|vou precisar(?: de)?|quero|pode me dar)?\s*mais\s+(?:uns |umas )?"
+                     r"(?P<n>\d+|vinte e cinco|quarenta e cinco|meia|um pouco de|uma|um|duas|dois|tres|cinco|dez|quinze|vinte|trinta|quarenta|cinquenta|sessenta|noventa|tempo)"
+                     r"\s*(?P<u>minutos?|min|horas?)?\b")
+ADIA = re.compile(r"^(adia|adiar|pode adiar|adia essa|adia isso|adia a tarefa|deixa (pra|para) (depois|amanha|outro dia)|fica (pra|para) (depois|amanha|outro dia)"
+                  r"|nao vou (conseguir|dar conta)( de)? (fazer|terminar)?( isso| essa| hoje)?)\b")
+MOTIVO_EM = re.compile(r"\b(porque|pois|por causa d[aeo]s?|que (o|a)|ja que|motivo)\b(?P<m>.*)$")
+DATA_FALADA = re.compile(r"\b(segunda|terca|quarta|quinta|sexta|sabado|domingo|dia \d+|\d{1,2}(h| horas|:\d{2}))\b")
+
+
+def _perguntar_antes(tipo, bloco, texto):
+    global PENDENTE_LOCAL
+    PENDENTE_LOCAL = {"tipo": tipo, "bloco": bloco, "texto": texto, "quando": time.time()}
+    return {"fala": f"Só para confirmar: concluo {bloco.get('titulo')}?"}
+
+
+def _pedir_motivo(bloco, contexto, fala):
+    global PENDENTE_LOCAL
+    PENDENTE_LOCAL = {"tipo": "motivo", "bloco": bloco, "contexto": contexto, "quando": time.time()}
+    return {"fala": fala + " Qual foi o motivo?"}
+
+
+def _motivo_da_fala(t):
+    m = MOTIVO_EM.search(t)
+    motivo = (m.group("m") if m else "").strip(" ,.")
+    return motivo if len(motivo.split()) >= 2 else ""
+
+
+def _bloco_da_execucao():
+    """A tarefa de que se fala agora: a do aviso de tempo em aberto ou, sem aviso, a primeira pendente do dia."""
+    if v2.CHECKIN and v2.CHECKIN.get("bloco"):
+        b = next((x for x in (_plano_de_hoje() or {}).get("blocos", []) if x.get("id") == v2.CHECKIN["bloco"]), None)
+        if b:
+            return b
+    return v2.bloco_atual(_plano_de_hoje() or {})
+
+
+def resolver_pendente_local(texto):
+    """Resposta a uma pergunta que o próprio programa fez ("concluo X?", "qual foi o motivo?"). None se não há pergunta valendo."""
+    global PENDENTE_LOCAL
+    p = PENDENTE_LOCAL
+    if not p or time.time() - p["quando"] > VALIDADE_PENDENTE:
+        PENDENTE_LOCAL = None
+        return None
+    t = _limpar_comando(texto)
+    if p["tipo"] == "concluir":
+        PENDENTE_LOCAL = None
+        if SIM_LOCAL.match(t) and not NAO_LOCAL.match(t):
+            return _concluir_agora(p["bloco"], p["texto"])
+        if NAO_LOCAL.match(t):
+            return {"fala": "Certo, não fechei nada."}
+        return None  # falou outra coisa: a pergunta perde a vez e a fala segue o caminho normal
+    if p["tipo"] == "motivo":
+        if not t or CONCLUI.match(t) or ESTENDE.search(t) or ADIA.match(t):
+            PENDENTE_LOCAL = None
+            return None  # em vez do motivo veio outro pedido
+        PENDENTE_LOCAL = None
+        if NAO_LOCAL.match(t) and len(t.split()) <= 3:
+            return {"fala": "Tudo bem, fica sem motivo."}
+        v2.registrar_motivo(p["bloco"].get("id"), str(texto).strip(), p.get("contexto") or "motivo")
+        return {"fala": "Anotado."}
+    return None
+
+
+def estender_local(texto):
+    """"Me dá mais 15 minutos", "preciso de mais meia hora": dá o tempo à tarefa de agora sem o Claude. Sem motivo na frase, pergunta."""
+    t = _limpar_comando(texto)
+    m = ESTENDE.search(t or "")
+    if not m or CONCLUI.match(t):
+        return None
+    bloco = _bloco_da_execucao()
+    if not bloco:
+        return None
+    n, unidade = m.group("n"), (m.group("u") or "")
+    if not unidade and n not in ("tempo", "um pouco de"):
+        return None  # "mais dois detalhes" não é pedido de tempo
+    if n == "meia":
+        minutos = 30
+    elif n in ("tempo", "um pouco de"):
+        minutos = 15
+    else:
+        minutos = int(n) if n.isdigit() else NUMEROS_FALADOS.get(n, 15)
+        if unidade.startswith("hora"):
+            minutos *= 60
+    motivo = _motivo_da_fala(t)
+    r = v2.estender_bloco(bloco["id"], minutos, motivo or None)
+    if not r.get("ok"):
+        return {"fala": f"Não consegui dar mais tempo: {r.get('erro')}"}
+    v2.fechar_checkin()
+    fala = f"Mais {minutos} minutos para {bloco.get('titulo')}, até {r['fim']}." + (f" {r['conflito']}" if r.get("conflito") else "")
+    return {"fala": fala} if motivo else _pedir_motivo(bloco, "motivo_extensao", fala)
+
+
+def adiar_local(texto):
+    """"Adia isso", "deixa pra amanhã": adia a tarefa de agora sem o Claude. Com dia ou hora marcada, ou citando outra tarefa, o Claude cuida (é remarcar)."""
+    t = _limpar_comando(texto)
+    if not t or not ADIA.match(t) or DATA_FALADA.search(t):
+        return None
+    bloco = _bloco_da_execucao()
+    if not bloco:
+        return None
+    falado = _palavras(texto)
+    if any(len(_palavras(b.get("titulo")) & falado) > len(_palavras(bloco.get("titulo")) & falado)
+           for b in (_plano_de_hoje() or {}).get("blocos", []) if b.get("id") != bloco.get("id")):
+        return None
+    motivo = _motivo_da_fala(t)
+    r = v2.adiar_com_motivo(bloco["id"], motivo or None)
+    if not r.get("ok"):
+        return {"fala": f"Não consegui adiar: {r.get('erro')}"}
+    fala = f"Adiei {bloco.get('titulo')}."
+    return {"fala": fala} if motivo else _pedir_motivo(bloco, "motivo_adiamento", fala)
+
+
 def comando_local(texto):
     """Devolve {"fala": ..., "roteiro": ...} se o pedido é um comando da tela (modo execução, abrir uma aba, silenciar...), ou None para o Claude responder."""
-    feito = concluir_local(texto)
-    if feito:
-        return feito
+    for rapido in (resolver_pendente_local, concluir_local, estender_local, adiar_local):
+        feito = rapido(texto)
+        if feito:
+            return feito
     t = _limpar_comando(texto)
     if not t or len(t.split()) > 9:
         return None
@@ -2635,6 +2834,7 @@ def main():
         saude = {"mic": not sem_mic, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
         bus.emitir("saude", **saude)
         revisar_em = mic_em = claude_em = time.time() + 5
+        supervisor_em = time.time() + 60
         bus.emitir("estado", v="aguardando")
         atexit.register(guardiao_sessao.encerrar)  # o Claude Code da sessão fecha junto com o guardião
         if a.cerebro and modo_sessao():  # abre a sessão do Claude Code já, para a primeira fala não esperar a partida
@@ -2648,6 +2848,9 @@ def main():
                 dado = None
             if time.time() > revisar_em:  # o que pode mudar com o guardião aberto: a chave gravada depois, o fone ligado depois, o Claude Code instalado depois
                 revisar_em = time.time() + 5
+                if a.cerebro and ACOES_ATIVAS and time.time() > supervisor_em:  # atraso sem folga no dia: proposta de replanejamento
+                    supervisor_em = time.time() + 60
+                    supervisionar()
                 if not chave:
                     chave = chave_groq()
                 continuo = escuta_continua()  # a pessoa muda isso nas preferências com o guardião aberto

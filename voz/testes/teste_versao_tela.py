@@ -22,7 +22,7 @@ os.makedirs(fonte)
 with open(os.path.join(fonte, "VERSION"), "w", encoding="utf-8") as f:
     f.write("0.3.0\n")
 with open(os.path.join(fonte, "CHANGELOG.md"), "w", encoding="utf-8") as f:
-    f.write("# Changelog\n\n## 0.3.1 - 2026-10-20\n- A escuta ficou mais paciente com pausas longas.\n- Correção no cartão de detalhes.\n\n## 0.3.0 - 2026-10-12\n- Versão instalada.\n")
+    f.write("# Changelog\n\n## 0.3.1 - 2026-10-20\n- **A escuta ficou mais paciente com pausas longas.** Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. \n- **Correção no cartão de detalhes.** Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. \n- **Mais tempo pela voz.** Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. \n- **Quarta mudança.** Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. \n- **Quinta mudança que não aparece.** x\n- Testado: tudo, com detalhes internos.\n\n## 0.3.0 - 2026-10-12\n- Versão instalada.\n")
 
 
 def config(**extra):
@@ -87,6 +87,11 @@ try:
     js("document.querySelector('.hd .upd').click()")
     confere("o clique abre o cartão com o que muda", espera("document.querySelector('.scene.open')", 3) and "Há uma versão nova" in texto(".scene") and "mais paciente" in texto(".scene"), texto(".scene"))
     confere("os botões já estão visíveis, sem esperar o texto terminar", js("getComputedStyle(document.querySelector('.scene .dt-acts')).display !== 'none'") and "ATUALIZAR AGORA" in texto(".scene").upper())
+    confere("o cartão mostra só o título de cada mudança (sem o texto técnico, sem asterisco e no máximo 4)",
+            "Texto técnico" not in texto(".scene") and "**" not in texto(".scene") and "Quarta mudança" in texto(".scene") and "Quinta mudança" not in texto(".scene") and "Testado" not in texto(".scene"), texto(".scene"))
+    confere("o botão Atualizar agora fica dentro da tela, mesmo com notas longas",
+            js("(() => { const b = [...document.querySelectorAll('.scene button')].find(x => x.textContent.includes('Atualizar')); const r = b.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.height > 0; })()"),
+            js("JSON.stringify([...document.querySelectorAll('.scene button')].map(x => x.getBoundingClientRect().bottom).concat([innerHeight]))"))
     pausa(1.2)
     nav.foto("versao_cartao")
     clicar("Atualizar agora", ".scene button")

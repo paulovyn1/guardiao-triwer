@@ -70,6 +70,36 @@ def _estados_de_hoje():
     return {b.get("id"): b for b in h._registro_de_hoje().get("blocos", [])}
 
 
+# ---------------- atraso e folga do dia (regra do replanejamento, decisão de produto de 13/10/2026) ----------------
+# Replaneja só se o atraso passar de 30 minutos E o resto do dia não tiver folga para absorver. Dia todo fechado = sem folga.
+ATRASO_PARA_REPLANEJAR = 30  # minutos
+TEMPO_PARA_FECHAR_A_ATUAL = 15  # minutos que a tarefa atrasada ainda deve levar (estimativa; ela ainda não acabou)
+
+
+def avaliar_atraso(plano=None):
+    """{"atraso", "folga", "precisa", "bloco", "fim_do_dia"} em minutos. atraso = quanto a tarefa de agora passou do fim previsto.
+    folga = tempo livre que sobra até o fim do dia depois de tudo que ainda falta (tarefas pendentes, compromissos fixos e o resto da atual)."""
+    plano = plano or h._plano_de_hoje() or {}
+    atual = bloco_atual(plano)
+    agora = _agora_min()
+    vazio = {"atraso": 0, "folga": None, "precisa": False, "bloco": atual, "fim_do_dia": None}
+    if not atual or plano.get("status") != "aprovado":
+        return vazio
+    atraso = max(0, agora - h._min(atual["fim"]))
+    fim_cfg = (h._config().get("rotina") or {}).get("fim")
+    fins = [h._min(b["fim"]) for b in plano.get("blocos", []) if h._hora(b.get("fim"))] + [h._min(f["fim"]) for f in plano.get("fixos", []) if h._hora(f.get("fim"))]
+    fim_do_dia = (h._min(h._hora(plano.get("fim_do_dia"))) if h._hora(plano.get("fim_do_dia"))
+                  else h._min(h._hora(fim_cfg)) if h._hora(fim_cfg) else max(fins or [agora]))
+    reg = _estados_de_hoje()
+    pendentes = [b for b in plano.get("blocos", []) if b.get("id") != atual.get("id") and (reg.get(b.get("id")) or {}).get("estado") not in ("feito", "adiado")
+                 and h._hora(b.get("inicio")) and h._hora(b.get("fim")) and h._min(b["fim"]) > agora]
+    fixos = [f for f in plano.get("fixos", []) if h._hora(f.get("inicio")) and h._hora(f.get("fim")) and h._min(f["fim"]) > agora]
+    ocupado = sum(h._min(b["fim"]) - h._min(b["inicio"]) for b in pendentes) + sum(h._min(f["fim"]) - max(h._min(f["inicio"]), agora) for f in fixos)
+    ocupado += TEMPO_PARA_FECHAR_A_ATUAL if atraso else max(0, h._min(atual["fim"]) - agora)
+    folga = fim_do_dia - agora - ocupado
+    return {"atraso": atraso, "folga": folga, "precisa": atraso > ATRASO_PARA_REPLANEJAR and folga < 0, "bloco": atual, "fim_do_dia": _hm(fim_do_dia)}
+
+
 def bloco_atual(plano=None):
     """O primeiro bloco pendente de hoje, na ordem do horário (é o que a tela mostra como tarefa de agora)."""
     plano = plano or h._plano_de_hoje() or {}

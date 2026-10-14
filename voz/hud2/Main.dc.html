@@ -152,6 +152,8 @@ body{margin:0;background:#07080a}
 .gd .m-via{display:flex;align-items:center;gap:8px;margin-top:7px;font-family:var(--f-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ivory3)}
 .gd .m-via::before{content:"";flex:none;width:5px;height:5px;border-radius:50%;border:1px solid var(--gold)}
 .gd .dl-r.cv .n{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-align:left}
+.gd .scene.update{margin-top:-240px}
+.gd .scene.update .srows{max-height:200px;overflow-y:auto;overflow-x:hidden;padding-right:6px}  /* notas longas rolam; os botões ficam sempre à vista */
 .gd .scene.perm .srows{max-height:210px;overflow-y:auto;overflow-x:hidden;padding-right:6px;overflow-wrap:anywhere}
 /* ===== BOLINHA (camada única) ===== */
 .gd .orbw{position:absolute;left:0;top:0;width:400px;height:400px;transform-origin:0 0;transition:transform var(--dcam) var(--emove);will-change:transform;z-index:12;pointer-events:none}
@@ -1960,7 +1962,7 @@ class Component extends DCLogic {
   abrirVersao() {
     const v = this.state.ver; if (!v || !v.nova) return;
     if (this.state.prefsOpen) this.closePrefs();
-    const rows = (v.notas || []).slice(0, 3).map((n) => ({ k: n.versao, v: (n.itens || []).slice(0, 3).join(' ') || 'Melhorias gerais.' }));
+    const rows = (v.notas || []).slice(0, 3).map((n) => ({ k: n.versao, v: (n.itens || []).slice(0, 4).join(' · ') || 'Melhorias gerais.' }));  // só os títulos das mudanças
     this.openScene({ kind: 'update', tag: 'Versão ' + v.remota, kicker: 'Atualização do Guardião', title: 'Há uma versão nova',
       full: 'Você está na ' + v.instalada + '. Atualizar troca a skill e o painel e mantém sua memória, seus planos e suas preferências. O Guardião reinicia sozinho em menos de um minuto.',
       rows: rows.length ? rows : null, rapido: true,
@@ -3176,7 +3178,7 @@ class Component extends DCLogic {
     /* ----- cena ----- */
     const sc = S.scene, scFull = sc ? sc.full || '' : '', scDone = !!sc && sc.n >= scFull.length;
     const scene = {
-      cls: sc && sc.kind === 'perm' ? 'perm' : '', aria: sc ? sc.title : 'Cena do Guardião', kicker: sc ? sc.kicker : '', tag: sc ? sc.tag : '', title: sc ? sc.title : '',
+      cls: sc && (sc.kind === 'perm' || sc.kind === 'update') ? sc.kind : '', aria: sc ? sc.title : 'Cena do Guardião', kicker: sc ? sc.kicker : '', tag: sc ? sc.tag : '', title: sc ? sc.title : '',
       typed: sc ? scFull.slice(0, sc.n) : '', caretSt: sc && !scDone ? 'display:inline-block' : 'display:none', sxSt: sc && !scFull ? 'display:none' : '',
       hasRows: !!(sc && sc.rows && sc.rows.length), rows: sc && sc.rows ? sc.rows : [],
       barBox: sc && sc.kind === 'action' ? '' : 'display:none', barSt: 'transform:scaleX(' + (sc && scFull.length ? (sc.n / scFull.length).toFixed(3) : 0) + ');transition:transform 160ms linear',

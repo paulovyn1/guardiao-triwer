@@ -169,7 +169,82 @@ def rendimento(maes, dia, de_hhmm, ate_hhmm):
     return [m for m in maes if m.get("criada_em") and ini <= m["criada_em"] <= fim]
 
 
-def registrar_rendimento(cfg, token, operacional, bloco, real, registrar_evento):
+def _id_dono(cfg, dono):
+    clickup = cfg.get("clickup") or {}
+    for m in clickup.get("membros") or []:
+        if m.get("nome") and dono and m["nome"].lower() in str(dono).lower():
+            return int(m["id"])
+    return int(clickup["user_id"])
+
+
+def _planos_com_reservas(operacional):
+    """[(caminho, plano)] do plano de hoje e dos planos de outros dias que têm bloco reservado (`reserva_post`)."""
+    achados = []
+    candidatos = [os.path.join(operacional, "plano_do_dia.json")]
+    pasta = os.path.join(operacional, "planos")
+    if os.path.isdir(pasta):
+        candidatos += [os.path.join(pasta, n) for n in sorted(os.listdir(pasta)) if re.fullmatch(r"plano_\d{4}-\d{2}-\d{2}\.json", n)]
+    for caminho in candidatos:
+        try:
+            with open(caminho, encoding="utf-8-sig") as f:
+                plano = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if not plano.get("data"):
+            m = re.search(r"(\d{4}-\d{2}-\d{2})", os.path.basename(caminho))
+            plano["data"] = m.group(1) if m else None
+        if plano.get("data") and any(b.get("reserva_post") and not b.get("clickup_id") for b in plano.get("blocos", [])):
+            achados.append((caminho, plano))
+    return achados
+
+
+def lancar_etapas(cfg, token, operacional, maes):
+    """Para cada post (tarefa mãe) que acabou de nascer, troca os blocos reservados do plano (`reserva_post` = data da postagem, `etapa` = Copy ou Design)
+    por subtarefas reais da mãe, com o horário que já estava reservado. Post sem reserva ou reserva sem post não cria nada: volta no resultado para o guardião tratar.
+    Nunca cria tarefa solta: sem mãe, sem lista ou sem token, não faz nada."""
+    conf = _config_posts(cfg)
+    lista_id = _id_da_lista(cfg, conf["lista"]) if conf else None
+    resultado = {"criadas": [], "posts_sem_reserva": [], "reservas_sem_post": 0}
+    if not (lista_id and token and maes):
+        return resultado
+    planos = _planos_com_reservas(operacional)
+    usados = set()
+    for mae in sorted(maes, key=lambda m: (m.get("prazo") or "", m.get("criada_em") or "")):
+        achou = False
+        for etapa in ("Copy", "Design"):
+            for caminho, plano in planos:
+                bloco = next((b for b in plano["blocos"] if b.get("reserva_post") == mae.get("prazo") and str(b.get("etapa", "")).lower() == etapa.lower()
+                              and not b.get("clickup_id") and id(b) not in usados), None)
+                if not bloco:
+                    continue
+                usados.add(id(bloco))
+                achou = True
+                try:
+                    ini = datetime.strptime(f"{plano['data']} {bloco['inicio']}", "%Y-%m-%d %H:%M").astimezone()
+                    fim = datetime.strptime(f"{plano['data']} {bloco['fim']}", "%Y-%m-%d %H:%M").astimezone()
+                    nome = f"{etapa} | {mae['nome']}"
+                    r = requests.post(f"{API}/list/{lista_id}/task", headers={"Authorization": token}, timeout=30, json={
+                        "name": nome, "parent": mae["id"], "assignees": [_id_dono(cfg, bloco.get("dono"))],
+                        "start_date": int(ini.timestamp() * 1000), "start_date_time": True,
+                        "due_date": int(fim.timestamp() * 1000), "due_date_time": True,
+                        "time_estimate": int((fim - ini).total_seconds() * 1000),
+                        "markdown_description": f"**O que é:** {etapa.lower()} do post, no tempo que o guardião reservou.\n\n*Criada pelo guardião ao fechar o bloco de ideias.*"})
+                    r.raise_for_status()
+                    bloco.update({"titulo": nome, "clickup_id": r.json()["id"], "pai": mae["id"]})
+                    bloco.pop("reserva_post", None)
+                    with open(caminho, "w", encoding="utf-8") as f:
+                        json.dump(plano, f, ensure_ascii=False, indent=2)
+                    resultado["criadas"].append({"post": mae["nome"], "etapa": etapa, "id": r.json()["id"], "dia": plano["data"], "inicio": bloco["inicio"]})
+                except Exception as erro:
+                    resultado.setdefault("erros", []).append(f"{etapa} de {mae.get('nome')}: {erro}")
+                break
+        if not achou:
+            resultado["posts_sem_reserva"].append(mae.get("nome"))
+    resultado["reservas_sem_post"] = sum(1 for _, p in planos for b in p["blocos"] if b.get("reserva_post") and not b.get("clickup_id"))
+    return resultado
+
+
+def registrar_rendimento(cfg, token, operacional, bloco, real, registrar_evento, ao_mudar=None):
     """Roda UMA vez, quando um bloco de criação de posts (com `posts_previstos`) é concluído: consulta o ClickUp e grava o que o bloco rendeu
     no registro de eventos (posts previstos x posts que apareceram). Sem Claude, sem vigia: só acontece quando a pessoa conclui o bloco."""
     try:
@@ -185,7 +260,12 @@ def registrar_rendimento(cfg, token, operacional, bloco, real, registrar_evento)
         achados = rendimento(r["maes"], dia, de, fim)
         registrar_evento("posts_criados", bloco, previstos=bloco.get("posts_previstos"), achados=len(achados),
                          nomes=[m_["nome"] for m_ in achados], prazos=[m_["prazo"] for m_ in achados], janela=f"{de}-{fim}")
-        return {"ok": True, "achados": achados}
+        etapas = lancar_etapas(cfg, token, operacional, achados)  # troca os blocos reservados pelas subtarefas reais
+        if etapas["criadas"] or etapas["posts_sem_reserva"] or etapas.get("erros"):
+            registrar_evento("etapas_lancadas", bloco, **etapas)
+            if ao_mudar and etapas["criadas"]:
+                ao_mudar()
+        return {"ok": True, "achados": achados, "etapas": etapas}
     except Exception as erro:  # nunca atrapalha o concluir
         print("  (não consegui medir o rendimento do bloco:", erro, ")")
         return {"ok": False, "erro": str(erro)}

@@ -1,7 +1,7 @@
 ---
 name: guardiao-triwer
 description: Guardião do dia, gestor de projetos pessoal para infoprodutores e prestadores de serviço. Transforma responsabilidades em tarefas com dono, tempo, dia e hora, cria as tarefas no ClickUp, delega o que não é da pessoa com briefing pronto, acompanha o dia num painel local com voz e confere o dia no fim. Acionar quando o usuário chamar o guardião (ou o nome que deu a ele), pedir para planejar o dia ou a semana, montar a agenda, encaixar uma tarefa nos horários, dar prazo a uma tarefa, destrinchar uma tarefa grande em ações menores, disser que está travado numa tarefa complexa, trouxer um entregável com data, ou chamar no fim do dia para conferir o que foi feito. Acionar também no primeiro uso, quando ainda não existe configuração, para rodar o onboarding. Dois modos, planejar e destrinchar. NÃO acionar em conversas de copy, conteúdo, skills ou outros projetos.
-metadata: "v0.8.0, outubro 2026. Histórico em CHANGELOG.md."
+metadata: "v0.8.1, outubro 2026. Histórico em CHANGELOG.md."
 ---
 
 # Guardião do dia
@@ -161,6 +161,7 @@ Terminar sempre com o plano para aprovação. Depois do ok, gravar `plano_do_dia
 - Ligação com o ClickUp: bloco de tarefa que já existe no resumo leva `clickup_id` (nunca duplicar). Bloco novo leva `lista_id` (uma das listas de `clickup.listas` no config.json, escolhida pelo campo `quando_usar`) e, se for parte de uma tarefa existente, `pai`.
 - Etapa de um post (copy, design...): `post` com o dia dele (`"quinta"` ou `AAAA-MM-DD`) e `lista_id`. Ao aprovar, o app acha a tarefa mãe do post em Python (`posts_maes.py`, lista de conteúdo com o campo "Onde" = "Feed" nos próximos dias) e cria a etapa como subtarefa dela. Nunca procurar a mãe pelo Claude e nunca criar etapa de post como tarefa solta. Liga por `clickup.posts` no `config.json`.
 - Bloco de criação de posts: `posts_previstos` com quantos posts o bloco deve render. Ao concluir o bloco, o app consulta o ClickUp uma vez e grava no registro de eventos quantos posts apareceram de verdade (evento `posts_criados`), para o report perguntar o porquê da diferença. Não há consulta automática em segundo plano.
+- Reserva de tempo de post sem tema: copy e design de um post que ainda não existe (a mãe só nasce quando o bloco de ideias termina) entram no plano como bloco com `reserva_post` (data da postagem, AAAA-MM-DD) e `etapa` (`Copy` ou `Design`), com título "Reserva: design de post (seg 19), tema ainda não definido", sem `lista_id`, sem `clickup_id` e sem criar nada no ClickUp. Ao concluir o bloco de ideias, o app (`posts_maes.lancar_etapas`) troca cada reserva, pela data da postagem, por uma subtarefa real da mãe nova ("Copy | título do post"), no horário que já estava reservado, e grava o evento `etapas_lancadas`. Post sem reserva e reserva sem post voltam nesse evento: tratar no fim do dia, sem inventar tema nem letra (nunca "carrossel A, B").
 - Reunião ou compromisso que existe como tarefa no ClickUp (vem no `resumo_clickup.json`) vai em `blocos` com `clickup_id`, para a pessoa poder marcar Feito, informar o horário real e concluir a tarefa. `fixos` (inicio, fim, titulo) é só para o que não tem tarefa, como o almoço: na tela não tem botão nem sincroniza.
 
 **O que o painel faz sozinho, sem o guardião do chat:**

@@ -90,7 +90,14 @@ comandos()
 # ---------------- concluir alimenta os tempos por tipo
 relogio.hora = "11:05"
 r = h.concluir_bloco({"id": "b3", "concluido": True, "nota": "Campanhas no ar.", "inicio": "09:50", "fim": "11:05"})
-confere("concluir pelo servidor fecha a tarefa sem comentário e grava início e fim reais", r["ok"] and not any(m == "POST" and "comment" in u for m, u, _ in B.ClickUpFalso.chamadas) and any(m == "PUT" and isinstance(c, dict) and "start_date" in c and "due_date" in c and c.get("status") == "complete" for m, u, c in B.ClickUpFalso.chamadas))
+confere("concluir fecha a tarefa sem mexer no início nem no prazo combinados",
+        r["ok"] and any(m == "PUT" and isinstance(c, dict) and c.get("status") == "complete" and "start_date" not in c and "due_date" not in c for m, u, c in B.ClickUpFalso.chamadas))
+comentarios = [c for m, u, c in B.ClickUpFalso.chamadas if m == "POST" and "cid3/comment" in u]
+confere("o horário realizado vai num comentário, com o que a pessoa contou e a assinatura",
+        len(comentarios) == 1 and comentarios[0]["comment_text"].startswith("Realizado: das 09:50 às 11:05 (1 h 15 min).\nCampanhas no ar.") and "Guardião" in comentarios[0]["comment_text"], comentarios)
+confere("texto do realizado: só minutos, hora cheia e passando da meia-noite",
+        h.texto_realizado({"inicio": "09:00", "fim": "09:40"}) == "Realizado: das 09:00 às 09:40 (40 min)." and h.texto_realizado({"inicio": "09:00", "fim": "11:00"}) == "Realizado: das 09:00 às 11:00 (2 h)."
+        and h.texto_realizado({"inicio": "23:30", "fim": "00:10"}) == "Realizado: das 23:30 às 00:10 (40 min).")
 tempos = h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]
 reg = tempos["Tráfego"]["registros"][-1]
 confere("tempos.json recebe o tempo medido (75 min) contra o planejado (90)", reg["real"] == 75 and reg["planejado"] == 90 and reg["confirmado"] is True, reg)

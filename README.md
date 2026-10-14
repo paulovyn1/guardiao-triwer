@@ -50,6 +50,7 @@ Pulou esse passo? O painel funciona do mesmo jeito, por texto. Para ligar o micr
 - **Ele não me ouve quando chamo:** diga "Ei guardião" junto, no começo da frase, e espere o som antes de falar o resto.
 - **Ele diz que atingiu o limite do plano ou que o Claude Code não está conectado:** é a conta do Claude, não o guardião. O limite volta na hora que ele informa; para entrar na conta, abra o Claude Code e faça o login.
 - **Ele demora para responder, ou a voz tem pausas entre as frases:** dê dois cliques em `Guardiao-do-dia\voz\diagnostico.bat`. Ele mede o Claude, a voz e o computador, diz onde está o problema e escreve `Guardiao-do-dia\logs\diagnostico.txt`. Se pedirem, mande também `logs\latencia.jsonl`.
+- **O botão de atualizar não aparece ou não funciona:** dê dois cliques em `Guardiao-do-dia\atualizar_guardiao.bat`. Ele faz o mesmo que o botão "Nova versão" e mantém a sua memória, os planos e as preferências.
 - **O painel abre no seu navegador padrão, no seu perfil:** o guardião não cria perfil, não entra em conta e não mexe em extensão. No Chrome e no Edge ele abre como janela de aplicativo (sem abas); no Opera, Brave, Vivaldi, Firefox e nos outros, numa aba do navegador que já está aberto. Os sons da abertura podem esperar o seu primeiro clique, porque o navegador não deixa uma página tocar som sozinha.
 - **Nada disso resolveu:** abra o Claude Code e escreva "o guardião não está funcionando, confere a instalação". Ele sabe conferir o que falta.
 

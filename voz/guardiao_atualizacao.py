@@ -123,10 +123,25 @@ def notas_desde(changelog, instalada, publicada):
         if not m or not (_num(instalada) < _num(m.group(1)) <= _num(publicada)):
             continue
         data = re.search(r"\d{4}-\d{2}-\d{2}", titulo)
-        itens = [re.sub(r"\s+", " ", x[1:]).strip()[:220] for x in corpo.splitlines() if x.strip().startswith("-")]
-        saida.append({"versao": m.group(1), "data": data.group(0) if data else "", "critica": "CRITICAL" in titulo.upper(), "itens": itens[:6]})
+        itens = [t for t in (titulo_da_mudanca(x) for x in corpo.splitlines() if x.strip().startswith("-")) if t]
+        saida.append({"versao": m.group(1), "data": data.group(0) if data else "", "critica": "CRITICAL" in titulo.upper(), "itens": itens[:4]})
     saida.sort(key=lambda n: _num(n["versao"]), reverse=True)
-    return saida[:5]
+    return saida[:3]
+
+
+NOTA_INTERNA = re.compile(r"^(testad|ainda sem teste|n[aã]o testad|testes?:|\.gitignore|todo comando)", re.I)
+
+
+def titulo_da_mudanca(linha):
+    """Do item do CHANGELOG, só o título curto para o aluno: o trecho em negrito ou, sem negrito, a primeira frase (até 90 letras).
+    Notas internas (o que foi testado, arquivos de configuração) ficam de fora."""
+    texto = re.sub(r"\s+", " ", linha.strip()[1:]).strip()
+    m = re.match(r"\*\*(.+?)\*\*", texto)
+    titulo = m.group(1) if m else re.split(r"(?<=[.!?])\s", texto)[0]
+    titulo = re.sub(r"[`*_]", "", titulo).strip().rstrip(".:")
+    if not titulo or NOTA_INTERNA.match(titulo):
+        return ""
+    return titulo if len(titulo) <= 90 else titulo[:90].rsplit(" ", 1)[0] + "..."
 
 
 def codigo_mudou():

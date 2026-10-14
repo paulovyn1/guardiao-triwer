@@ -344,6 +344,15 @@ def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, stat
     return entrada
 
 
+def texto_realizado(real, nota=""):
+    """A nota que vai no ClickUp ao concluir: o horário realizado (o combinado fica nos campos da tarefa) e, se houver, o que a pessoa contou."""
+    duracao = (_min(real["fim"]) - _min(real["inicio"])) % (24 * 60)
+    horas, minutos = divmod(duracao, 60)
+    tempo = (f"{horas} h " if horas else "") + (f"{minutos} min" if minutos or not horas else "")
+    texto = f"Realizado: das {real['inicio']} às {real['fim']} ({tempo.strip()})."
+    return texto + (f"\n{nota.strip()}" if (nota or "").strip() else "")
+
+
 def concluir_bloco(dados):
     """Conclui (ou reabre) um bloco do plano de hoje. Com tarefa no ClickUp: comenta, assinando, e muda o status."""
     plano = _plano_de_hoje()
@@ -370,14 +379,7 @@ def concluir_bloco(dados):
             return {"ok": False, "erro": "Não achei o token do ClickUp neste computador."}
         cab = {"Authorization": token}
         try:
-            datas = {}
-            if concluido:  # sem comentário de status: o horário real vira o início e o fim da própria tarefa
-                ini_dt = datetime.strptime(f"{plano['data']} {real['inicio']}", "%Y-%m-%d %H:%M").astimezone()
-                fim_dt = datetime.strptime(f"{plano['data']} {real['fim']}", "%Y-%m-%d %H:%M").astimezone()
-                if fim_dt <= ini_dt:  # atravessou a meia-noite
-                    fim_dt = datetime.fromtimestamp(fim_dt.timestamp() + 86400).astimezone()
-                datas = {"start_date": int(ini_dt.timestamp() * 1000), "start_date_time": True,
-                         "due_date": int(fim_dt.timestamp() * 1000), "due_date_time": True}
+            # o horário combinado (início e prazo) da tarefa fica intacto; o realizado vai num comentário, depois de mudar o status (decisão de produto, 13/10/2026)
             tarefa = requests.get(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, timeout=20)
             tarefa.raise_for_status()
             lista = requests.get(f"https://api.clickup.com/api/v2/list/{tarefa.json()['list']['id']}", headers=cab, timeout=20)
@@ -390,11 +392,17 @@ def concluir_bloco(dados):
                 alvo = next((s for s in estados if abertos and s.get("status") == abertos[0]), None) or next((s for s in estados if s.get("type") == "open"), None)
             if not alvo:
                 return {"ok": False, "erro": "A lista dessa tarefa não tem um status de destino."}
-            r = requests.put(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, json={"status": alvo["status"], **datas}, timeout=20)
+            r = requests.put(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, json={"status": alvo["status"]}, timeout=20)
             r.raise_for_status()
             status = alvo["status"]
         except requests.RequestException as erro:
             return {"ok": False, "erro": f"O ClickUp não aceitou: {erro}"}
+        if concluido:  # o realizado vira nota; se o comentário falhar, a tarefa continua concluída
+            try:
+                requests.post(f"https://api.clickup.com/api/v2/task/{cid}/comment", headers=cab, timeout=20,
+                              json={"comment_text": texto_realizado(real, nota) + f"\n\n{assinatura()}"}).raise_for_status()
+            except requests.RequestException as erro:
+                print("  (concluí no ClickUp, mas o comentário com o horário realizado não foi:", erro, ")")
     _gravar_registro(plano, bloco, "feito" if concluido else "pendente", real, bool(dados.get("nao_confirmado")), status)
     try:  # fecha a sessão do modo execução e soma o tempo real por tipo de tarefa
         _v2().ao_concluir(bloco, real, bool(dados.get("nao_confirmado")), concluido)
@@ -403,7 +411,7 @@ def concluir_bloco(dados):
     if concluido and bloco.get("posts_previstos"):  # bloco de criação de posts: mede o que rendeu (posts previstos x que apareceram), uma vez
         try:
             import posts_maes
-            threading.Thread(target=posts_maes.registrar_rendimento, args=(_config(), _token_clickup(), OPER, bloco, real, _v2().registrar_evento), daemon=True).start()
+            threading.Thread(target=posts_maes.registrar_rendimento, args=(_config(), _token_clickup(), OPER, bloco, real, _v2().registrar_evento), kwargs={"ao_mudar": lambda: bus.emitir("plano")}, daemon=True).start()
         except Exception as erro:
             print("  (rendimento do bloco não rodou:", erro, ")")
     bus.emitir("plano")
@@ -469,6 +477,13 @@ def achar_parecida(titulo, tarefas):
     return (melhor[1], False) if melhor else (None, False)
 
 
+def lista_conteudos_id():
+    """Id da lista de conteúdos (config.clickup.posts.lista): nela toda tarefa é subtarefa de uma mãe, nunca solta."""
+    c = _config().get("clickup") or {}
+    nome = (c.get("posts") or {}).get("lista") or "Conteúdos"
+    return next((str(l["id"]) for l in c.get("listas", []) if l.get("nome") == nome), "")
+
+
 def aprovar_plano():
     """Aprova o plano de hoje. Cada bloco novo (com lista_id e sem clickup_id) vira tarefa no ClickUp, com dono, hora e estimativa."""
     plano, caminho = _plano_e_caminho()
@@ -523,6 +538,9 @@ def aprovar_plano():
                     erros.append(f"{b.get('titulo')}: não achei a tarefa mãe do post '{b['post']}' e não criei uma tarefa solta.")
                     continue
             if b.get("clickup_id") or not b.get("lista_id"):
+                continue
+            if lista_conteudos_id() and str(b["lista_id"]) == lista_conteudos_id() and not b.get("pai"):
+                erros.append(f"{b.get('titulo')}: tarefa de conteúdo sem tarefa mãe (campo pai ou post). Não criei uma tarefa solta.")
                 continue
             existente, _ = achar_parecida(b.get("titulo"), abertas)
             if existente:  # mesmo assunto com outras palavras: não cria, a pessoa decide se é a mesma

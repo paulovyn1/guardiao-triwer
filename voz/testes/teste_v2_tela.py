@@ -132,7 +132,10 @@ try:
     confere("a próxima tarefa já subiu", contem(".f-title", "Revisar o roteiro"), texto(".f-title"))
     time.sleep(1.0)
     foto("08_concluir_sem_frase")
-    confere("fecha no ClickUp na hora: sem comentário e com início e fim reais", pausa(1.5) and not any(m == "POST" and "cid3/comment" in u for m, u, c in B.ClickUpFalso.chamadas) and any(m == "PUT" and "cid3" in u and isinstance(c, dict) and "start_date" in c and c.get("status") == "complete" for m, u, c in B.ClickUpFalso.chamadas), B.ClickUpFalso.chamadas[n_antes:][-3:])
+    confere("fecha no ClickUp na hora, com o prazo combinado intacto e o horário realizado num comentário",
+            pausa(1.5) and any(m == "PUT" and "cid3" in u and isinstance(c, dict) and c.get("status") == "complete" and "due_date" not in c for m, u, c in B.ClickUpFalso.chamadas)
+            and any(m == "POST" and "cid3/comment" in u and str((c or {}).get("comment_text", "")).startswith("Realizado: das 09:50 às 10:40") for m, u, c in B.ClickUpFalso.chamadas),
+            B.ClickUpFalso.chamadas[n_antes:][-3:])
     reg = {b["id"]: b for b in h._registro_de_hoje()["blocos"]}
     confere("o registro guarda o horário real medido", reg["b3"]["estado"] == "feito" and reg["b3"]["real"] == {"inicio": "09:50", "fim": "10:40", "minutos": 50} and reg["b3"].get("nao_confirmado") is False, reg["b3"])
     confere("o tempo real entra no tempos.json", h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]["Tráfego"]["registros"][-1]["real"] == 50)
