@@ -214,6 +214,10 @@ def texto(oper, memoria=None, hoje=None, agora_min=None, feitos_hoje=(), incluir
 
 REGRAS_DA_SEMANA = (
     "COMO USAR A SEMANA (valem em todo pedido que mexe em horário):\n"
+    "0. Tarefa nova, ou tarefa que muda de dia: rode ANTES o roteador (powershell -ExecutionPolicy Bypass -File onde_cabe.ps1 -Minutos N -Tipo pesado|design|leve "
+    "-Prazo AAAA-MM-DD -Frente X -Titulo \"...\" [-DependeDias N] [-Estender AAAA-MM-DD=HH:MM só se ela autorizou], na pasta operacional). "
+    "Ele faz a conta e diz o nível: 1 = só o plano de hoje; 2 = esta visão da semana; 3 = o horizonte que ele imprime. Leia só o que o nível pede, "
+    "use o horário 1 que ele recomenda e, se escolher outro, diga por quê. Se ele trouxer ALERTAS, diga a ela o que importa para a decisão em uma frase.\n"
     "1. Mexer num dia é mexer na semana. Tarefa que sai de um dia entra em outro na MESMA resposta (grave primeiro o plano do dia que recebe, depois o do dia que perde). "
     "Nunca \"refaço a sexta depois\". Dia \"pré-planejado no ClickUp\" é a semana já combinada com ela: respeite o que está lá e, se mexer, grave o plano completo daquele dia.\n"
     "2. Tarefa nova com prazo: ponha \"prazo_final\" (AAAA-MM-DD) no bloco e encaixe no último horário bom que ainda cumpre o prazo com 1 dia útil de folga. "

@@ -545,6 +545,7 @@ class Processo:
         self.contexto = 0  # tamanho da conversa na última chamada ao Claude (o fecho do turno soma todas as chamadas, o que não serve para isso)
         self.usado_em = time.time()
         self.lidas = set()  # campanhas lidas desde que o plano foi gravado pela última vez
+        self.rota = False  # o roteador da agenda (onde_cabe.ps1) rodou desde a última gravação do plano
         self.gravou_plano = False
         self.escrita = threading.Lock()
         threading.Thread(target=self._ler, daemon=True).start()
@@ -575,6 +576,8 @@ class Processo:
                             slug = cp.slug_lido(str(bloco.get("name") or ""), bloco.get("input"), _pasta_memoria())
                             if slug:
                                 self.lidas.add(slug)
+                            if bloco.get("name") in ("Bash", "PowerShell") and "onde_cabe" in str((bloco.get("input") or {}).get("command") or "").lower():
+                                self.rota = True
                 if tipo == "control_response":
                     r = ev.get("response") or {}
                     self.respostas[str(r.get("request_id"))] = r.get("response") or {}
@@ -699,10 +702,31 @@ class Processo:
             anterior = _ler_json(caminho)
             problemas = cp.conferir(plano, anterior, feitos)
             problemas += self._conferir_semana(plano, caminho, anterior, feitos)
+            problemas += self._exigir_rota(plano, caminho, anterior)
             if problemas:
                 return "O plano não pode ser gravado assim. Corrija e grave de novo:\n- " + "\n- ".join(problemas)
         self.gravou_plano = True
         return ""
+
+    def _exigir_rota(self, plano, caminho, anterior):
+        """Editar um plano já gravado pondo nele uma tarefa que não estava naquele dia (nova ou vinda de outro dia) exige o roteador antes:
+        é ele que faz a conta de onde cabe. Montar um dia do zero não exige (a conferência de semana já vale)."""
+        if self.rota or not (anterior or {}).get("blocos"):
+            return []
+        try:
+            import visao_semana as vs
+            dia = cp.data_do_plano(caminho, plano)
+            pre = vs.pre_planos_do_clickup(h.OPER, vs.carregar_planos(h.OPER)).get(dia.isoformat()) or {}
+            ja = {cp._chave_bloco(b) for b in (anterior.get("blocos") or []) + (pre.get("blocos") or []) + (pre.get("sem_hora") or [])}
+            novas = [b.get("titulo") for b in plano.get("blocos") or [] if cp._chave_bloco(b) not in ja]
+        except Exception as erro:
+            print("  Exigência do roteador falhou:", erro)
+            return []
+        if not novas:
+            return []
+        return [f"Entrou neste dia o que não estava nele ({'; '.join(map(str, novas[:3]))}). Antes de gravar, rode o roteador da agenda "
+                "(powershell -ExecutionPolicy Bypass -File onde_cabe.ps1 -Minutos N -Tipo pesado|design|leve -Prazo AAAA-MM-DD -Frente X -Titulo \"...\", na pasta operacional) "
+                "e siga o nível e o horário que ele indicar, ou diga a ela por que não."]
 
     def _conferir_semana(self, plano, caminho, anterior, feitos):
         """O plano de um dia não pode quebrar os outros: tarefa não some, prazo final vale, nobre é do importante (conferencia_plano.conferir_semana)."""
@@ -725,6 +749,7 @@ class Processo:
         self._esperar_fecho_da_interrupcao()
         if self.gravou_plano:  # o plano mudou no turno anterior: refazer exige ler a agenda de novo
             self.lidas.clear()
+            self.rota = False
             self.gravou_plano = False
         self.em_turno = True
         self.usado_em = time.time()

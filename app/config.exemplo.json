@@ -15,27 +15,63 @@
     "memoria_em_obsidian": false
   },
   "rotina": {
-    "dias_trabalho": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    "dias_trabalho": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday"
+    ],
     "chegada": "09:00",
     "almoco": "12:30",
     "fim": "18:00",
     "gerar_plano_as": "08:30",
     "abrir_tela_as": "08:45",
-    "leituras_clickup": ["09:00", "13:00", "18:00"]
+    "leituras_clickup": [
+      "09:00",
+      "13:00",
+      "18:00"
+    ],
+    "fixos_semana": [
+      {
+        "dias": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "inicio": "13:00",
+        "fim": "14:00",
+        "titulo": "Almoço"
+      }
+    ],
+    "fixos_datas": [],
+    "cancelados": []
   },
   "clickup": {
     "token_variavel": "CLICKUP_API_TOKEN",
     "workspace_id": "0000000",
     "user_id": "0000000",
-    "status_abertos": ["to do"],
+    "status_abertos": [
+      "to do"
+    ],
     "hora_sem_hora": "04:00",
     "prefixo_aprovacao": "",
     "atrasadas_dias": 14,
     "listas": [
-      { "id": "000000000", "nome": "Nome da lista", "quando_usar": "o tipo de tarefa que nasce nesta lista" }
+      {
+        "id": "000000000",
+        "nome": "Nome da lista",
+        "quando_usar": "o tipo de tarefa que nasce nesta lista"
+      }
     ],
     "membros": [
-      { "nome": "Nome de quem recebe tarefa", "id": "0000000", "papel": "o que essa pessoa faz" }
+      {
+        "nome": "Nome de quem recebe tarefa",
+        "id": "0000000",
+        "papel": "o que essa pessoa faz"
+      }
     ]
   },
   "atualizacao": {
