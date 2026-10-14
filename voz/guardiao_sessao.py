@@ -16,6 +16,7 @@ import threading
 import time
 import uuid
 
+import conferencia_plano as cp
 import hud_servidor as h
 from hud_servidor import _config, _ler_json, bus
 
@@ -429,6 +430,10 @@ def _dentro(caminho, pasta):
         return False
 
 
+def _pasta_memoria():
+    return (_config().get("pastas") or {}).get("memoria") or os.path.join(h.OPER, "memoria")
+
+
 def _pastas_do_guardiao():
     return [h.OPER, (_config().get("pastas") or {}).get("memoria") or os.path.join(h.OPER, "memoria")]
 
@@ -539,6 +544,8 @@ class Processo:
         self.aquecida = threading.Event()  # os conectores terminaram de ligar
         self.contexto = 0  # tamanho da conversa na última chamada ao Claude (o fecho do turno soma todas as chamadas, o que não serve para isso)
         self.usado_em = time.time()
+        self.lidas = set()  # campanhas lidas desde que o plano foi gravado pela última vez
+        self.gravou_plano = False
         self.escrita = threading.Lock()
         threading.Thread(target=self._ler, daemon=True).start()
         self._manda({"type": "control_request", "request_id": "inicio", "request": {"subtype": "initialize", "hooks": None}})
@@ -562,6 +569,12 @@ class Processo:
                 if tipo == "assistant" and not ev.get("parent_tool_use_id"):
                     uso = (ev.get("message") or {}).get("usage") or {}
                     self.contexto = sum(uso.get(k) or 0 for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")) or self.contexto
+                if tipo == "assistant":
+                    for bloco in (ev.get("message") or {}).get("content") or []:
+                        if isinstance(bloco, dict) and bloco.get("type") == "tool_use":
+                            slug = cp.slug_lido(str(bloco.get("name") or ""), bloco.get("input"), _pasta_memoria())
+                            if slug:
+                                self.lidas.add(slug)
                 if tipo == "control_response":
                     r = ev.get("response") or {}
                     self.respostas[str(r.get("request_id"))] = r.get("response") or {}
@@ -651,6 +664,10 @@ class Processo:
         nome, entrada = str(r.get("tool_name") or ""), r.get("input") or {}
         regra, sensivel, motivo = classificar(nome, entrada)
         if regra == "permitir":
+            barrado = self._barrar_plano(nome, entrada)
+            if barrado:
+                return self._responde(ev, False, barrado)
+        if regra == "permitir":
             return self._responde(ev, True)
         if regra == "negar" or not self.em_turno:
             return self._responde(ev, False, motivo or "Não há ninguém para autorizar agora. Diga o que pretende fazer e espere a pessoa pedir.")
@@ -663,12 +680,37 @@ class Processo:
             permitir_sempre(nome)
         self._responde(ev, decisao in ("sim", "sempre"), mensagem or "A pessoa não autorizou. Não tente de novo nem por outro caminho; pergunte o que ajustar.")
 
+    def _barrar_plano(self, nome, entrada):
+        """Gravar o plano exige ter lido as campanhas ativas e um plano sem contradição. Devolve o motivo da negação, ou "" se pode gravar."""
+        if nome not in ("Write", "Edit", "MultiEdit"):
+            return ""
+        caminho = str(entrada.get("file_path") or "")
+        if not cp.eh_arquivo_de_plano(caminho):
+            return ""
+        faltam = [c for c in cp.campanhas_ativas(_pasta_memoria()) if c not in self.lidas]
+        if faltam:
+            return ("Não grave o plano ainda: você não leu a agenda inteira. Leia estas campanhas ativas e só depois grave "
+                    f"(powershell -File ler_campanha.ps1 -Slug <slug>, na pasta operacional): {', '.join(faltam)}. "
+                    "Depois de ler, ponha no plano o campo \"agenda_impoe\" com uma frase do que a agenda impõe a este dia.")
+        plano = cp.texto_do_plano(entrada) if nome == "Write" else None
+        if plano is not None:
+            registro = h._registro_de_hoje().get("blocos", [])
+            feitos = {b.get("id") for b in registro if b.get("estado") in ("feito", "adiado")}
+            problemas = cp.conferir(plano, _ler_json(caminho), feitos)
+            if problemas:
+                return "O plano não pode ser gravado assim. Corrija e grave de novo:\n- " + "\n- ".join(problemas)
+        self.gravou_plano = True
+        return ""
+
     def turno(self, mensagem):
         """Manda a fala e devolve o que acontece, na ordem: ('texto', pedaço), ('ferramenta', dados), ('permissao', pedido) e, no fim, ('fim', evento).
         Quem recebe um pedido de permissão precisa chamar decidir(pedido, 'sim' | 'sempre' | 'nao', mensagem)."""
         if not self.viva():
             raise RuntimeError("a sessão do Claude Code fechou")
         self._esperar_fecho_da_interrupcao()
+        if self.gravou_plano:  # o plano mudou no turno anterior: refazer exige ler a agenda de novo
+            self.lidas.clear()
+            self.gravou_plano = False
         self.em_turno = True
         self.usado_em = time.time()
         try:

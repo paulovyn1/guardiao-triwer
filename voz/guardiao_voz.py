@@ -1556,7 +1556,8 @@ REGRAS_DO_PLANO = (
     "Ao gravar o plano de hoje: grave o plano inteiro, em JSON válido, no formato de plano_exemplo.json, com \"status\": \"sugerido\" "
     "(a pessoa aprova na tela e o servidor cria ou move as tarefas no ClickUp). Mantenha os blocos já feitos, mantenha o id e o clickup_id dos blocos que continuam, "
     "dê aos blocos novos um id ainda não usado (b seguido de número), use clickup_id para tarefa que já existe no resumo e lista_id só para bloco realmente novo, "
-    "e ponha \"reagendado\": true em todo bloco com clickup_id que mudou de horário ou que entrou no dia agora. Nenhum bloco pendente pode começar antes de agora."
+    "e ponha \"reagendado\": true em todo bloco com clickup_id que mudou de horário ou que entrou no dia agora. Nenhum bloco pendente pode começar antes de agora. "
+    "Antes de gravar, leia as campanhas ativas (o servidor nega a gravação sem isso) e ponha no plano \"agenda_impoe\": uma frase do que a agenda delas impõe a este dia, com prazo e dependência de outra pessoa tirados da nota da campanha, nunca perguntados. Quando a pessoa mandar tirar um bloco, ponha o título dele em \"removidos\" e mantenha essa lista nas próximas gravações. Se algo não cabe, não diga só que não cabe: grave o reencaixe pela prioridade da campanha e diga o que saiu."
 )
 COMPLETO = None  # pedido em andamento: {"pedido": texto, "inicio": time}
 COMANDO_COMPLETO = None  # os testes trocam por uma função (pedido, arquivo do plano) -> texto da resposta
