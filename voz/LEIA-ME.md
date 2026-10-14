@@ -20,6 +20,7 @@ Roda na pasta `voz\` dentro da pasta operacional do guardião. Só Windows.
 | `ouvir_vozes.bat` | toca as três vozes do guardião para escolher (a escolhida vai em `agente.voz` do `config.json`) |
 | `diagnostico.bat` | confere cada peça (Claude, voz, escuta, microfone, Groq, janela), mede onde o tempo vai e escreve `logs\diagnostico.txt` |
 | `janela_painel.py` | abre o painel no Edge, como janela de aplicativo, no perfil da pessoa (sem Edge, o Chrome; sem os dois, uma aba), e apaga a pasta do perfil que as versões antigas criaram |
+| `popup.py` | o aviso do guardião na tela (preto e dourado, no canto, sem roubar o foco), usado pelo `avisos.ps1` e pelo painel escondido |
 | `tocador.py` | toca a resposta inteira numa saída só (sem picotar) e muda a velocidade no meio da fala sem mudar o tom (1x, 1,5x, 2x) |
 | `controle_fala.py`, `latencia.py` | parar a fala quando a janela fecha; os tempos de cada resposta em `logs\latencia.jsonl` |
 | `memoria_conversa.py` | as últimas 10 trocas em arquivo e o resumo do dia (modo rápido) |

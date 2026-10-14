@@ -771,6 +771,9 @@ def acao_execucao(dados):
     if acao == "entrar":
         return entrar()
     if acao == "iniciar":
+        b = bloco_atual()
+        if dados.get("id") and (not b or b.get("id") != dados.get("id")):  # o aviso era de uma tarefa que já não é a de agora
+            return {"ok": False, "erro": "Essa tarefa não é a de agora."}
         return entrar(iniciar=True)
     if acao == "sair":
         return sair()

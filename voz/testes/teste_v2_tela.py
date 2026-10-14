@@ -73,7 +73,7 @@ try:
     # ---------------- modo execução
     clicar("Modo execução", ".st.cur .chip")
     confere("entrar em execução: a tarefa de agora aparece", espera("document.querySelector('.gd').classList.contains('is-exec')", 4) and contem(".f-title", "Montar as campanhas"))
-    confere("no horário dela, mas sem o clique, a tarefa NÃO começa: o botão é Iniciar", pausa(0.5) and v2.estado_exec()["ativo"] and v2.estado_exec()["sessao"] is None
+    confere("no horário dela, mas sem o clique, a tarefa NÃO começa: o botão é Iniciar", B.esperar_py(lambda: v2.estado_exec()["ativo"], 5) and v2.estado_exec()["sessao"] is None
             and (contem(".st.cur .btn-pri", "INICIAR · 09:50") or contem(".st.cur .btn-pri", "INICIAR · 09:51")) and contem(".f-kick", "ainda não iniciada"), (texto(".st.cur .btn-pri"), texto(".f-kick")))
     confere("a bolinha diz que é hora de começar", contem(".orbw", "HORA DE COMEÇAR") or "HORA DE COMEÇAR" in js("document.querySelector('.gd').textContent").upper())
     js("document.querySelector('.st.cur .btn-pri').click()")
@@ -168,7 +168,7 @@ try:
 
     # ---------------- adiar pergunta o motivo
     clicar("Adiar", ".f-sec .sec-b")
-    confere("adiar pergunta o que impediu", espera("document.querySelectorAll('.st.cur .arow .chip').length === 7", 5), texto(".after"))
+    confere("adiar pergunta o que impediu", espera("document.querySelectorAll('.st.cur .arow .chip').length === 7", 12), texto(".after"))
     foto("09_adiar_motivo")
     clicar("Sem energia", ".st.cur .arow .chip")
     confere("adia com o motivo e passa para a próxima", espera("document.querySelector('.f-title').innerText.toLowerCase().includes('relatório mensal')", 6) and {b["id"]: b for b in h._registro_de_hoje()["blocos"]}["b4"]["estado"] == "adiado", texto(".f-title"))

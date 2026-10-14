@@ -28,6 +28,16 @@ def confere(nome, ok, detalhe=""):
     print(("PASSOU " if ok else "FALHOU ") + nome + (f" -> {detalhe}" if detalhe != "" and not ok else ""))
 
 
+def esperar_py(cond, seg=5.0):
+    """Espera uma condição do lado do Python (o servidor), para o teste não depender da velocidade do computador."""
+    fim = time.time() + seg
+    while time.time() < fim:
+        if cond():
+            return True
+        time.sleep(0.1)
+    return bool(cond())
+
+
 def placar():
     print(f"\n{sum(resultados)} de {len(resultados)} checagens passaram.")
     return all(resultados)

@@ -1183,6 +1183,31 @@ def abrir_no_navegador(url):
     return True
 
 
+COMANDO_POPUP = None  # os testes trocam por uma função (dados) que só anota
+
+
+def mostrar_popup(dados):
+    """Abre o aviso próprio do guardião (popup.py, preto e dourado, sem roubar o foco) e não espera ele fechar.
+    Usado quando o painel está escondido e precisa avisar algo (o aviso de tempo do modo execução)."""
+    d = {k: str((dados or {}).get(k) or "")[:300] for k in ("titulo", "texto", "kicker", "tag", "bloco")}
+    if not d["titulo"]:
+        return False
+    if COMANDO_POPUP:
+        return COMANDO_POPUP(d)
+    import sys
+    import tempfile
+    exe = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    exe = exe if os.path.exists(exe) else sys.executable
+    arq = os.path.join(tempfile.gettempdir(), f"guardiao_aviso_{os.getpid()}_{int(time.time() * 1000)}.json")
+    with open(arq, "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False)
+    try:
+        subprocess.Popen([exe, os.path.join(BASE, "popup.py"), "--json", arq], cwd=BASE, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except OSError:
+        return False
+    return True
+
+
 class Pedido(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -1292,6 +1317,8 @@ class Pedido(BaseHTTPRequestHandler):
                 bus.portao_saudacao.clear()
                 bus.comandos.put(("abertura", {"primeira": bool(dados.get("primeira"))}))
             return self._json(202, {"ok": True})
+        if caminho == "/popup":  # o painel escondido pede um aviso na tela, no visual do guardião
+            return self._json(202, {"ok": mostrar_popup(dados)})
         if caminho == "/esc":  # Esc no painel: tira uma camada por vez (leitura do plano, voz, resposta, trabalho em segundo plano)
             import controle_fala
             return self._json(200, {"ok": True, "camada": controle_fala.esc()})
