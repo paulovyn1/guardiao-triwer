@@ -274,4 +274,42 @@ r = rq.post(base + "/adiar", json={"id": "b7", "motivo": "Sem energia"}).json()
 confere("POST /adiar com motivo registra na calibragem", r["ok"] and any(e["tipo"] == "adiamento" and e.get("motivo") == "Sem energia" for e in v2._eventos()))
 confere("origem estranha é recusada nas rotas novas", rq.post(base + "/execucao", json={"acao": "entrar"}, headers={"Origin": "http://exemplo.com"}).status_code == 403)
 
+# ---------------- o plano é conferido com o ClickUp antes de cobrar, e o compromisso fixo é perguntado
+class _Resp:
+    def __init__(self, tipo):
+        self.tipo = tipo
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"status": {"status": "concluído" if self.tipo == "closed" else "a fazer", "type": self.tipo}}
+
+
+chamadas = []
+h.requests.get = lambda url, **kw: (chamadas.append(url), _Resp("closed" if url.endswith("/cid5") else "open"))[1]
+_plano_original = h._plano_de_hoje
+h._plano_de_hoje = lambda: (lambda p: ([b.update(clickup_id="cid5") for b in p["blocos"] if b["id"] == "b5"], p)[1])(_plano_original())
+h._ULTIMA_SINCRONIA.clear()
+v2.sair()
+v2.entrar()
+relogio.hora = "10:30"
+fechados = h.sincronizar_com_clickup(espaco=0)
+confere("tarefa concluída no ClickUp vira feita no plano, sem cobrança", fechados == ["Fechar o relatório mensal da Loja Nativa"]
+        and next(b for b in h._registro_de_hoje()["blocos"] if b["id"] == "b5")["estado"] == "feito", fechados)
+confere("o bloco concluído lá deixa de ser o atual", (v2.bloco_atual() or {}).get("id") != "b5")
+confere("sem aviso de tempo para o que já foi concluído no ClickUp", v2._tique() is None and not v2.CHECKIN)
+chamadas.clear()
+h.sincronizar_com_clickup(espaco=60)
+confere("a conferência não repete a chamada dentro do intervalo", not any(u.endswith("/cid4") for u in chamadas))
+v2.CHECKIN = None
+relogio.hora = "15:05"
+c = v2._tique_fixos()
+confere("compromisso fixo que passou gera pergunta se foi feito", bool(c) and c["bloco"] == "fixo" and "Reunião com o cliente" in c["texto"]
+        and [o["resposta"] for o in c["opcoes"]] == ["fixo_feito", "fixo_nao"], c)
+confere("a pergunta do fixo não repete", v2._tique_fixos() is None)
+r = v2.responder_checkin({"resposta": "fixo_feito"})
+confere("responder o fixo fecha o aviso e registra", r["ok"] and not v2.CHECKIN and any(e["tipo"] == "checkin_fixo_resposta" for e in v2._eventos()))
+v2.sair()
+
 raise SystemExit(0 if B.placar() else 1)

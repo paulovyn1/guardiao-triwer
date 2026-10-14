@@ -410,6 +410,48 @@ def concluir_bloco(dados):
     return {"ok": True, "status": status}
 
 
+_ULTIMA_SINCRONIA = {}
+
+
+def sincronizar_com_clickup(espaco=60):
+    """Reconcilia o plano de hoje com o ClickUp: bloco pendente cuja tarefa já foi concluída lá vira "feito" aqui, sem aviso de tempo e sem pergunta.
+    Só confere os blocos que já começaram ou começam na próxima hora, no máximo uma vez por `espaco` segundos cada. Devolve os títulos que fechou."""
+    plano = _plano_de_hoje()
+    if not plano or plano.get("status") != "aprovado":
+        return []
+    token = _token_clickup()
+    if not token:
+        return []
+    estados = {b.get("id"): b.get("estado") for b in _registro_de_hoje().get("blocos", [])}
+    agora, fechados = time.time(), []
+    limite = _min(time.strftime("%H:%M")) + 60
+    for b in plano.get("blocos", []):
+        cid = b.get("clickup_id")
+        if not cid or estados.get(b.get("id")) in ("feito", "adiado") or not _hora(b.get("inicio")) or _min(b["inicio"]) > limite:
+            continue
+        if agora - _ULTIMA_SINCRONIA.get(cid, 0) < espaco:
+            continue
+        _ULTIMA_SINCRONIA[cid] = agora
+        try:
+            r = requests.get(f"https://api.clickup.com/api/v2/task/{cid}", headers={"Authorization": token}, timeout=10)
+            r.raise_for_status()
+            status = r.json().get("status") or {}
+        except (requests.RequestException, ValueError):
+            continue
+        if status.get("type") != "closed":
+            continue
+        _gravar_registro(plano, b, "feito", None, True, status.get("status") or "concluída")
+        try:
+            _v2().ao_concluir(b, None, True, True)
+            _v2().registrar_evento("conclusao_clickup", b, status=status.get("status"))
+        except Exception as erro:
+            print("  (não consegui fechar a sessão do bloco concluído no ClickUp:", erro, ")")
+        fechados.append(b.get("titulo"))
+    if fechados:
+        bus.emitir("plano")
+    return fechados
+
+
 def adiar_bloco(dados):
     """Marca o bloco como adiado e conta quantas vezes. Na terceira, o guardião vai perguntar o motivo."""
     plano = _plano_de_hoje()

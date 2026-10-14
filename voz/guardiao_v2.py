@@ -487,6 +487,43 @@ def _tique():
     return c
 
 
+_REFEICOES = ("almoco", "almoço", "jantar", "cafe", "café", "lanche", "descanso", "pausa", "intervalo")
+
+
+def _tique_fixos():
+    """Compromisso fixo sem tarefa no ClickUp (triagem do WhatsApp, por exemplo) não tem como ser marcado lá: quando o horário passa, pergunta uma vez se foi feito."""
+    global CHECKIN
+    plano = h._plano_de_hoje()
+    if not plano or plano.get("status") != "aprovado" or CHECKIN:
+        return None
+    with _trava:
+        d = _ler_exec()
+        if not d["modo"].get("ativo"):
+            return None
+        agora = _agora_min()
+        for f in plano.get("fixos", []):
+            if not (h._hora(f.get("inicio")) and h._hora(f.get("fim"))) or any(r in h._norm(f.get("titulo")) for r in _REFEICOES):
+                continue
+            passou = agora - h._min(f["fim"])
+            chave = f"fixo|{f['inicio']}|{f.get('titulo')}"
+            if not 1 <= passou <= 90 or chave in d["avisados"]:
+                continue
+            d["avisados"].append(chave)
+            _gravar(_arq_exec(), d)
+            texto = f"O horário de {_curto(f.get('titulo'))} passou. Você fez?"
+            CHECKIN = {"id": f"{chave}|{int(time.time())}", "bloco": "fixo", "titulo": f.get("titulo"), "faltam": 0, "fim": f["fim"], "passo": "inicio",
+                       "quando": time.time(), "dados": {}, "texto": texto,
+                       "opcoes": [{"rotulo": "Fiz", "resposta": "fixo_feito"}, {"rotulo": "Não fiz", "resposta": "fixo_nao"}]}
+            c = dict(CHECKIN)
+            break
+        else:
+            return None
+    registrar_evento("checkin_fixo", {"id": "fixo", "titulo": f.get("titulo")}, passou=passou)
+    h.bus.emitir("checkin", **_publico_checkin())
+    h.bus.comandos.put(("checkin", {"texto": c["texto"], "id": c["id"]}))
+    return c
+
+
 _vigia_ligado = False
 
 
@@ -499,7 +536,9 @@ def ligar_vigia():
     def laco():
         while True:
             try:
+                h.sincronizar_com_clickup()  # antes de qualquer aviso: o que ela já concluiu no ClickUp não é cobrado
                 _tique()
+                _tique_fixos()
             except Exception as erro:  # o vigia nunca pode derrubar o guardião
                 print("  (vigia da execução falhou:", erro, ")")
             time.sleep(15)
@@ -538,6 +577,10 @@ def responder_checkin(dados):
         bloco_id = (c or {}).get("bloco") or dados.get("bloco")
         if not bloco_id:
             return {"ok": False, "erro": "Não há aviso de tempo em aberto."}
+        if bloco_id == "fixo" and resposta in ("fixo_feito", "fixo_nao"):
+            titulo = (c or {}).get("titulo")
+            registrar_evento("checkin_fixo_resposta", {"id": "fixo", "titulo": titulo}, resposta="feito" if resposta == "fixo_feito" else "nao_fez")
+            return _fecho("Anotei." if resposta == "fixo_feito" else "Anotei. Fica para o fim do dia a gente ver onde encaixa.")
         if not c:  # a pessoa respondeu depois de o aviso sair da memória: segue valendo para o bloco citado
             c = CHECKIN = {"id": "tardio", "bloco": bloco_id, "titulo": dados.get("titulo"), "faltam": 0, "fim": None, "passo": "inicio", "quando": time.time(), "dados": {}}
         d = _ler_exec()
