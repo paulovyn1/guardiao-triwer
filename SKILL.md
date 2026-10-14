@@ -1,7 +1,7 @@
 ---
 name: guardiao-triwer
 description: Guardião do dia, gestor de projetos pessoal para infoprodutores e prestadores de serviço. Transforma responsabilidades em tarefas com dono, tempo, dia e hora, cria as tarefas no ClickUp, delega o que não é da pessoa com briefing pronto, acompanha o dia num painel local com voz e confere o dia no fim. Acionar quando o usuário chamar o guardião (ou o nome que deu a ele), pedir para planejar o dia ou a semana, montar a agenda, encaixar uma tarefa nos horários, dar prazo a uma tarefa, destrinchar uma tarefa grande em ações menores, disser que está travado numa tarefa complexa, trouxer um entregável com data, ou chamar no fim do dia para conferir o que foi feito. Acionar também no primeiro uso, quando ainda não existe configuração, para rodar o onboarding. Dois modos, planejar e destrinchar. NÃO acionar em conversas de copy, conteúdo, skills ou outros projetos.
-metadata: "v0.8.0, outubro 2026. Histórico em CHANGELOG.md."
+metadata: "v0.9.0, outubro 2026. Histórico em CHANGELOG.md."
 ---
 
 # Guardião do dia
@@ -166,7 +166,7 @@ Terminar sempre com o plano para aprovação. Depois do ok, gravar `plano_do_dia
 
 **O que o painel faz sozinho, sem o guardião do chat:**
 - Ao **aprovar o plano**, cria as tarefas dos blocos novos no ClickUp (com dono, início, fim e estimativa) e grava os `clickup_id`.
-- Ao **concluir** uma tarefa (o check na tela), conclui na hora no ClickUp (status do tipo closed da lista) e grava o horário real de início e fim na própria tarefa. Não pede frase nem escreve comentário. Reabrir desfaz.
+- Ao **concluir** uma tarefa (o check na tela), conclui na hora no ClickUp (status do tipo closed da lista). O início e o prazo combinados ficam intactos na tarefa; o horário real vai num comentário curto e assinado ("Realizado: das 9:00 às 10:15 (1 h 15 min)."). Não pede frase. Reabrir desfaz.
 - Grava `registros\registro_AAAA-MM-DD.json` a cada marcação.
 
 **Concluir pelo chat, modo automático e fim do dia:** ler `references/fechamento.md` quando o assunto for concluir uma tarefa pelo chat (inclui "já concluí X"), o plano gerado automaticamente ou a conferência do fim do dia.

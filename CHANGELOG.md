@@ -7,6 +7,27 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.9.0 - 2026-10-14
+- Na primeira abertura do dia, o guardião monta o plano, lê cada tarefa e pede o ok.
+- Aprovado o plano, entra em execução; a tarefa só conta a partir do Iniciar.
+- A voz sai inteira, sem picotar, em 1x, 1,5x ou 2x, e o Esc corta a voz.
+- O painel abre no Edge, como um aplicativo.
+
+## 0.8.2 - 2026-10-13
+- O plano automático já deixa pronto o rascunho de um trabalho do guardião que venceu.
+- A skill ficou mais leve: o fechamento do dia foi para um arquivo lido só quando precisa.
+- Stories, caixinha e material de aula podem ser criados direto na lista de conteúdo.
+
+## 0.8.1 - 2026-10-13
+- O aviso de versão nova ficou curto e o botão de atualizar sempre aparece.
+- Mais tempo e adiar pela voz, na hora, sem gastar o plano do Claude.
+- "Concluí" só pergunta quando há dúvida de qual tarefa é.
+- O prazo no ClickUp fica como estava. O horário realizado vira um comentário.
+- Replaneja sozinho quando o atraso não cabe mais no dia.
+- Suas regras pessoais valem também na conversa rápida.
+- Etapas de post viram subtarefas do post quando a ideia fica pronta.
+- Novo atalho atualizar_guardiao.bat, na pasta do guardião, para atualizar sem o painel.
+
 ## 0.8.0 - 2026-10-13
 Vem do uso diário do guardião de uma pessoa da equipe (07 a 13/10) e do relatório da primeira instalação fora da máquina de desenvolvimento. Fica em cima da 0.7.1: o resolvedor do Claude, a memória em arquivo, a saudação, a abertura, o status dos serviços e o modelo do plano não foram mexidos.
 - **O painel abre no navegador padrão da pessoa, no perfil dela.** Chrome e Edge abrem como janela de aplicativo (sem abas nem barra de endereço); Opera, Opera GX, Brave, Vivaldi, Firefox e os demais, numa aba do navegador que já está aberto (o Opera GX ignora a janela de aplicativo e abriria uma janela vazia; Brave e Vivaldi não foram conferidos). O guardião não cria mais perfil, não entra em conta, não liga sincronização e não mexe em extensão (a 0.7.0 abria um perfil do Edge só dele). A pasta `voz\perfil_edge` das versões anteriores é apagada na primeira abertura, se o Edge antigo não estiver usando. O som da abertura pode esperar o primeiro clique, porque o navegador não deixa uma página tocar sozinha. `janela_edge.py` virou `janela_painel.py`.
@@ -28,34 +49,29 @@ Vem do uso diário do guardião de uma pessoa da equipe (07 a 13/10) e do relat�
 - **Tarefa de conteúdo nunca nasce solta, e o app lê as regras locais.** Caso real de 13/10: o guardião criou tarefas soltas na lista de conteúdo (as etapas já existiam na tarefa mãe) depois de a pessoa ter corrigido isso, porque a sessão do app roda na pasta operacional e só leria `extensoes-*.md` e `aprendizados.md` se decidisse acionar a skill. Agora: (1) `clickup_create_task` na lista de conteúdo (`clickup.posts.lista`) sem `parent` é negado na sessão quando é etapa de post (nome começa com copy, design, manychat ou roteiro; stories, caixinha, material de aula e cronograma ficam soltos, são tarefas próprias), com a orientação de achar a mãe (`classificar`, em `guardiao_sessao.py`); (2) bloco de etapa de post com `lista_id` de conteúdo sem `pai` ou `post` não vira tarefa ao aprovar o plano, e o erro aparece na tela (`aprovar_plano`, em `hud_servidor.py`); (3) `extensoes-*.md` e `aprendizados.md` entram sempre no prompt da sessão (`_regras_locais`, em `guardiao_voz.py`). Sem a lista configurada a trava não bloqueia nada. Teste novo em `teste_sessao`.
 - **Bloco de ideias concluído lança as etapas dos posts.** Copy e design de um post que ainda não existe ficam como bloco reservado no plano (`reserva_post` = data da postagem, `etapa` = Copy ou Design), sem tarefa no ClickUp. Ao concluir o bloco de ideias, o app já media quantos posts nasceram; agora também troca cada reserva, pela data da postagem, por uma subtarefa real da mãe nova ("Copy | título do post"), no horário reservado, e grava o evento `etapas_lancadas` (criadas, posts sem reserva, reservas sem post). Nunca cria tarefa solta. Veio de um pedido da pessoa em 13/10 (o guardião chamava posts de "carrossel A, B, C" e criava tarefa de post que ainda não tinha tema). `posts_maes.lancar_etapas`, teste novo `teste_posts_etapas` (8 checagens, ClickUp falso). Não testado com o ClickUp de verdade.
 - **SKILL.md mais leve (26 KB para 24 KB).** Concluir tarefa pelo chat ("já concluí X"), modo automático e conferência do fim do dia saíram da seção 6 para `references/fechamento.md`, lido só quando o assunto pedir (o mesmo padrão do `references/painel.md`). Texto movido sem mudança. Medido em 13/10: uma conversa nova do painel abre com cerca de 40 mil tokens que são do próprio Claude Code (os conectores quase não pesam, porque as ferramentas chegam só como nomes); o que o guardião controla é o prompt dele, que caiu de 45 KB para cerca de 30 KB com as regras locais e o perfil enxutos.
+- **O vigia confere o ClickUp antes de cobrar.** O aviso de tempo só olhava o relógio e cobrava tarefa já concluída no ClickUp (caso de 14/10: caixinha concluída às 8h, cobrada às 8h55). Agora, nas viradas do plano (começo e fim de cada bloco, marcas de 30 e 10 min e uma passada ao abrir o app), o servidor renova o resumo com `ler_clickup.ps1` e fecha o bloco cuja tarefa já está concluída lá. Fora das viradas não há chamada. A mesma passada acha tarefa nova e o guardião pergunta se a pessoa quer replanejar (nunca replaneja sozinho). Compromisso fixo sem tarefa no ClickUp (triagem do WhatsApp) é perguntado uma vez depois do horário ("Fiz" ou "Não fiz"). `sincronizar_com_clickup` em `hud_servidor.py`; `_virada_do_plano`, `_avisar_tarefas_novas` e `_tique_fixos` em `guardiao_v2.py`; testes novos em `teste_v2_servidor`.
 - `.gitignore` com `memoria.md`, `extensoes-*.md` e `.repo-path`, para arquivos pessoais não irem ao repositório.
 - Testado: a suíte de `voz\testes` inteira (teste de tela rodado um por vez; dois deles oscilam quando o computador está ocupado e passam sozinhos), a abertura do painel de verdade no Chrome e no Edge, e o Opera GX de verdade (que mostrou que ele ignora o `--app`). Dois testes antigos foram ajustados ao novo comportamento: tarefa repetida concluída sem comentário de status e a janela do painel.
 - Ainda sem teste: o onboarding completo com uma pessoa real, o plano gerado com o perfil novo e o catálogo de POPs com POPs publicados. O SKILL.md está com cerca de 25 KB (meta: 20 KB).
+- O painel abre no seu navegador, no seu perfil.
+- POPs da escola prontos para instalar, sem configurar nada.
+- Planos com prioridade e conferidos antes de aparecer.
+- Marcar como feita fecha a tarefa na hora.
+- O microfone só liga quando você clica. A escuta contínua virou opção.
+- Não cria tarefa repetida no ClickUp.
+- Se uma ação pela voz falha, ele avisa.
 
 ## 0.7.1 - 2026-10-13
-- **Conta do Claude no limite ou sem login.** O guardião agora fala e escreve o motivo, em português e com o dia e a hora em que o limite volta ("Você atingiu o limite semanal do seu plano do Claude. Ele volta em 17 de outubro, às 19h."). Antes ficava mudo ou mostrava "o Claude não respondeu", e a sessão ainda tentava de novo pelo outro caminho, dobrando a espera para o mesmo erro.
-- **A voz não fica mais com pausas quando o computador está ocupado.** O Claude Code e os conectores que ele abre passam a rodar com prioridade abaixo do normal. Medido com a carga de uma partida dos conectores: a voz, gerada neste computador, levava 1,16 s para cada segundo de fala (mais devagar do que a fala, com pausas entre as frases) e passa a levar 0,52 s; parado, 0,41 s.
-- Na pausa entre duas frases da mesma resposta, a tela diz "Ainda respondendo", em vez de "Pensando".
-- O aviso de "Nova versão" funciona também para quem instalou clonando o repositório público (o guardião fica na raiz dele e a configuração antiga procurava uma subpasta).
-- Depois de fechar a janela no meio de uma fala, a fala seguinte não espera 3 segundos à toa.
-- Testado com o Claude de verdade: memória depois de reiniciar (pedir uma anotação, reiniciar o programa e perguntar o que foi combinado), resumo do dia, "Se apresente" no modo sessão com 8 conectores (primeira frase em 2,9 s), corte da fala no meio e a fala seguinte (1,8 s). Ainda sem teste: um computador mais fraco, com a geração de voz medida por `voz\diagnostico.bat`.
+- Avisa quando a conta do Claude está no limite ou sem login.
+- Voz sem pausas com o computador ocupado.
+- Volta a falar mais rápido depois de fechar a janela.
 
 ## 0.7.0 - 2026-10-13
-Correções que vieram da primeira instalação em um computador de fora da equipe de desenvolvimento.
-- **Claude Code instalado por npm funciona.** O guardião procurava o comando `claude` pelo nome puro, e o Windows não abre o `claude.cmd` do npm desse jeito: nenhuma fala funcionava e o instalador dizia que estava tudo certo. Agora há um só jeito de achar o Claude Code (instalador oficial, npm, npm fora do PATH ou extensão do VS Code), que confere se ele de fato executa, e vale para a voz, a sessão, o plano diário e o `-Verificar` do instalador.
-- **A janela do painel não entra mais na conta Microsoft.** Medido: um perfil novo do Edge entrava sozinho na conta do Windows e ligava a sincronização de favoritos, preenchimento automático e extensões dentro da pasta do guardião (uma extensão chegou a abrir uma segunda janela). Agora a janela abre sem conta, sem sincronização e sem extensões, e o perfil antigo que já tinha entrado é apagado e recriado limpo na próxima abertura (só o perfil do painel; o Edge da pessoa e os dados dela na nuvem não são tocados).
-- **Fechar a janela para a fala.** Se o guardião está falando e a última janela do painel fecha, ele para (inclusive a sessão do Claude Code, que é interrompida). O programa segue ouvindo "Ei guardião" em segundo plano. Página recarregada não corta a fala, e sem janela nenhuma (só voz) ele fala normalmente.
-- **A saudação tem prazo.** Se a saudação do Claude não chega em 18 segundos, entra um "Bom dia, <nome>." local, e ela nunca mais é dita tarde, "do nada". Falhando ou não, a saudação conta como feita (não repete no próximo reinício).
-- **A abertura animada só é gasta quando a pessoa a vê.** O carimbo agora é gravado quando a animação termina (ou é pulada), e uma janela que abre sozinha (tarefa agendada) espera o primeiro olhar, para a abertura e a saudação. Em Preferências, Comportamento, o botão "Rever a abertura".
-- **O guardião lembra da conversa mesmo com a "Conversa com memória" desligada.** As últimas 10 trocas ficam em arquivo (sobrevivem a reinício e a horas de intervalo, no mesmo dia) e vão junto de cada pergunta. Quando você fica uns minutos sem falar, o Claude (modelo leve, uma chamada curta de uns centavos) atualiza um resumo do dia: decisões, tarefas e prazos, pendências. "Nova conversa" zera tudo, e o resumo vale só no dia em que foi feito.
-- **Status dos serviços em tempo real.** Chave do Groq gravada com o guardião aberto liga o microfone em até 1 minuto, sem reiniciar; fone ligado depois e Claude Code instalado depois também passam a valer, e a tela mostra o estado de agora.
-- **Erro do Claude explicado.** Sem login ou no limite de uso, a tela diz o que fazer em vez de "o Claude não respondeu". O que o Claude Code escreve de erro fica em `logs\claude_erro.log`.
-- **Plano diário com modelo fixo** (Sonnet 5.5; `GUARDIAO_MODELO` troca), em vez do padrão da conta de quem instalou.
-- **Instalação em disco FAT32/exFAT ou pasta de rede**: o Python do guardião vai para `%LOCALAPPDATA%\GuardiaoDoDia` em vez de falhar ou cair em silêncio no Python do sistema.
-- **Ruído transcrito como palavra** ("Mãe.", "Obrigado." no silêncio) não gasta mais uma resposta.
-- **Descobrir onde está a demora:** cada resposta grava em `logs\latencia.jsonl` os tempos do Claude, da geração da voz e de cada frase, e o uso do computador. Novo `voz\diagnostico.bat` confere cada peça (Claude, voz, escuta, microfone, Groq, janela), diz o que fazer e escreve `logs\diagnostico.txt` para mandar a quem ajuda. O instalador também mede a velocidade da voz neste computador.
-- A sessão do Claude Code (Conversa com memória) fica aberta enquanto a janela do painel estiver aberta, em vez de fechar em 15 minutos parada: a fala depois de uma pausa não paga a partida de novo.
-- Testes que acompanham o guardião (`voz\testes`): resolvedor do Claude Code, janela do Edge, controle de fala, memória, abertura, instalação e os de antes. Ainda sem teste: uma conversa completa por microfone numa máquina nova, o disco FAT32 de verdade (só simulado) e o Claude Code dela com muitos conectores.
+- Funciona com o Claude Code instalado pelo npm.
+- Lembra da conversa do dia, mesmo depois de reiniciar.
+- Fechar a janela faz o guardião parar de falar.
+- A saudação não atrasa nem se repete.
+- Diagnóstico para descobrir onde está a demora.
 
 ## 0.6.2 - 2026-10-12
 - Corrigido: o botão "Nova versão" (o `atualizar.ps1`) falhava para quem instalou pelo zip do repositório público, porque a origem é um endereço do GitHub e o script a tratava como pasta.

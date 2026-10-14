@@ -140,16 +140,14 @@ PREFS_PADRAO = {
     "som_toques": True,        # clique em botões e itens
     "som_avisos": True,        # confirmação, erro, envio e o aviso de microfone aberto
     "som_abertura": True,      # a trilha da abertura
-    "abertura_animada": True,  # a animação de ~7 s ao abrir o app
-    "saudacao": True,          # o guardião cumprimenta ao abrir o app
     "mic_sempre_ligado": False,  # OPÇÃO: escuta contínua ("Ei guardião"). Desligada, o microfone só abre num clique e fecha no fim da gravação
     "escuta_aberta": True,     # o microfone reabre sozinho quando o guardião espera resposta (só vale com a escuta contínua)
     # painel novo (v2)
     "som_estados": True,       # sininhos enquanto ele pensa, ligando e desligando quando a conexão cai ou volta
     "voz_guardiao": True,      # o guardião fala em voz alta; desligado, ele só escreve (o microfone continua valendo)
-    "abrir_em_execucao": False,  # abre direto na tarefa de agora, sem passar pela tela só com a bolinha
-    "modo_leve": False,        # menos animação e bolinha 2D, para computador fraco
-    "vidro": True,             # painéis translúcidos com desfoque
+    "voz_velocidade": 1.0,     # 1, 1.5 ou 2 vezes
+    "execucao_ao_abrir": True,  # com o plano aprovado, as aberturas do dia vão direto para a tarefa de agora (substitui abrir_em_execucao, que nascia desligada)
+    "modo_leve": False,        # menos animação, sem vidro e bolinha 2D, para computador fraco
     "sessao": False,           # a conversa vira uma sessão do Claude Code: lembra do que foi dito e usa conectores, skills e agentes
     "bolinha": "N",            # N = Núcleo 3D, A = Relógio (o instrumento clássico)
 }
@@ -162,6 +160,8 @@ def _pref_valida(k, v):
         return v if isinstance(v, bool) else None
     if k == "volume":
         return round(min(1.0, max(0.0, float(v))), 2) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    if k == "voz_velocidade":
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and float(v) in (1.0, 1.5, 2.0) else None
     if k in PREFS_OPCOES:
         return v if v in PREFS_OPCOES[k] else None
     return None
@@ -344,6 +344,15 @@ def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, stat
     return entrada
 
 
+def texto_realizado(real, nota=""):
+    """A nota que vai no ClickUp ao concluir: o horário realizado (o combinado fica nos campos da tarefa) e, se houver, o que a pessoa contou."""
+    duracao = (_min(real["fim"]) - _min(real["inicio"])) % (24 * 60)
+    horas, minutos = divmod(duracao, 60)
+    tempo = (f"{horas} h " if horas else "") + (f"{minutos} min" if minutos or not horas else "")
+    texto = f"Realizado: das {real['inicio']} às {real['fim']} ({tempo.strip()})."
+    return texto + (f"\n{nota.strip()}" if (nota or "").strip() else "")
+
+
 def concluir_bloco(dados):
     """Conclui (ou reabre) um bloco do plano de hoje. Com tarefa no ClickUp: comenta, assinando, e muda o status."""
     plano = _plano_de_hoje()
@@ -370,14 +379,7 @@ def concluir_bloco(dados):
             return {"ok": False, "erro": "Não achei o token do ClickUp neste computador."}
         cab = {"Authorization": token}
         try:
-            datas = {}
-            if concluido:  # sem comentário de status: o horário real vira o início e o fim da própria tarefa
-                ini_dt = datetime.strptime(f"{plano['data']} {real['inicio']}", "%Y-%m-%d %H:%M").astimezone()
-                fim_dt = datetime.strptime(f"{plano['data']} {real['fim']}", "%Y-%m-%d %H:%M").astimezone()
-                if fim_dt <= ini_dt:  # atravessou a meia-noite
-                    fim_dt = datetime.fromtimestamp(fim_dt.timestamp() + 86400).astimezone()
-                datas = {"start_date": int(ini_dt.timestamp() * 1000), "start_date_time": True,
-                         "due_date": int(fim_dt.timestamp() * 1000), "due_date_time": True}
+            # o horário combinado (início e prazo) da tarefa fica intacto; o realizado vai num comentário, depois de mudar o status (decisão de produto, 13/10/2026)
             tarefa = requests.get(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, timeout=20)
             tarefa.raise_for_status()
             lista = requests.get(f"https://api.clickup.com/api/v2/list/{tarefa.json()['list']['id']}", headers=cab, timeout=20)
@@ -390,11 +392,17 @@ def concluir_bloco(dados):
                 alvo = next((s for s in estados if abertos and s.get("status") == abertos[0]), None) or next((s for s in estados if s.get("type") == "open"), None)
             if not alvo:
                 return {"ok": False, "erro": "A lista dessa tarefa não tem um status de destino."}
-            r = requests.put(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, json={"status": alvo["status"], **datas}, timeout=20)
+            r = requests.put(f"https://api.clickup.com/api/v2/task/{cid}", headers=cab, json={"status": alvo["status"]}, timeout=20)
             r.raise_for_status()
             status = alvo["status"]
         except requests.RequestException as erro:
             return {"ok": False, "erro": f"O ClickUp não aceitou: {erro}"}
+        if concluido:  # o realizado vira nota; se o comentário falhar, a tarefa continua concluída
+            try:
+                requests.post(f"https://api.clickup.com/api/v2/task/{cid}/comment", headers=cab, timeout=20,
+                              json={"comment_text": texto_realizado(real, nota) + f"\n\n{assinatura()}"}).raise_for_status()
+            except requests.RequestException as erro:
+                print("  (concluí no ClickUp, mas o comentário com o horário realizado não foi:", erro, ")")
     _gravar_registro(plano, bloco, "feito" if concluido else "pendente", real, bool(dados.get("nao_confirmado")), status)
     try:  # fecha a sessão do modo execução e soma o tempo real por tipo de tarefa
         _v2().ao_concluir(bloco, real, bool(dados.get("nao_confirmado")), concluido)
@@ -630,6 +638,10 @@ def aprovar_plano():
         json.dump(plano, f, ensure_ascii=False, indent=2)
     HISTORICO_PLANO.clear()
     bus.emitir("plano")
+    try:  # aprovou, entra em execução sozinho (a tarefa só começa a contar quando a pessoa clica em Iniciar)
+        _v2().entrar()
+    except Exception as erro:
+        print("  (não consegui entrar em execução depois de aprovar:", erro, ")")
     return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros}
 
 
@@ -1272,14 +1284,17 @@ class Pedido(BaseHTTPRequestHandler):
             return self._json(202, {"ok": True})
         if caminho == "/preferencias":
             return self._json(200, salvar_preferencias(dados))
-        if caminho == "/saudacao":  # a tela pede a saudação (fase 'preparar', no começo da abertura) e libera a fala (fase 'liberar', no fim dela)
+        if caminho == "/saudacao":  # a tela pede a abertura do dia (fase 'preparar', no começo da animação) e libera a fala (fase 'liberar', no fim dela)
             fase = str(dados.get("fase") or "preparar")
             if fase == "liberar":
                 bus.portao_saudacao.set()
             else:
                 bus.portao_saudacao.clear()
-                bus.comandos.put(("saudacao", bool(dados.get("forcar"))))
+                bus.comandos.put(("abertura", {"primeira": bool(dados.get("primeira"))}))
             return self._json(202, {"ok": True})
+        if caminho == "/esc":  # Esc no painel: tira uma camada por vez (leitura do plano, voz, resposta, trabalho em segundo plano)
+            import controle_fala
+            return self._json(200, {"ok": True, "camada": controle_fala.esc()})
         if caminho == "/concluir":
             return self._json(200, concluir_bloco(dados))
         if caminho == "/adiar":

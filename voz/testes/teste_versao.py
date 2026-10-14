@@ -68,7 +68,7 @@ confere("o prompt explica as pendências e o guardião completo", "PENDÊNCIAS" 
 confere("a frase antiga sobre a skill completa desligada saiu", "ainda nao esta ligada" not in prompt and "skill completa" not in prompt)
 config(pessoa={"nome": "Rafa Lima", "artigo": "o"}, agente={"nome": "Guardião", "assinatura": "Guardião do Rafa"})
 confere("assinatura escolhida no config vale", h.assinatura() == "— Guardião do Rafa", h.assinatura())
-confere("saudação cita a pessoa com o artigo", "Cumprimente o Rafa" in g.pedido_saudacao(), g.pedido_saudacao()[:160])
+confere("a abertura do dia cumprimenta pelo primeiro nome", g.saudacao_local().endswith(", Rafa."), g.saudacao_local())
 config(pessoa={})
 confere("sem nome no config nada quebra", h.pessoa()["o"] == "a pessoa" and "Fulano" not in g.prompt_sistema())
 config(pessoa={"nome": "Rafa Lima", "artigo": "o"})
@@ -209,7 +209,15 @@ CHANGELOG = """# Changelog
 """
 confere("versões se comparam por número, não por texto", at._num("0.10.0") > at._num("0.9.3") and at._num("v1.2") == (1, 2, 0))
 notas = at.notas_desde(CHANGELOG, "0.3.0", "0.4.0")
-confere("notas: só as versões mais novas que a instalada, a mais recente primeiro", [n["versao"] for n in notas] == ["0.4.0", "0.3.1"] and notas[0]["critica"] and notas[0]["itens"][0] == "Novidade grande da quatro.", notas)
+confere("notas: só as versões mais novas que a instalada, a mais recente primeiro", [n["versao"] for n in notas] == ["0.4.0", "0.3.1"] and notas[0]["critica"] and notas[0]["itens"][0] == "Novidade grande da quatro", notas)
+confere("o aluno vê só o título curto de cada mudança: o negrito, ou a primeira frase; nota interna de teste fica de fora",
+        at.titulo_da_mudanca("- **Mais tempo pela voz.** Detalhe técnico longo que o aluno não precisa ler.") == "Mais tempo pela voz"
+        and at.titulo_da_mudanca("- Corrigido: o botão falhava. E mais detalhes.") == "Corrigido: o botão falhava"
+        and at.titulo_da_mudanca("- Testado: a suíte inteira.") == "" and at.titulo_da_mudanca("- Ainda sem teste: o microfone.") == ""
+        and len(at.titulo_da_mudanca("- " + "palavra " * 40)) <= 93)
+longo = "## 0.5.0 - 2026-11-10\n" + "".join(f"- Item {i}.\n" for i in range(9)) + "## 0.4.9 - 2026-11-09\n- a.\n## 0.4.8 - 2026-11-08\n- b.\n## 0.4.7 - 2026-11-07\n- c.\n"
+notas_longas = at.notas_desde(longo, "0.4.0", "0.5.0")
+confere("no máximo 3 versões e 4 mudanças por versão no cartão", len(notas_longas) == 3 and len(notas_longas[0]["itens"]) == 4, notas_longas)
 
 with open(os.path.join(tmp, "VERSION"), "w", encoding="utf-8") as f:
     f.write("0.3.0\n")

@@ -38,19 +38,22 @@ def tipos():
 
 # ---------------- sessão e plano
 s = v2.sessao()
-confere("sessão: primeira abertura do dia pede a animação completa", s["abertura"] is True and s["pessoa"] == "Rafa")
+confere("sessão: primeira abertura do dia pede a animação e diz que é a primeira do dia", s["abertura"] is True and s["primeira_do_dia"] is True and s["pessoa"] == "Rafa")
 v2.sessao(marcar=True)
-confere("sessão: reaberta logo depois, não repete a abertura", v2.sessao()["abertura"] is False)
+confere("sessão: reaberta logo depois, a animação roda de novo, mas já não é a primeira do dia", v2.sessao()["abertura"] is True and v2.sessao()["primeira_do_dia"] is False)
 with open(os.path.join(tmp, "logs", "abertura.json"), "w") as f:
-    json.dump({"ts": time.time() - 4 * 3600}, f)
-confere("sessão: reaberta depois de 3 horas, repete a abertura", v2.sessao()["abertura"] is True)
+    json.dump({"ts": time.time() - 30 * 3600}, f)
+confere("sessão: aberta num dia novo, volta a ser a primeira do dia", v2.sessao()["primeira_do_dia"] is True)
 p = h.montar_plano()
 confere("plano traz o estado da execução e a hora do servidor", p["agora"] == "09:50" and p["execucao"]["ativo"] is False)
 confere("bloco atual é o primeiro pendente", v2.bloco_atual()["id"] == "b3")
 
 # ---------------- modo execução e avisos de tempo
 r = v2.entrar()
-confere("entrar em execução abre a sessão do bloco de agora", r["ativo"] and r["sessao"] and r["sessao"]["bloco"] == "b3" and r["sessao"]["aberto"])
+confere("entrar em execução no horário da tarefa NÃO a inicia sozinho (só o clique em Iniciar)", r["ativo"] and r["sessao"] is None and not v2.comecou(v2._ler_exec(), "b3"), r)
+confere("sem a tarefa iniciada, o relógio não cobra nada", v2._tique() is None and not v2.CHECKIN)
+r = v2.acao_execucao({"acao": "iniciar"})
+confere("Iniciar abre a sessão do bloco de agora", r["ativo"] and r["sessao"] and r["sessao"]["bloco"] == "b3" and r["sessao"]["aberto"] and r["sessao"]["inicio"] == "09:50", r)
 confere("a tela é avisada", any(e["t"] == "execucao" and e["ativo"] for e in tipos()))
 confere("sem aviso de tempo no instante em que entra", v2._tique() is None and not v2.CHECKIN)
 relogio.hora = "10:01"
@@ -90,7 +93,14 @@ comandos()
 # ---------------- concluir alimenta os tempos por tipo
 relogio.hora = "11:05"
 r = h.concluir_bloco({"id": "b3", "concluido": True, "nota": "Campanhas no ar.", "inicio": "09:50", "fim": "11:05"})
-confere("concluir pelo servidor fecha a tarefa sem comentário e grava início e fim reais", r["ok"] and not any(m == "POST" and "comment" in u for m, u, _ in B.ClickUpFalso.chamadas) and any(m == "PUT" and isinstance(c, dict) and "start_date" in c and "due_date" in c and c.get("status") == "complete" for m, u, c in B.ClickUpFalso.chamadas))
+confere("concluir fecha a tarefa sem mexer no início nem no prazo combinados",
+        r["ok"] and any(m == "PUT" and isinstance(c, dict) and c.get("status") == "complete" and "start_date" not in c and "due_date" not in c for m, u, c in B.ClickUpFalso.chamadas))
+comentarios = [c for m, u, c in B.ClickUpFalso.chamadas if m == "POST" and "cid3/comment" in u]
+confere("o horário realizado vai num comentário, com o que a pessoa contou e a assinatura",
+        len(comentarios) == 1 and comentarios[0]["comment_text"].startswith("Realizado: das 09:50 às 11:05 (1 h 15 min).\nCampanhas no ar.") and "Guardião" in comentarios[0]["comment_text"], comentarios)
+confere("texto do realizado: só minutos, hora cheia e passando da meia-noite",
+        h.texto_realizado({"inicio": "09:00", "fim": "09:40"}) == "Realizado: das 09:00 às 09:40 (40 min)." and h.texto_realizado({"inicio": "09:00", "fim": "11:00"}) == "Realizado: das 09:00 às 11:00 (2 h)."
+        and h.texto_realizado({"inicio": "23:30", "fim": "00:10"}) == "Realizado: das 23:30 às 00:10 (40 min).")
 tempos = h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]
 reg = tempos["Tráfego"]["registros"][-1]
 confere("tempos.json recebe o tempo medido (75 min) contra o planejado (90)", reg["real"] == 75 and reg["planejado"] == 90 and reg["confirmado"] is True, reg)
@@ -99,6 +109,9 @@ ex = h._ler_json(v2._arq_exec())
 s3 = next(s for s in ex["sessoes"] if s["bloco"] == "b3")
 confere("a sessão guarda avisos, extensão e resultado", s3["resultado"] == "concluido" and len(s3["checkins"]) == 3 and s3["extensoes"][0]["motivo"] == "Interrupções", s3)
 confere("o próximo bloco vira o atual", v2.bloco_atual()["id"] == "b4")
+confere("e ele não começa sozinho depois de concluir o anterior", not v2.comecou(v2._ler_exec(), "b4") and v2.estado_exec()["sessao"] is None)
+v2.acao_execucao({"acao": "iniciar"})
+confere("a pessoa clica em Iniciar e o relógio do b4 começa a contar", v2.comecou(v2._ler_exec(), "b4") and v2.estado_exec()["sessao"]["inicio"] == "11:05")
 
 # ---------------- reprogramar com motivo
 confere("bloco que começa depois do horário dele não é cobrado na largada", v2._tique() is None and not v2.CHECKIN)  # b4 era 10:30-11:00
@@ -118,7 +131,8 @@ comandos()
 
 # ---------------- imprevisto
 relogio.hora = "11:37"
-v2._tique()  # abre a sessão do b5 (11:00-12:00)
+confere("o b5 também espera o clique", v2._tique() is None and not v2.comecou(v2._ler_exec(), "b5"))
+v2.acao_execucao({"acao": "iniciar"})  # a pessoa inicia o b5 (11:00-12:00)
 relogio.hora = "11:41"
 c = v2._tique()
 confere("b5 (60 min): entrou tarde, avisa com o tempo que falta de verdade", bool(c) and c["bloco"] == "b5" and c["faltam"] == 19, c)
@@ -160,6 +174,7 @@ confere("voz: frase longa com 'modo execução' segue para o Claude", g.comando_
 
 # ---------------- marcas do Claude para a execução
 v2.entrar()
+confere("tarefa já iniciada e pausada (saiu da execução) volta a contar ao entrar de novo", v2.estado_exec()["sessao"] and v2.estado_exec()["sessao"]["aberto"])
 relogio.hora = "12:06"
 v2._tique()
 c = v2._tique() or v2.CHECKIN

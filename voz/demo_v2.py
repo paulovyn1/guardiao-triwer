@@ -69,9 +69,9 @@ def atender():
             falar(valor.get("texto") or "")
         elif tipo == "dizer" and valor:
             falar(str(valor))
-        elif tipo == "saudacao":
+        elif tipo == "abertura":
             h.bus.portao_saudacao.wait(timeout=15)
-            falar("Olá. Este é um dia de exemplo. Entre no modo execução para ver como eu acompanho o tempo da tarefa.")
+            falar("Olá. Este é um dia de exemplo. Toque em Iniciar na tarefa de agora para ver como eu acompanho o tempo dela.")
         elif tipo in ("roteiro", "ditar", "acionar"):
             falar("Na demonstração o microfone fica desligado. Use os botões e o campo de texto.")
 
@@ -79,5 +79,5 @@ def atender():
 if not h.iniciar_servidor(PORTA):
     raise SystemExit(f"A porta {PORTA} está ocupada. Feche a outra demonstração e tente de novo.")
 threading.Thread(target=atender, daemon=True).start()
-janela_painel.abrir(f"http://localhost:{PORTA}/v2/?abertura=1")  # o mesmo jeito de abrir do painel de verdade: navegador padrão, perfil da pessoa
+janela_painel.abrir(f"http://localhost:{PORTA}/v2/?abertura=1")  # o mesmo jeito de abrir do painel de verdade: Edge em janela de aplicativo, perfil da pessoa
 time.sleep(1800)  # fecha sozinha em 30 minutos

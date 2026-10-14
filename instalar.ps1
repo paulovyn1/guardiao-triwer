@@ -64,7 +64,7 @@ try {
         if (-not (Test-Path $PastaSkill)) { New-Item -ItemType Directory -Path $PastaSkill -Force | Out-Null }
         $a = @($origem, $PastaSkill, '/E', '/R:2', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS', '/NP',
                '/XD', '.git', 'node_modules', '__pycache__', '.venv', 'modelo', 'kokoro', 'perfil_edge', 'capturas', 'amostras', '.ferramentas',
-               '/XF', 'memoria.md', 'NOTAS-PARA-INSTALADOR.md', '.repo-path', 'extensoes-*.md', '*.pyc', 'preferencias.json', 'pronuncias.json')
+               '/XF', 'memoria.md', 'NOTAS-PARA-INSTALADOR.md', 'HISTORICO-DETALHADO.md', '.repo-path', 'extensoes-*.md', '*.pyc', 'preferencias.json', 'pronuncias.json')
         & robocopy @a | Out-Null
         if ($LASTEXITCODE -ge 8) { throw "Não consegui copiar a skill para $PastaSkill (robocopy $LASTEXITCODE)." }
         Get-ChildItem $PastaSkill -Recurse -File -Include *.ps1, *.bat, *.py -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue

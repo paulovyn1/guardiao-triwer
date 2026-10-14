@@ -46,8 +46,7 @@ for frase in ["me ajuda a planejar a semana", "o que você acha de começar pelo
     confere(f"padrão (pensar): '{frase}'", m == P, (m, motivo))
 m, _ = g.escolher_modelo("um dois três quatro cinco seis sete oito nove dez onze doze treze quatorze quinze dezesseis dezessete dezoito dezenove vinte vinte e um vinte e dois vinte e três vinte e quatro vinte e cinco vinte e seis vinte e sete vinte e oito vinte e nove trinta e um")
 confere("fala muito comprida vai para o padrão", m == P)
-m, motivo = g.escolher_modelo("", saudacao=True)
-confere("a saudação é sempre do padrão (texto novo todo dia)", m == P and "saudação" in motivo, (m, motivo))
+confere("a abertura do dia não chama o Claude: a saudação saiu do escolher_modelo", "saudacao" not in g.escolher_modelo.__code__.co_varnames)
 
 # estado da conversa
 g.REVISAO = {"inicio": time.time(), "ultimo": time.time()}

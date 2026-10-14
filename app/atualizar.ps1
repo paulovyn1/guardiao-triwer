@@ -197,7 +197,7 @@ try {
         $feitas[$real.ToLower()] = $true
         $semPastas = @('.git', 'node_modules', '__pycache__', '.venv', 'modelo', 'kokoro', 'perfil_edge', 'capturas', 'amostras')
         if (-not (Test-Path (Join-Path $real 'voz'))) { $semPastas += 'voz' }  # a cópia do programa só acompanha a skill onde o instalador a deixou
-        Robo $fonte $real $semPastas @('memoria.md', 'NOTAS-PARA-INSTALADOR.md', '.repo-path', 'extensoes-*.md', '*.pyc', 'preferencias.json', 'pronuncias.json')
+        Robo $fonte $real $semPastas @('memoria.md', 'NOTAS-PARA-INSTALADOR.md', 'HISTORICO-DETALHADO.md', '.repo-path', 'extensoes-*.md', '*.pyc', 'preferencias.json', 'pronuncias.json')
         foreach ($velho in 'app\servidor_tela.ps1', 'app\tela_modelo.html') { Remove-Item (Join-Path $real $velho) -Force -ErrorAction SilentlyContinue }
     }
 

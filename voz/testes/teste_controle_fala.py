@@ -1,10 +1,12 @@
-"""Controle da fala (0.7.0), sem navegador, sem o Claude de verdade e sem áudio: fechar a janela no meio da resposta para a fala (e a sessão do
-Claude Code é interrompida, sem deixar sobra para a fala seguinte); voz sem janela e página recarregada não param; a saudação tem prazo e cai na frase
-local; o erro do Claude (sem login) vira uma frase que a pessoa entende; e os tempos de cada frase ficam em logs\\latencia.jsonl."""
+"""Controle da fala, sem navegador, sem o Claude de verdade e sem áudio: a voz só toca com a resposta inteira pronta (0.9), numa saída só;
+fechar a janela no meio para a fala (e a sessão do Claude Code é interrompida, sem deixar sobra para a fala seguinte); voz sem janela e página
+recarregada não param; Esc em camadas (voz, resposta, trabalho em segundo plano); velocidade trocada no meio da fala; o erro do Claude (sem login)
+vira uma frase que a pessoa entende; e os tempos de cada frase ficam em logs\\latencia.jsonl."""
 import argparse
 import ctypes
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -33,25 +35,52 @@ def confere(nome, ok, detalhe=""):
 tmp = tempfile.mkdtemp(prefix="gv_oper_cf_")
 h.OPER = tmp
 g.OPER = tmp
-g.SAUDACAO_ARQ = os.path.join(tmp, "logs", "saudacao.json")
 os.makedirs(os.path.join(tmp, "logs"), exist_ok=True)
 with open(os.path.join(tmp, "config.json"), "w", encoding="utf-8") as f:
     json.dump({"pessoa": {"nome": "Rafa Lima", "artigo": "o"}, "agente": {"nome": "Guardião"}}, f)
 
 
-class SdFalso:
-    """O som de mentira: só conta o que foi tocado e quantas vezes mandaram parar."""
-    def __init__(self):
-        self.tocadas, self.paradas = [], 0
+class TocadorFalso:
+    """O som de mentira: toca no tempo do relógio (sem placa de som) e guarda o que aconteceu."""
+    criados, paradas, velocidades = [], [], []
 
-    def play(self, amostras, taxa):
-        self.tocadas.append(round(len(amostras) / taxa, 2))
+    def __init__(self, amostras, taxa, fator=1.0):
+        self.dur = len(amostras) / taxa
+        self.fator = float(fator)
+        self.t0 = None
+        self.base = 0.0  # segundos do áudio original já tocados antes da última troca de velocidade
+        self.fim = threading.Event()
+        self.taxa = taxa
+        self.inicio_em = None
+        TocadorFalso.criados.append(self)
 
-    def wait(self):
-        pass
+    def iniciar(self):
+        self.t0 = self.inicio_em = time.time()
+        threading.Thread(target=self._acabar, daemon=True).start()
 
-    def stop(self):
-        self.paradas += 1
+    def _orig(self):
+        return min(self.dur, self.base + (time.time() - self.t0) * self.fator) if self.t0 else 0.0
+
+    def _acabar(self):
+        while not self.fim.is_set():
+            if self._orig() >= self.dur:
+                self.fim.set()
+            time.sleep(0.01)
+
+    def posicao(self):
+        return int(self._orig() * self.taxa)
+
+    def mudar_velocidade(self, fator):
+        self.base, self.t0, self.fator = self._orig(), time.time(), float(fator)
+        TocadorFalso.velocidades.append(float(fator))
+
+    def nivel(self):
+        return 0.3
+
+    def parar(self):
+        if not self.fim.is_set():
+            TocadorFalso.paradas.append(round(self._orig(), 2))
+        self.fim.set()
 
 
 class KokoroFalso:
@@ -61,14 +90,13 @@ class KokoroFalso:
 
 
 responder_original, dizer_original, preferencias_original = g.responder_falando, g.dizer, g.preferencias
-sd = SdFalso()
-g.sd = sd
-controle_fala.sd = sd
+g.TOCADOR = TocadorFalso
 g._kokoro = KokoroFalso()
 controle_fala.GRACA_JANELA = 0.4
 eventos = []
 emitir_original = h.bus.emitir
 h.bus.emitir = lambda tipo, /, **d: (eventos.append((tipo, d)), emitir_original(tipo, **d))[1]
+ultima_frase = [0.0]
 
 
 def fonte(n, espera=0.2, antes=0.0):
@@ -76,6 +104,7 @@ def fonte(n, espera=0.2, antes=0.0):
     def gerar():
         time.sleep(antes)
         for i in range(n):
+            ultima_frase[0] = time.time()
             yield f"Frase número {i + 1} da resposta."
             time.sleep(espera)
     return gerar
@@ -100,24 +129,33 @@ def ultima_linha_do_log():
     return linhas[-1] if linhas else {}
 
 
+# ---------------- a voz só toca com a resposta inteira pronta, numa saída só ----------------
+TocadorFalso.criados.clear()
+t, saida = rodar_em_thread(fonte=fonte(4))
+t.join(10)
+toc = TocadorFalso.criados[-1] if TocadorFalso.criados else None
+confere("a resposta de 4 frases toca numa saída só (sem buraco entre as frases)", len(TocadorFalso.criados) == 1 and toc and abs(toc.dur - 2.4) < 0.05, [round(x.dur, 2) for x in TocadorFalso.criados])
+confere("e só começa a tocar depois que a última frase chegou", toc and toc.inicio_em >= ultima_frase[0], (toc and toc.inicio_em, ultima_frase[0]))
+confere("o texto inteiro sai como a resposta", saida.get("r") and saida["r"][2].count("Frase número") == 4, saida)
+
 # ---------------- janela fechada no meio da resposta ----------------
+TocadorFalso.paradas.clear()
 janela = h.bus.assinar()  # a janela do painel está aberta
-t0 = time.time()
 t, saida = rodar_em_thread(fonte=fonte(8))
-time.sleep(1.3)  # já disse umas duas frases
+time.sleep(3.0)  # 1,6 s juntando as 8 frases e, depois, uns 1,4 s tocando: umas duas frases ditas
 h.bus.sair(janela)  # a pessoa fecha a janela
 t.join(10)
 primeira, total, falado = saida.get("r", (None, None, ""))
 n_ditas = falado.count("Frase número")
-confere("fechar a janela no meio da resposta para a fala (disse só parte das 8 frases)", not t.is_alive() and 1 <= n_ditas <= 4, (n_ditas, saida))
-confere("a fala parou logo (bem antes das 8 frases inteiras, que levariam uns 8 s)", total is not None and total < 3.5, total)
-confere("o som foi mandado parar", sd.paradas >= 1, sd.paradas)
+confere("fechar a janela no meio da resposta para a fala (disse só parte das 8 frases)", not t.is_alive() and 1 <= n_ditas <= 5, (n_ditas, saida))
+confere("a fala parou logo (bem antes das 8 frases inteiras, que levariam uns 6,4 s)", total is not None and total < 4.6, total)
+confere("o som foi mandado parar", len(TocadorFalso.paradas) >= 1, TocadorFalso.paradas)
 confere("fica marcado que a fala foi parada, no registro de tempos", ultima_linha_do_log().get("parado") is True, ultima_linha_do_log())
 confere("o que já foi dito aparece na tela como a resposta", any(tp == "guardiao_fim" and "Frase número 1" in d.get("texto", "") for tp, d in eventos))
 confere("depois de parar, nada continua marcado como falando", not controle_fala.FALANDO.is_set())
 
 # ---------------- a fala seguinte começa limpa ----------------
-sd.paradas = 0
+TocadorFalso.paradas.clear()
 t, saida = rodar_em_thread(fonte=fonte(3))
 t.join(10)
 confere("a resposta seguinte sai inteira (o 'parar' não fica preso)", saida.get("r") and saida["r"][2].count("Frase número") == 3, saida)
@@ -125,7 +163,7 @@ confere("a resposta seguinte sai inteira (o 'parar' não fica preso)", saida.get
 # ---------------- só voz, sem janela: não para ----------------
 t, saida = rodar_em_thread(fonte=fonte(5))
 t.join(15)
-confere("sem nenhuma janela aberta (só voz), a resposta sai inteira", saida.get("r") and saida["r"][2].count("Frase número") == 5 and sd.paradas == 0, saida)
+confere("sem nenhuma janela aberta (só voz), a resposta sai inteira", saida.get("r") and saida["r"][2].count("Frase número") == 5 and not TocadorFalso.paradas, saida)
 j2 = h.bus.assinar()
 h.bus.sair(j2)  # a janela abriu e fechou antes de qualquer fala
 time.sleep(0.7)
@@ -136,7 +174,7 @@ confere("janela que fechou ANTES da resposta não impede a fala", saida.get("r")
 # ---------------- página recarregada: a conexão volta logo e a fala continua ----------------
 j3 = h.bus.assinar()
 t, saida = rodar_em_thread(fonte=fonte(6))
-time.sleep(1.0)
+time.sleep(2.0)
 h.bus.sair(j3)
 time.sleep(0.15)
 j3b = h.bus.assinar()  # a página recarregou dentro do prazo de tolerância
@@ -148,13 +186,14 @@ time.sleep(0.6)
 # ---------------- as frases fixas (dizer) também param ----------------
 a = argparse.Namespace(cerebro=True, voz="kokoro", voz_kokoro="pm_santa", voz_nome="", sem_preview=True, previa_local=True, sem_escuta_aberta=False)
 j4 = h.bus.assinar()
-tocadas_antes = len(sd.tocadas)
+TocadorFalso.criados.clear()
+TocadorFalso.paradas.clear()
 th = threading.Thread(target=lambda: g.dizer("Uma frase. Outra frase. Mais uma frase. E a última frase.", a))
 th.start()
 time.sleep(0.9)
 h.bus.sair(j4)
 th.join(10)
-confere("uma frase fixa (dizer) também para quando a janela fecha", not th.is_alive() and len(sd.tocadas) - tocadas_antes < 4, len(sd.tocadas) - tocadas_antes)
+confere("uma frase fixa (dizer) toca de uma vez e também para quando a janela fecha", not th.is_alive() and len(TocadorFalso.criados) == 1 and TocadorFalso.paradas, (len(TocadorFalso.criados), TocadorFalso.paradas))
 time.sleep(0.6)
 
 # ---------------- registro de tempos ----------------
@@ -162,66 +201,106 @@ t, saida = rodar_em_thread(fonte=fonte(3), modo="rapido", motivo="teste")
 t.join(10)
 linha = ultima_linha_do_log()
 nomes = [p[1] for p in linha.get("passos", [])]
-confere("o registro de tempos guarda, por frase, a chegada, a geração da voz e o toque", nomes.count("frase") == 3 and nomes.count("sintese_fim") == 3 and nomes.count("toque_fim") == 3, nomes)
+confere("o registro de tempos guarda, por frase, a chegada e a geração da voz, e o toque da resposta", nomes.count("frase") == 3 and nomes.count("sintese_fim") == 3 and nomes.count("toque_fim") == 1, nomes)
 sint = [p[2] for p in linha.get("passos", []) if p[1] == "sintese_fim"]
 confere("cada geração de voz diz quanto tempo de fala saiu e quanto tempo levou (a base do fator de tempo real)", sint and all("fala" in x and "gasto" in x for x in sint), sint)
 confere("o registro traz modo, tempo total e uso do computador", linha.get("modo") == "rapido" and linha.get("total", 0) > 0 and "cpu_pct" in linha, linha)
 
-# ---------------- a saudação tem prazo ----------------
+# ---------------- prazo da primeira fala ----------------
 inicio = time.time()
 try:
-    g.responder_falando("p", "pm_santa", fonte=fonte(2, antes=3.0), limite_primeira=0.8, modo="saudacao")
+    g.responder_falando("p", "pm_santa", fonte=fonte(2, antes=3.0), limite_primeira=0.8, modo="rapido")
     estourou = False
 except TimeoutError:
     estourou = True
-confere("saudação que não chega no prazo é abandonada em cerca de 1 s (não espera os 3 s do Claude)", estourou and time.time() - inicio < 2.2, time.time() - inicio)
+confere("resposta que não começa no prazo é abandonada em cerca de 1 s (não espera os 3 s do Claude)", estourou and time.time() - inicio < 2.2, time.time() - inicio)
 time.sleep(0.5)
 confere("e o Claude dela não fica falando 'do nada' depois", not controle_fala.FALANDO.is_set())
 
-ditas, registradas = [], []
+# ---------------- Esc em camadas ----------------
+h.salvar_preferencias({"voz_guardiao": True})
+eventos.clear()
+t, saida = rodar_em_thread(fonte=fonte(5, espera=0.05))
+time.sleep(1.3)  # já juntou tudo e está tocando
+camada = controle_fala.esc()
+t.join(10)
+confere("Esc com a voz tocando: corta a voz", camada == "voz" and TocadorFalso.paradas, (camada, TocadorFalso.paradas))
+confere("e o resto da resposta aparece inteiro, em texto", saida.get("r") and saida["r"][2].count("Frase número") == 5 and any(tp == "guardiao_fim" and "Frase número 5" in d.get("texto", "") for tp, d in eventos), saida)
+confere("e a voz fica desligada até a pessoa religar", h.preferencias()["voz_guardiao"] is False and not g.voz_ligada())
+h.salvar_preferencias({"voz_guardiao": True})
+TocadorFalso.paradas.clear()
+# resposta que ainda chega devagar: o 1º Esc corta a voz, o 2º cancela o resto
+
+
+def fonte_em_duas_partes():
+    yield "Frase número 1 da resposta."
+    yield ("permissao", {"id": "x", "espera": threading.Event()})  # uma pausa no meio, como um pedido de permissão: o que veio antes toca
+    time.sleep(3.0)
+    for i in range(2, 6):
+        yield f"Frase número {i} da resposta."
+
+
+t, saida = rodar_em_thread(fonte=fonte_em_duas_partes, pedir=lambda pedido: ("nao", ""))
+time.sleep(0.4)
+c1 = controle_fala.esc()
+time.sleep(0.3)
+c2 = controle_fala.esc()
+t.join(10)
+falado2 = saida.get("r", (0, 0, ""))[2]
+confere("1º Esc corta a voz; 2º Esc cancela o resto que ainda estava chegando", c1 == "voz" and c2 == "resposta" and "Frase número 5" not in falado2, (c1, c2, falado2))
+h.salvar_preferencias({"voz_guardiao": True})
+t, saida = rodar_em_thread(fonte=fonte(2, antes=3.0))
+time.sleep(0.5)
+inicio = time.time()
+c = controle_fala.esc()
+t.join(10)
+confere("Esc enquanto ele pensa: cancela a resposta na hora", c == "resposta" and time.time() - inicio < 1.5 and not saida.get("r", (0, 0, "x"))[2], (c, saida))
+confere("Esc sem nada acontecendo não faz nada", controle_fala.esc() == "nada")
+proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+controle_fala.registrar_fundo(proc)
+c = controle_fala.esc()
+proc.wait(5)
+controle_fala.esquecer_fundo(proc)
+confere("Esc sem nada em primeiro plano para o trabalho em segundo plano", c == "segundo_plano" and proc.returncode is not None and controle_fala.FUNDO_CANCELADO.is_set(), (c, proc.returncode))
+controle_fala.FUNDO_CANCELADO.clear()
+
+# ---------------- velocidade trocada no meio da fala ----------------
+h.salvar_preferencias({"voz_velocidade": 1.0})
+TocadorFalso.velocidades.clear()
+TocadorFalso.criados.clear()
+t, saida = rodar_em_thread(fonte=fonte(6, espera=0.02))
+time.sleep(1.0)
+h.salvar_preferencias({"voz_velocidade": 2})
+t.join(10)
+toc = TocadorFalso.criados[-1] if TocadorFalso.criados else None
+confere("trocar para 2x no meio da fala acelera o que falta", 2.0 in TocadorFalso.velocidades, TocadorFalso.velocidades)
+confere("e a resposta termina antes do tempo normal (3,6 s em 1x)", toc and time.time() - toc.inicio_em < 3.4 and saida.get("r") and saida["r"][2].count("Frase número") == 6, toc and time.time() - toc.inicio_em)
+TocadorFalso.criados.clear()
+t, saida = rodar_em_thread(fonte=fonte(2))
+t.join(10)
+gerado = []
+g._kokoro = type("K", (), {"create": lambda self, texto, voice=None, speed=1.0, lang=None: (gerado.append(speed), (np.zeros(2400, dtype="float32"), 24000))[1]})()
+t, saida = rodar_em_thread(fonte=fonte(1))
+t.join(10)
+confere("com 2x escolhido, a voz já nasce em 2x (sem esticar depois)", gerado == [2.0] and TocadorFalso.criados[-1].fator == 1.0, (gerado, TocadorFalso.criados[-1].fator))
+g._kokoro = KokoroFalso()
+h.salvar_preferencias({"voz_velocidade": 1.0})
+
+ditas = []
+
+
 def dizer_falso(texto, a_, *x, **k):
-    controle_fala.comecar()  # o dizer de verdade começa assim: limpa o 'parar' que o prazo da saudação acionou
     ditas.append(texto)
-    controle_fala.terminar()
+    return texto
 
 
 g.dizer = dizer_falso
-g.registrar_saudacao = lambda texto: registradas.append(texto)
-g.preferencias = lambda: {"saudacao": True, "voz_guardiao": True, "sessao": False, "escuta_aberta": True}
+g.preferencias = lambda: {"voz_guardiao": True, "sessao": False, "escuta_aberta": True}
 eventos.clear()
-
-
-def estoura(*x, **k):
-    raise TimeoutError("a primeira frase não chegou")
-
-
-g.responder_falando = estoura
 import queue  # noqa: E402
-r = g.atender(a, queue.Queue(), None, None, 0, texto_digitado="Isto é um pedido de saudação", saudacao=True)
-parte = "Bom dia" if 5 <= time.localtime().tm_hour < 12 else "Boa tarde" if 12 <= time.localtime().tm_hour < 18 else "Boa noite"
-confere("saudação que estoura o prazo fala a frase local (horário e nome), sem mostrar erro", ditas == [f"{parte}, Rafa."] and not any(tp == "erro" for tp, _ in eventos), (ditas, eventos))
-confere("a saudação fica registrada como feita (não repete no próximo reinício)", registradas == [f"{parte}, Rafa."] and not g.pode_saudar(), registradas)
-confere("e o microfone reabre para a pessoa responder, como numa saudação normal", r is True, r)
-
-ditas.clear()
-registradas.clear()
-eventos.clear()
-g.SAUDACAO_ARQ = os.path.join(tmp, "logs", "saudacao2.json")
-
-
-def quebra(*x, **k):
-    raise FileNotFoundError(g.AVISO_SEM_CLAUDE)
-
-
-g.responder_falando = quebra
-g.atender(a, queue.Queue(), None, None, 0, texto_digitado="Isto é um pedido de saudação", saudacao=True)
-confere("sem Claude Code: a abertura ainda cumprimenta e, na mesma fala, diz o que falta (sem aviso de erro solto na tela)",
-        ditas == [f"{parte}, Rafa. {g.AVISO_SEM_CLAUDE}"] and not any(tp == "erro" for tp, _ in eventos), (ditas, eventos))
 
 # ---- uma pergunta com a conta no limite: o motivo é falado e escrito, o microfone não reabre e nada é repetido por outro caminho ----
 MENSAGEM_LIMITE = "Você atingiu o limite semanal do seu plano do Claude. Ele volta em 17 de outubro, às 19h. Até lá não consigo responder."
-ditas.clear()
-eventos.clear()
 
 
 def no_limite(*x, **k):
@@ -232,9 +311,6 @@ g.responder_falando = no_limite
 seguir = g.atender(a, queue.Queue(), None, None, 0, texto_digitado="o que eu tenho hoje")
 confere("pergunta com a conta no limite: o motivo é falado, sem aviso de erro genérico", ditas == [MENSAGEM_LIMITE] and not any(tp == "erro" for tp, _ in eventos), (ditas, eventos))
 confere("e o microfone não reabre esperando resposta", seguir is False, seguir)
-ditas.clear()
-g.atender(a, queue.Queue(), None, None, 0, texto_digitado="Isto é um pedido de saudação", saudacao=True)
-confere("abertura com a conta no limite: cumprimenta e já avisa, numa fala só", ditas == [f"{parte}, Rafa. {MENSAGEM_LIMITE}"], ditas)
 
 # ---------------- o erro do Claude vira uma frase que a pessoa entende ----------------
 confere("'Not logged in' vira 'não está conectado à sua conta'", "não está conectado à sua conta" in gs.explicar_erro_do_claude("Not logged in · Please run /login"))
@@ -301,7 +377,8 @@ time.sleep(2.2)  # a sessão abriu e já escreveu umas frases
 h.bus.sair(janela5)
 t.join(12)
 falado = saida.get("r", (0, 0, ""))[2]
-confere("sessão: fechar a janela para a fala no meio de uma resposta de 14 frases", not t.is_alive() and 1 <= falado.count("Frase número") <= 8, (falado, saida))
+confere("sessão: fechar a janela no meio de uma resposta de 14 frases para tudo (a voz ainda esperava a resposta inteira)",
+        not t.is_alive() and falado.count("Frase número") <= 8 and time.time() - inicio < 6, (falado, saida))
 time.sleep(0.8)
 confere("sessão: o Claude Code recebeu o pedido de interrupção", len(do_falso("interrupt")) == 1, do_falso("interrupt"))
 confere("sessão: o que sobrou da resposta interrompida NÃO vira fala depois (nada na fila de falas pendentes)",

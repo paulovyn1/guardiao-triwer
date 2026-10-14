@@ -1,4 +1,4 @@
-"""Versão 0.3.0 na tela (Edge sem janela): botão discreto de versão nova, cartão com as notas e atualizar, grupo Versão nas preferências,
+"""Versão 0.3.0 na tela (Edge sem janela): botão discreto de versão nova, cartão com as notas e atualizar, versão à vista no alto das preferências,
 "Esc cancela" na escuta, clique no microfone cancelando, aviso do guardião completo e a janela compacta pedindo para ficar por cima."""
 import json
 import os
@@ -22,7 +22,7 @@ os.makedirs(fonte)
 with open(os.path.join(fonte, "VERSION"), "w", encoding="utf-8") as f:
     f.write("0.3.0\n")
 with open(os.path.join(fonte, "CHANGELOG.md"), "w", encoding="utf-8") as f:
-    f.write("# Changelog\n\n## 0.3.1 - 2026-10-20\n- A escuta ficou mais paciente com pausas longas.\n- Correção no cartão de detalhes.\n\n## 0.3.0 - 2026-10-12\n- Versão instalada.\n")
+    f.write("# Changelog\n\n## 0.3.1 - 2026-10-20\n- **A escuta ficou mais paciente com pausas longas.** Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. \n- **Correção no cartão de detalhes.** Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. \n- **Mais tempo pela voz.** Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. \n- **Quarta mudança.** Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. Texto técnico comprido que o aluno não precisa ler, com nomes de arquivo, medidas e testes, repetido para encher o cartão. \n- **Quinta mudança que não aparece.** x\n- Testado: tudo, com detalhes internos.\n\n## 0.3.0 - 2026-10-12\n- Versão instalada.\n")
 
 
 def config(**extra):
@@ -67,10 +67,8 @@ try:
     confere("na primeira abertura do dia o guardião confere a versão sozinho", espera("true", 1) and (at._estado().get("verificado_em") or "")[:10] == time.strftime("%Y-%m-%d"), at._estado())
     confere("em dia: nenhum botão de versão no topo", js("!document.querySelector('.hd .upd')"))
     js("document.querySelector('.ibtn[aria-label=\"Preferências\"]').click()")
-    confere("as preferências abrem e a seção Versão resume o estado, mesmo fechada", espera("document.querySelector('.prefs.open')", 3)
-            and "0.3.0 · em dia" in js("[...document.querySelectorAll('.prefs .pg')].find(e => e.textContent.includes('Versão')).querySelector('.pg-s').textContent"))
-    js("[...document.querySelectorAll('.prefs .pg-h')].find(e => e.textContent.includes('Versão')).click()")
-    pausa(0.7)
+    confere("as preferências abrem com a versão à vista no alto, sem abrir seção nenhuma", espera("document.querySelector('.prefs.open')", 3)
+            and pausa(0.8) and "Guardião 0.3.0" in js("document.querySelector('.prefs .ptop').textContent"), js("document.querySelector('.prefs .ptop').textContent"))
     confere("preferências mostram a versão instalada", espera("document.querySelector('.prefs.open')", 3) and "Guardião 0.3.0" in texto(".prefs") and "EM DIA" in texto(".prefs").upper(), texto(".prefs")[-400:])
     confere("a versão aparece logo no alto das preferências", "VERSÃO 0.3.0" in texto(".prefs .pver").upper(), texto(".prefs .pver"))
     confere("e o botão de conferir, com a data da última conferência", "CONFERIR" in texto(".prefs").upper() and "Conferido em" in texto(".prefs"), texto(".prefs")[-500:])
@@ -87,6 +85,11 @@ try:
     js("document.querySelector('.hd .upd').click()")
     confere("o clique abre o cartão com o que muda", espera("document.querySelector('.scene.open')", 3) and "Há uma versão nova" in texto(".scene") and "mais paciente" in texto(".scene"), texto(".scene"))
     confere("os botões já estão visíveis, sem esperar o texto terminar", js("getComputedStyle(document.querySelector('.scene .dt-acts')).display !== 'none'") and "ATUALIZAR AGORA" in texto(".scene").upper())
+    confere("o cartão mostra só o título de cada mudança (sem o texto técnico, sem asterisco e no máximo 4)",
+            "Texto técnico" not in texto(".scene") and "**" not in texto(".scene") and "Quarta mudança" in texto(".scene") and "Quinta mudança" not in texto(".scene") and "Testado" not in texto(".scene"), texto(".scene"))
+    confere("o botão Atualizar agora fica dentro da tela, mesmo com notas longas",
+            js("(() => { const b = [...document.querySelectorAll('.scene button')].find(x => x.textContent.includes('Atualizar')); const r = b.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.height > 0; })()"),
+            js("JSON.stringify([...document.querySelectorAll('.scene button')].map(x => x.getBoundingClientRect().bottom).concat([innerHeight]))"))
     pausa(1.2)
     nav.foto("versao_cartao")
     clicar("Atualizar agora", ".scene button")

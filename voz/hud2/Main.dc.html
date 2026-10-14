@@ -152,6 +152,8 @@ body{margin:0;background:#07080a}
 .gd .m-via{display:flex;align-items:center;gap:8px;margin-top:7px;font-family:var(--f-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ivory3)}
 .gd .m-via::before{content:"";flex:none;width:5px;height:5px;border-radius:50%;border:1px solid var(--gold)}
 .gd .dl-r.cv .n{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-align:left}
+.gd .scene.update{margin-top:-240px}
+.gd .scene.update .srows{max-height:200px;overflow-y:auto;overflow-x:hidden;padding-right:6px}  /* notas longas rolam; os botões ficam sempre à vista */
 .gd .scene.perm .srows{max-height:210px;overflow-y:auto;overflow-x:hidden;padding-right:6px;overflow-wrap:anywhere}
 /* ===== BOLINHA (camada única) ===== */
 .gd .orbw{position:absolute;left:0;top:0;width:400px;height:400px;transform-origin:0 0;transition:transform var(--dcam) var(--emove);will-change:transform;z-index:12;pointer-events:none}
@@ -229,6 +231,12 @@ body{margin:0;background:#07080a}
 .gd .cmd .mic{height:50px;padding:0 20px;border-radius:var(--r-pill);border:1px solid var(--line2);display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);flex:none}
 .gd .cmd .mic.on{background:rgba(227,185,100,.14);border-color:var(--gold2)}
 .gd .cmd .mic svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round}
+.gd .cmd .spd{height:34px;min-width:46px;padding:0 10px;border-radius:var(--r-pill);border:1px solid var(--line);background:rgba(16,18,22,.7);font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;color:var(--ivory2);flex:none;transition:color 160ms ease,border-color 160ms ease}
+.gd .cmd .spd:hover,.gd .cmd .spd:focus-visible{color:var(--gold2);border-color:var(--line2)}
+.gd .focus.glow .f-title{text-shadow:0 0 28px rgba(227,185,100,.55)}
+.gd .focus .f-title{transition:text-shadow 700ms ease}
+.gd .pchips{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:flex-end;max-width:250px}
+.gd .ptop{padding:4px 0 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
 .gd .tag-e{display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:var(--r-pill);border:1px solid rgba(210,96,58,.55);color:var(--ember);font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
 .gd .tag-g{display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:var(--r-pill);border:1px solid var(--line2);color:var(--gold2);font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
 /* ===== DIA ===== */
@@ -867,6 +875,7 @@ body{margin:0;background:#07080a}
             </sc-if>
             <div class="cmd">
               <input class="fld" placeholder="{{cmdPh}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Fale ou escreva para o Guardião">
+              <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
               <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
                 <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
                 <span>{{micLabel}}</span>
@@ -1006,6 +1015,7 @@ body{margin:0;background:#07080a}
               </div>
               <div class="cmd">
                 <input class="fld" placeholder="{{plPh}}" value="{{plText}}" onChange="{{onPlInput}}" onKeyDown="{{onPlKey}}" disabled="{{cmdDis}}" aria-label="Mensagem para o Guardião">
+                <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
                 <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
                   <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
                   <span>{{micLabel}}</span>
@@ -1254,6 +1264,7 @@ body{margin:0;background:#07080a}
         </sc-if>
         <div class="cmd">
           <input class="fld" placeholder="{{col.ph}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Escreva para o Guardião">
+          <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
           <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
             <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
             <span>{{micLabel}}</span>
@@ -1276,6 +1287,7 @@ body{margin:0;background:#07080a}
       </div>
       <div class="cmd">
         <input class="fld" placeholder="{{col.ph}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Escreva para o Guardião">
+        <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
         <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
           <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
           <span>{{micLabel}}</span>
@@ -1349,6 +1361,17 @@ body{margin:0;background:#07080a}
       <button class="dt-x" onClick="{{closePrefs}}" aria-label="Fechar preferências">×</button>
       <h2>Preferências</h2>
       <div class="pver mono">{{prefs.ver}}</div>
+      <div class="ptop">
+      <sc-for list="{{prefs.top}}" as="r" hint-placeholder-count="4">
+        <div class="pr">
+          <div><div class="pl2">{{r.label}}</div><div class="ph">{{r.hint}}</div></div>
+          <sc-if value="{{r.isSw}}" hint-placeholder-val="{{true}}"><button class="sw {{r.cls}}" role="switch" aria-checked="{{r.on}}" aria-label="{{r.label}}" onClick="{{r.go}}"></button></sc-if>
+          <sc-if value="{{r.isStat}}" hint-placeholder-val="{{false}}"><span class="stat {{r.cls}}"><i></i>{{r.val}}</span></sc-if>
+          <sc-if value="{{r.isBtn}}" hint-placeholder-val="{{false}}"><button class="btn-gh xs" onClick="{{r.go}}" disabled="{{r.dis}}">{{r.val}}</button></sc-if>
+          <sc-if value="{{r.isChips}}" hint-placeholder-val="{{false}}"><div class="pchips"><sc-for list="{{r.chips}}" as="c" hint-placeholder-count="5"><span class="stat {{c.cls}}"><i></i>{{c.k}}: {{c.v}}</span></sc-for></div></sc-if>
+        </div>
+      </sc-for>
+      </div>
       <sc-for list="{{prefs.groups}}" as="g" hint-placeholder-count="5">
         <div class="pg {{g.cls}}">
           <button class="pg-h" onClick="{{g.go}}" aria-expanded="{{g.open}}">
@@ -1427,6 +1450,7 @@ body{margin:0;background:#07080a}
       <sc-if value="{{mini.noCap}}" hint-placeholder-val="{{true}}"><div class="mi-n"><span class="mono dim">{{mini.nextLbl}}</span><span class="n">{{mini.next}}</span></div></sc-if>
       <div class="cmd mi-in">
         <input class="fld" placeholder="{{mini.ph}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Escreva para o Guardião">
+        <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
         <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
           <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
           <span>{{micLabel}}</span>
@@ -1700,7 +1724,9 @@ const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julh
 const MESES3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 const ESTADOS = { aguardando: 'idle', ouvindo: 'listening', transcrevendo: 'transcribing', pensando: 'thinking', falando: 'speaking' };
 /* preferências: nome na tela -> chave no servidor (voz\preferencias.json) */
-const PF_MAP = { sound: 'sons', typing: 'som_digitacao', motion: 'som_movimento', touch: 'som_toques', confirm: 'som_avisos', stateSnd: 'som_estados', track: 'som_abertura', introAnim: 'abertura_animada', greet: 'saudacao', alwaysMic: 'mic_sempre_ligado', openMic: 'escuta_aberta', openExec: 'abrir_em_execucao', session: 'sessao', voice: 'voz_guardiao', light: 'modo_leve', glass: 'vidro' };
+const PF_MAP = { sound: 'sons', typing: 'som_digitacao', motion: 'som_movimento', touch: 'som_toques', confirm: 'som_avisos', stateSnd: 'som_estados', track: 'som_abertura', alwaysMic: 'mic_sempre_ligado', openMic: 'escuta_aberta', openExec: 'execucao_ao_abrir', session: 'sessao', voice: 'voz_guardiao', light: 'modo_leve' };
+const SONS_DO_GRUPO = ['motion', 'touch', 'confirm', 'stateSnd', 'track'];  // a chave Sons liga e desliga todos eles juntos (a digitação tem chave própria)
+const VELOCIDADES = [1, 1.5, 2];
 const QS = (() => { try { return new URLSearchParams(location.search); } catch (e) { return new URLSearchParams(''); } })();
 const isoDia = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 const primeiroNome = (s) => String(s || '').trim().split(' ')[0];
@@ -1748,7 +1774,7 @@ class Component extends DCLogic {
       diaLayer: 0, noticeOpen: false,
       detail: null, detailOpen: false, extra: {}, dForm: { a: '', b: '', note: '', open: false },
       prefsOpen: false, pfSec: '', hdPin: false, hdPeek: false,
-      pf: { sound: true, stateSnd: true, volume: 70, typing: true, motion: true, touch: true, confirm: true, track: true, introAnim: true, greet: true, alwaysMic: false, openMic: true, openExec: false, session: false, voice: true, light: false, glass: true, variant: 'N' },
+      pf: { sound: true, stateSnd: true, volume: 70, typing: true, motion: true, touch: true, confirm: true, track: true, alwaysMic: false, openMic: true, openExec: true, session: false, voice: true, speed: 1, light: false, variant: 'N' },
       saude: null, pessoa: 'você', gname: 'Guardião',
       scene: null, sceneOn: false, toasts: [],
       cal: null, calForm: false, calFields: ['', '', '', ''], calBusy: false,
@@ -1890,10 +1916,10 @@ class Component extends DCLogic {
         const falta = Object.keys(this.pend)[0], tf = falta ? this.findTask(falta) : null;  // conclusão que ficou esperando a frase do que foi feito
         if (tf && tf.aguarda) { const pd = this.pend[falta]; this.setState({ done: { id: falta, at: pd.b, title: tf.title, needNote: true, sent: false, a: pd.a, b: pd.b, medido: !!pd.medido } }); }
         const mini = this.M === 'mini', forcar = QS.get('abertura') === '1', nunca = QS.get('semabertura') === '1' || mini;
-        const quer = !nunca && pf.introAnim && (ses.abertura || forcar);
+        const quer = !nunca;  // a animação roda em toda abertura (Esc, clique, Espaço ou Enter pulam; o modo leve não mostra)
         const olhando = () => forcar || (document.visibilityState === 'visible' && document.hasFocus());
         const abrirComAbertura = () => {
-          if (QS.get('demo') !== '1') API.post('/saudacao', { fase: 'preparar' }).catch(() => {});
+          if (QS.get('demo') !== '1') API.post('/saudacao', { fase: 'preparar', primeira: !!ses.primeira_do_dia }).catch(() => {});
           this.startIntro();  // o carimbo "a abertura do dia já foi vista" é gravado quando ela termina (afterIntro), não ao carregar a página
         };
         if (quer && olhando()) {
@@ -1908,7 +1934,7 @@ class Component extends DCLogic {
         } else {
           this.setState({ introPhase: 'skip' });
           this._t(() => { this.setState({ introPhase: 'done' }); this.afterIntro(); }, 850);
-          if (!mini && QS.get('semabertura') !== '1') API.post('/saudacao', { fase: 'preparar' }).then(() => API.post('/saudacao', { fase: 'liberar' })).catch(() => {});
+          if (!mini && QS.get('semabertura') !== '1') API.post('/saudacao', { fase: 'preparar', primeira: !!ses.primeira_do_dia }).then(() => API.post('/saudacao', { fase: 'liberar' })).catch(() => {});
         }
         if (ses.execucao && ses.execucao.checkin) this._t(() => this.onCheckin(ses.execucao.checkin), 1600);
       });
@@ -1921,6 +1947,7 @@ class Component extends DCLogic {
     const pf = Object.assign({}, this.state.pf); if (!p) return pf;
     Object.keys(PF_MAP).forEach((k) => { if (typeof p[PF_MAP[k]] === 'boolean') pf[k] = p[PF_MAP[k]]; });
     if (typeof p.volume === 'number') pf.volume = Math.round(p.volume * 100);
+    if (VELOCIDADES.indexOf(p.voz_velocidade) >= 0) pf.speed = p.voz_velocidade;
     if (p.bolinha === 'N' || p.bolinha === 'A') pf.variant = p.bolinha;
     return pf;
   }
@@ -1960,7 +1987,7 @@ class Component extends DCLogic {
   abrirVersao() {
     const v = this.state.ver; if (!v || !v.nova) return;
     if (this.state.prefsOpen) this.closePrefs();
-    const rows = (v.notas || []).slice(0, 3).map((n) => ({ k: n.versao, v: (n.itens || []).slice(0, 3).join(' ') || 'Melhorias gerais.' }));
+    const rows = (v.notas || []).slice(0, 3).map((n) => ({ k: n.versao, v: (n.itens || []).slice(0, 4).join(' · ') || 'Melhorias gerais.' }));  // só os títulos das mudanças
     this.openScene({ kind: 'update', tag: 'Versão ' + v.remota, kicker: 'Atualização do Guardião', title: 'Há uma versão nova',
       full: 'Você está na ' + v.instalada + '. Atualizar troca a skill e o painel e mantém sua memória, seus planos e suas preferências. O Guardião reinicia sozinho em menos de um minuto.',
       rows: rows.length ? rows : null, rapido: true,
@@ -2205,6 +2232,7 @@ class Component extends DCLogic {
   }
   onAcaoFim(ev) {
     const S = this.state;
+    if (ev.tipo === 'aprovar' && ev.ok) this.carregarPlano().then(() => this.entrarAposAprovar());
     if (S.sceneOn && S.scene && S.scene.kind === 'action' && !this.acaoSemCena) { this.acaoFim = ev; if (this.sceneTypedDone) this.finishAction(); return; }
     this.toast(this.textoDaAcao(ev), !ev.ok);
     if (ev.ok) { this.sfx('success'); if (ev.tipo === 'concluir') this.setState({ breath: this.state.breath + 1 }); }
@@ -2246,7 +2274,7 @@ class Component extends DCLogic {
     const S = this.state, era = S.exec, agora = !!ev.ativo;
     this.setState({ exec: agora, sessao: ev.sessao || null });
     if (agora !== era || !!ev.sessao !== !!S.sessao) this.carregarPlano();  // o que já foi trabalhado em cada bloco vem junto do plano
-    if (agora && !era) { this.sfx('engage'); if (S.screen !== 'home' && !S.sceneOn) this.go('home'); }
+    if (agora && !era) { this.sfx('engage'); if (S.screen !== 'home' && !S.sceneOn) this.go('home'); this.carregarPlano().then(() => this.destacarAgora()); }
     if (!agora && era) this.sfx('disengage');
     if (!ev.checkin && S.checkin) this.onCheckinFim({});
   }
@@ -2356,6 +2384,8 @@ class Component extends DCLogic {
     const S = this.state, tag = (e.target && e.target.tagName) || '';
     if (S.introPhase === 'run' || S.introPhase === 'home') { if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); this.skipIntro(); } return; }
     if (e.key === 'Escape') {
+      if (S.listening) { API.post('/escuta', {}).catch(() => {}); return; }
+      if (this.ocupado()) { e.preventDefault(); this.esc(); return; }  // falando, pensando ou trabalhando: o Esc é do guardião
       if (S.sceneOn) this.closeSceneBtn(); else if (S.prefsOpen) this.closePrefs(); else if (S.detailOpen) this.closeDetail(); else if (S.instOpen) this.setState({ instOpen: false }); else if (S.dockOpen) this.setState({ dockOpen: false }); else if (S.hdPin) this.setState({ hdPin: false }); else if (this.execOn() && S.screen === 'home') this.exitExec();
       return;
     }
@@ -2363,6 +2393,15 @@ class Component extends DCLogic {
     const n = '12345'.indexOf(e.key);
     if (n >= 0 && e.key.length === 1) { e.preventDefault(); this.go(SCREENS[n]); return; }
     if (e.key === ' ' && tag !== 'BUTTON' && tag !== 'A') { e.preventDefault(); this.onMic(); }
+  }
+  ocupado() { const S = this.state; return S.net !== 'offline' && (S.orbState === 'thinking' || S.orbState === 'speaking' || !!S.tool || !!S.fullJob); }
+  esc() {  // uma camada por toque: leitura do plano, voz, resposta, trabalho em segundo plano (quem decide é o guardião)
+    API.post('/esc', {}).then((r) => {
+      const c = r && r.camada;
+      if (c === 'voz') this.toast('Voz desligada. Sigo por escrito. Para voltar a ouvir, toque no ícone da voz.');
+      else if (c === 'resposta') this.toast('Resposta cancelada.');
+      else if (c === 'segundo_plano') this.toast('Parei o trabalho em segundo plano.');
+    }).catch(() => {});
   }
   onRootClick(e) {
     const ph = this.state.introPhase; if (ph === 'run' || ph === 'home') this.skipIntro();
@@ -2387,7 +2426,7 @@ class Component extends DCLogic {
   }
 
   /* ---------- estágios da Home ---------- */
-  actionable() { const m = this.homeMode(); return m === 'work' || m === 'late' || m === 'between'; }
+  actionable() { const m = this.homeMode(); return m === 'work' || m === 'late' || m === 'between' || m === 'ready'; }
   execOn() { return !!this.state.exec && this.actionable(); }
   enterExec(quiet) {
     const S = this.state, mode = this.homeMode();
@@ -2404,7 +2443,7 @@ class Component extends DCLogic {
     this.sfx('engage');
     try { if (window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (e) { /* sem aviso do sistema */ }
     API.post('/execucao', { acao: 'entrar' }).then((r) => { if (r && r.ok === false) this.toast(r.erro, true); }).catch((e) => { this.setState({ exec: false }); this.falha(e); });
-    if (!quiet) { const p = this.curTask(); this.sayLocal(mode === 'between' ? 'Modo execução. A próxima começa às ' + hhmm(p.s) + '.' : 'Modo execução. Eu acompanho o tempo e aviso antes de acabar.'); }
+    if (!quiet) { const p = this.curTask(); this.sayLocal(mode === 'between' ? 'Modo execução. A próxima começa às ' + hhmm(p.s) + '.' : mode === 'ready' ? 'Modo execução. Quando for começar, toque em Iniciar.' : 'Modo execução. Eu acompanho o tempo e aviso antes de acabar.'); }
   }
   exitExec(quiet) {
     if (!this.state.exec) return;
@@ -2444,7 +2483,7 @@ class Component extends DCLogic {
     if (!P.length) return 'end';
     if (S.planState === 'suggested') return 'suggested';
     const p = P[0];
-    if (S.now < p.s) return p.exec && p.exec.aberto ? 'work' : 'between';
+    if (!p.exec) return S.now < p.s ? 'between' : 'ready';  // só começa com o clique em Iniciar: chegar o horário não basta
     if (S.now >= p.e) return 'late';
     return 'work';
   }
@@ -2459,7 +2498,7 @@ class Component extends DCLogic {
   onPrimary() {
     const mode = this.homeMode();
     if (mode === 'work' || mode === 'late') this.complete();
-    else if (mode === 'between') this.startNow();
+    else if (mode === 'between' || mode === 'ready') this.startNow();
     else if (mode === 'end') this.go('dia');
     else if (mode === 'noplan') this.askPlan();
   }
@@ -2506,7 +2545,7 @@ class Component extends DCLogic {
   }
   onPostpone() {
     const S = this.state; if (S.phase !== 'idle') return;
-    const mode = this.homeMode(); if (mode !== 'work' && mode !== 'late' && mode !== 'between') return;
+    const mode = this.homeMode(); if (mode !== 'work' && mode !== 'late' && mode !== 'between' && mode !== 'ready') return;
     this.askReason(this.curTask());
   }
   askReason(p) {
@@ -2575,9 +2614,16 @@ class Component extends DCLogic {
       this.toast('Plano aprovado.' + (r.criadas ? ' ' + r.criadas + (r.criadas === 1 ? ' tarefa criada' : ' tarefas criadas') + ' no ClickUp.' : ''));
       (r.erros || []).slice(0, 2).forEach((e) => this.toast(e, true));
       this.sfx('success');
-      this.carregarPlano().then(() => { const p = this.pendList()[0]; this.sayLocal('Plano aprovado.' + (p ? ' Primeira tarefa às ' + hhmm(p.s) + '.' : ''), p ? { ask: [{ label: 'Modo execução', fn: () => this.enterExec() }, { label: 'Depois', fn: () => {} }] } : undefined); });
+      this.carregarPlano().then(() => { const p = this.pendList()[0]; this.entrarAposAprovar(); this.sayLocal('Plano aprovado.' + (p ? ' Entrei no modo execução. A primeira é ' + p.title + ', às ' + hhmm(p.s) + '. Quando for começar, toque em Iniciar.' : '')); });
     }).catch((e) => { this.aprovando = false; this.falha(e); });
   }
+  entrarAposAprovar() {  // sem aprovar não há execução; aprovou, entra sozinho e destaca a tarefa de agora
+    if (this.M === 'mini') return;
+    if (this.actionable() && !this.state.exec) this.enterExec(true);
+    else if (this.state.screen !== 'home') this.go('home');
+    this.destacarAgora();
+  }
+  destacarAgora() { const p = this.curTask(); if (!p) return; this.setState({ glowId: p.id }); this._t(() => { if (this.state.glowId === p.id) this.setState({ glowId: '' }); }, 4500); }
   startReview() { this.enviar('Quero revisar o plano de hoje com você.'); }
   endReview() { this.enviar('Pode encerrar a revisão.'); }
   askPlan() { this.enviar('Monta o meu dia.'); }
@@ -2800,9 +2846,15 @@ class Component extends DCLogic {
   openPrefs() { this.setState({ prefsOpen: true, detailOpen: false, hdPin: false }); }
   setPfSec(id) { this.setState({ pfSec: this.state.pfSec === id ? '' : id }); }
   closePrefs() { if (this.state.prefsOpen) this.setState({ prefsOpen: false }); }
+  trocarVelocidade() {  // 1x -> 1,5x -> 2x -> 1x; o que falta da fala já toca na nova velocidade
+    const i = VELOCIDADES.indexOf(this.state.pf.speed), v = VELOCIDADES[(i + 1) % VELOCIDADES.length];
+    this.setPf('speed', v);
+  }
   setPf(k, v) {
     this.setState({ pf: Object.assign({}, this.state.pf, { [k]: v }) });
-    const manda = () => API.post('/preferencias', k === 'volume' ? { volume: v / 100 } : k === 'variant' ? { bolinha: v } : { [PF_MAP[k]]: v }).catch(() => {});
+    const corpo = k === 'volume' ? { volume: v / 100 } : k === 'variant' ? { bolinha: v } : k === 'speed' ? { voz_velocidade: v } : { [PF_MAP[k]]: v };
+    if (k === 'sound') { SONS_DO_GRUPO.forEach((x) => { corpo[PF_MAP[x]] = v; }); this.setState({ pf: Object.assign({}, this.state.pf, { [k]: v }, ...SONS_DO_GRUPO.map((x) => ({ [x]: v }))) }); }
+    const manda = () => API.post('/preferencias', corpo).catch(() => {});
     if (k === 'volume') { clearTimeout(this.volSave); this.volSave = setTimeout(manda, 350); } else manda();
     if (k === 'session') this._t(() => this.carregarConversas(), 350);
     if (k === 'sound') { if (v) this._t(() => this.sfx('power'), 60); else SFX.stopAll(); }
@@ -2912,6 +2964,7 @@ class Component extends DCLogic {
     let ot = { big: '', sub: '', cls: '' };
     if (mode === 'work') ot = { big: fmtRem(Math.max(1, Math.ceil(p.e - now))), sub: 'RESTANTES', cls: '' };
     else if (mode === 'between') ot = { big: fmtRem(Math.ceil(p.s - now)), sub: 'ATÉ A PRÓXIMA', cls: '' };
+    else if (mode === 'ready') ot = { big: hhmm(p.s), sub: 'HORA DE COMEÇAR', cls: now >= p.e ? 'late' : '' };
     else if (mode === 'late') ot = { big: '+' + fmtRem(Math.max(1, Math.floor(now - p.e))), sub: 'PASSOU DA HORA', cls: 'late' };
     else if (mode === 'end') ot = { big: 'Feito', sub: 'PLANO CONCLUÍDO', cls: '' };
     else if (mode === 'noplan') ot = { big: '··', sub: 'SEM PLANO', cls: '' };
@@ -2927,7 +2980,8 @@ class Component extends DCLogic {
     const barSt = (f) => 'transform:scaleX(' + f.toFixed(4) + ');transition:transform 900ms linear';
     const focus = { id: p ? p.id : '', cls: phaseCls, kickCls: '', kick: '', title: '', progSt: 'opacity:0', barSt: barSt(0), tracked: '' };
     const primary = { cls: '', dis: false, aria: '', label: '', showPost: false };
-    if (p && (mode === 'work' || mode === 'late' || mode === 'between' || mode === 'suggested')) focus.title = p.title;
+    if (p && (mode === 'work' || mode === 'late' || mode === 'between' || mode === 'ready' || mode === 'suggested')) focus.title = p.title;
+    if (p && S.glowId === p.id) focus.cls += ' glow';
     const ses = S.sessao && p && S.sessao.bloco === p.id ? S.sessao : null;
     if (ses && (mode === 'work' || mode === 'late')) focus.tracked = 'Em foco há ' + fmtRem(Math.max(1, ses.aberto ? Math.round(ses.minutos + Math.max(0, now - (this.sesT || now))) : ses.minutos)) + (p.ext ? ' · estendida em ' + fmtRem(p.ext) : '');
     else if (p && p.ext && (mode === 'work' || mode === 'late')) focus.tracked = 'Estendida em ' + fmtRem(p.ext);
@@ -2947,6 +3001,9 @@ class Component extends DCLogic {
         focus.kick = 'A seguir em ' + fmtRem(Math.ceil(p.s - now)) + ' · ' + hhmm(p.s); focus.progSt = 'opacity:.35';
         primary.label = 'Começar agora · ' + hhmm(now); primary.cls = 'alt'; primary.showPost = true; primary.aria = 'Começar a próxima tarefa agora';
       }
+    } else if (mode === 'ready') {
+      focus.kick = (now < p.e ? hhmm(p.s) + ' às ' + hhmm(p.e) : 'Passou do horário · ' + hhmm(p.e)) + ' · ainda não iniciada'; focus.kickCls = now >= p.e ? 'late' : ''; focus.progSt = 'opacity:.35';
+      primary.label = 'Iniciar · ' + hhmm(now); primary.showPost = true; primary.aria = 'Iniciar a tarefa agora: o tempo dela começa a contar';
     } else if (mode === 'suggested') {
       focus.kick = 'Sugerida · ' + hhmm(p.s) + ' às ' + hhmm(p.e); focus.progSt = 'opacity:.35';
       primary.label = 'Começa às ' + hhmm(p.s); primary.cls = 'alt'; primary.dis = true; primary.aria = 'Disponível depois de aprovar o plano';
@@ -2975,7 +3032,7 @@ class Component extends DCLogic {
     const livre = S.screen === 'home' && !execOn && !askMsg && !doneRow.on && S.introPhase === 'done' && orbEff === 'idle' && !mini && !compact && S.net !== 'offline';
     if (livre) {
       if (mode === 'suggested') askChips = [{ label: 'Revisar o plano', go: C('startReview') }, { label: 'Aprovar plano', go: C('approvePlan') }, { label: 'Ver o dia', go: () => this.go('dia') }];
-      else if (mode === 'work' || mode === 'late' || mode === 'between') askChips = [{ label: 'Modo execução', go: () => this.enterExec() }, { label: 'Próximas tarefas', go: () => this.openList('next') }, { label: 'Ver o dia', go: () => this.go('dia') }];
+      else if (mode === 'work' || mode === 'late' || mode === 'between' || mode === 'ready') askChips = [{ label: 'Modo execução', go: () => this.enterExec() }, { label: 'Próximas tarefas', go: () => this.openList('next') }, { label: 'Ver o dia', go: () => this.go('dia') }];
       else if (mode === 'end') askChips = [{ label: 'Report do dia', go: () => this.startFlow(FLOWS[0]) }, { label: 'Ver o dia', go: () => this.go('dia') }];
       else askChips = [{ label: 'Montar o dia', go: C('askPlan') }, { label: 'Abrir o planejador', go: () => this.go('plan') }];
     }
@@ -2991,6 +3048,7 @@ class Component extends DCLogic {
       else if (t.status === 'done') { mk = 'mk-done'; state = t.aguarda ? 'Falta o comentário' : 'Feito ' + hhmm(t.doneAt != null ? t.doneAt : t.e); stc = t.aguarda ? 'skip' : ''; cls = 'done'; }
       else if (t.status === 'post') { mk = 'mk-skip'; state = 'Adiado ' + (t.post || 1) + 'x'; stc = 'skip'; cls = 'done'; }
       else if (isCur) { mk = 'mk-cur'; state = mode === 'late' ? 'Passou do horário' : 'Agora'; stc = mode === 'late' ? 'late' : ''; cls = 'cur'; }
+      else if (p && t.id === p.id && mode === 'ready') { state = 'Hora de começar'; stc = S.now >= t.e ? 'late' : ''; }
       else if (t.nova && S.planState === 'suggested') { state = 'Nova'; stc = 'skip'; }
       if (S.glowId === t.id) cls += ' glow';
       return { id: t.id, cls, mk, state, stc, time: hhmm(t.s), title: t.title, meta: t.fixed ? 'Compromisso fixo' : [t.list, t.owner].filter(Boolean).join(' · '), isCur, barSt: barSt(isCur ? frac : 0), noact: !!t.fixed, aria: hhmm(t.s) + ', ' + t.title + (state ? '. ' + state : ''), open: () => this.openDetail('task', t.id) };
@@ -3176,7 +3234,7 @@ class Component extends DCLogic {
     /* ----- cena ----- */
     const sc = S.scene, scFull = sc ? sc.full || '' : '', scDone = !!sc && sc.n >= scFull.length;
     const scene = {
-      cls: sc && sc.kind === 'perm' ? 'perm' : '', aria: sc ? sc.title : 'Cena do Guardião', kicker: sc ? sc.kicker : '', tag: sc ? sc.tag : '', title: sc ? sc.title : '',
+      cls: sc && (sc.kind === 'perm' || sc.kind === 'update') ? sc.kind : '', aria: sc ? sc.title : 'Cena do Guardião', kicker: sc ? sc.kicker : '', tag: sc ? sc.tag : '', title: sc ? sc.title : '',
       typed: sc ? scFull.slice(0, sc.n) : '', caretSt: sc && !scDone ? 'display:inline-block' : 'display:none', sxSt: sc && !scFull ? 'display:none' : '',
       hasRows: !!(sc && sc.rows && sc.rows.length), rows: sc && sc.rows ? sc.rows : [],
       barBox: sc && sc.kind === 'action' ? '' : 'display:none', barSt: 'transform:scaleX(' + (sc && scFull.length ? (sc.n / scFull.length).toFixed(3) : 0) + ');transition:transform 160ms linear',
@@ -3199,28 +3257,29 @@ class Component extends DCLogic {
     const off = S.net === 'offline', sd = S.saude || {};
     const st3 = (ok, sim, nao) => (off ? ['desligado', 'off'] : ok ? [sim, ''] : [nao, 'bad']);
     const sMic = st3(sd.mic, 'pronto', 'sem microfone'), sStt = st3(sd.groq, 'pronta', 'sem chave'), sCl = st3(sd.claude, 'online', 'não encontrado');
+    const chips = (lst) => ({ label: 'Serviços', hint: '', isSw: false, isRange: false, isSeg: false, isStat: false, isBtn: false, isChips: true, chips: lst, dis: false, on: false, cls: '', go: () => {}, val: '', set: () => {}, opts: [] });
+    const servicos = [{ k: 'Guardião', v: off ? 'desligado' : 'ligado', cls: off ? 'bad' : '' }, { k: 'Microfone', v: sMic[0], cls: sMic[1] }, { k: 'Transcrição', v: sStt[0], cls: sStt[1] },
+      { k: 'Claude', v: sCl[0], cls: sCl[1] }, { k: 'Plano', v: S.planState === 'none' ? 'sem plano' : S.planState === 'suggested' ? 'aguardando ok' : 'aprovado', cls: S.planState === 'none' ? 'off' : '' }];
+    const velSeg = seg('Velocidade da voz', 'Também muda pelo botão ao lado do campo de texto, enquanto ele fala.', VELOCIDADES.map((v) => ({ label: String(v).replace('.', ',') + 'x', on: pf.speed === v, cls: pf.speed === v ? 'on' : '', go: () => { this.setPf('speed', v); this.sfx('click'); } })));
     const prefs = {
       cls: S.prefsOpen ? 'open' : '', shadeCls: S.prefsOpen ? 'on' : '', hidden: S.prefsOpen ? 'false' : 'true',
       ver: vTem ? 'Versão ' + V.instalada + (V.nova ? ' · nova: ' + V.remota : '') : '',
+      // à vista, sem abrir seção: a versão, como estão os serviços e o modo leve
+      top: vRows.concat([chips(servicos), sw('light', 'Modo leve', 'Menos animação, sem vidro, bolinha 2D e sem a animação de abertura. Bom para computadores fracos.')]),
       groups: [
-        { id: 'som', title: 'Voz e sons', rows: [sw('voice', 'Voz do Guardião', 'Ligada por padrão. Desligada, ele só escreve. O seu microfone continua valendo.'), sw('sound', 'Ligar todos os sons', 'Tudo sintetizado, sem arquivos. Desligue para silêncio total.'), rng('volume', 'Volume'), sw('typing', 'Digitação e escrita', 'Teclas quando você digita e o Guardião escrevendo a resposta.'), sw('motion', 'Movimento', 'Troca de tela, painéis abrindo e fechando, entrar e sair da execução.'), sw('touch', 'Toques', 'Cliques nos botões e o microfone ligando e desligando.'), sw('confirm', 'Confirmações e avisos', 'Sucesso, concluído, erro, cancelamento e avisos.'), sw('stateSnd', 'Estados do Guardião', 'Sininhos suaves enquanto ele pensa. Ligando e desligando quando o guardião cai ou volta.'), sw('track', 'Trilha da abertura', 'Atmosfera, carregamento e o impacto final da abertura.')] },
-        { id: 'comp', title: 'Comportamento', rows: [sw('introAnim', 'Animação de abertura', 'Completa na primeira vez do dia em que você olha o painel e quando reabre depois de 3 horas. Clique, Esc, Espaço ou Enter pulam.'), btn('Rever a abertura', 'Toca a animação agora, uma vez, sem mudar a regra do dia.', 'Rever', C('verAbertura')), sw('greet', 'Saudação ao abrir', 'Ele cumprimenta e propõe revisar o plano. Também respeita as 3 horas.'), sw('alwaysMic', 'Escuta contínua (Ei guardião)', 'Desligada, o microfone fica fechado e só abre quando você clica no botão dele. Ligada, ele fica aberto esperando você chamar o Guardião.'), sw('openMic', 'Reabrir depois de uma pergunta', 'Só vale com a escuta contínua ligada: reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Abrir direto em execução', 'Pula a tela só com a bolinha e já mostra a tarefa de agora.'), sw('session', 'Conversa com memória', 'Cada conversa vira uma sessão do seu Claude Code: lembra do que foi dito e usa conectores, skills e agentes. Ele começa a responder cerca de um segundo depois.')] },
-        { id: 'apar', title: 'Aparência', rows: [sw('glass', 'Vidro com desfoque', 'Painéis translúcidos. Desligue se o computador engasgar. O modo leve também desliga.'), sw('light', 'Modo leve', 'Menos animação, fundo simples e bolinha 2D. Bom para computadores fracos.'), seg('Bolinha', 'Núcleo: cristal 3D com onda de voz. Relógio: o instrumento clássico, com o dia em volta e o tempo no centro.', ['N', 'A'].map((v) => ({ label: v === 'N' ? 'Núcleo 3D' : 'Relógio', on: pf.variant === v, cls: pf.variant === v ? 'on' : '', go: () => { this.setPf('variant', v); this.sfx('click'); } }))), seg('Formato da janela', 'Compacta é a janela pequena, para deixar num canto da tela.', [{ label: 'Completa', on: !compact, cls: !compact ? 'on' : '', go: () => { if (compact) this.toggleCompact(); } }, { label: 'Compacta', on: compact, cls: compact ? 'on' : '', go: () => { if (!compact) this.toggleCompact(); } }])] },
-        { id: 'ver', title: 'Versão', rows: vRows },
-        { id: 'serv', title: 'Serviços', rows: [stat('Guardião', off ? 'desligado' : 'ligado', off ? 'bad' : ''), stat('Microfone', sMic[0], sMic[1]), stat('Transcrição', sStt[0], sStt[1]), stat('Voz do Guardião', voiceOn ? 'ligada' : 'silenciada', voiceOn ? '' : 'off'), stat('Claude', sCl[0], sCl[1]), stat('Plano de hoje', S.planState === 'none' ? 'sem plano' : S.planState === 'suggested' ? 'aguardando aprovação' : 'aprovado', S.planState === 'none' ? 'off' : '')] }
+        { id: 'som', title: 'Voz e sons', rows: [sw('voice', 'Voz do Guardião', 'Desligada, ele só escreve. O seu microfone continua valendo. Esc enquanto ele fala também desliga.'), velSeg, sw('sound', 'Sons', 'Cliques, telas, avisos, os sininhos enquanto ele pensa e a trilha da abertura.'), rng('volume', 'Volume'), sw('typing', 'Som de digitação', 'Teclas quando você digita e o Guardião escrevendo a resposta.')] },
+        { id: 'comp', title: 'Comportamento', rows: [sw('alwaysMic', 'Escuta contínua (Ei guardião)', 'Desligada, o microfone fica fechado e só abre quando você clica no botão dele. Ligada, ele fica aberto esperando você chamar o Guardião.'), sw('openMic', 'Reabrir depois de uma pergunta', 'Só vale com a escuta contínua ligada: reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Ir direto para a execução', 'Com o plano aprovado, quando você abre o app de novo no mesmo dia, ele já mostra a tarefa de agora.'), sw('session', 'Conversa com memória', 'Cada conversa vira uma sessão do seu Claude Code: lembra do que foi dito e usa conectores, skills e agentes. Ele começa a responder cerca de um segundo depois.')] },
+        { id: 'apar', title: 'Aparência', rows: [seg('Bolinha', 'Núcleo: cristal 3D com onda de voz. Relógio: o instrumento clássico, com o dia em volta e o tempo no centro.', ['N', 'A'].map((v) => ({ label: v === 'N' ? 'Núcleo 3D' : 'Relógio', on: pf.variant === v, cls: pf.variant === v ? 'on' : '', go: () => { this.setPf('variant', v); this.sfx('click'); } }))), seg('Formato da janela', 'Compacta é a janela pequena, para deixar num canto da tela.', [{ label: 'Completa', on: !compact, cls: !compact ? 'on' : '', go: () => { if (compact) this.toggleCompact(); } }, { label: 'Compacta', on: compact, cls: compact ? 'on' : '', go: () => { if (!compact) this.toggleCompact(); } }])] }
       ]
     };
     // seções recolhidas: fechada, cada uma resume o que tem dentro; só uma fica aberta por vez
     const nLig = (rows) => { const s = rows.filter((r) => r.isSw); return s.filter((r) => r.on).length + ' de ' + s.length + ' ligados'; };
-    const nRuim = prefs.groups[4].rows.filter((r) => r.cls === 'bad').length;
     const pgSum = {
-      som: (voiceOn ? 'Voz ligada' : 'Voz silenciada') + ' · ' + (pf.sound ? 'sons em ' + pf.volume + '%' : 'sem sons'),
+      som: (voiceOn ? 'Voz ligada · ' + String(pf.speed).replace('.', ',') + 'x' : 'Voz silenciada') + ' · ' + (pf.sound ? 'sons em ' + pf.volume + '%' : 'sem sons'),
       comp: nLig(prefs.groups[1].rows),
-      apar: (pf.variant === 'N' ? 'Núcleo 3D' : 'Relógio') + (pf.light ? ' · modo leve' : pf.glass ? ' · vidro' : ''),
-      ver: !vTem ? (vOff ? 'Guardião desligado' : 'Sem informação') : V.atualizando ? 'Atualizando' : V.nova ? 'Nova: ' + V.remota : V.instalada + (V.tem_origem ? ' · em dia' : ''),
-      serv: off ? 'Guardião desligado' : nRuim ? nRuim + (nRuim === 1 ? ' com problema' : ' com problemas') : 'Tudo ligado'
+      apar: (pf.variant === 'N' ? 'Núcleo 3D' : 'Relógio') + (compact ? ' · compacta' : '')
     };
-    prefs.groups = prefs.groups.map((g) => { const open = S.pfSec === g.id; return Object.assign(g, { cls: open ? 'open' : '', open, hidden: open ? 'false' : 'true', sum: pgSum[g.id], sumCls: g.id === 'ver' && V.nova ? 'new' : g.id === 'serv' && (off || nRuim) ? 'warn' : '', go: () => this.setPfSec(g.id) }); });
+    prefs.groups = prefs.groups.map((g) => { const open = S.pfSec === g.id; return Object.assign(g, { cls: open ? 'open' : '', open, hidden: open ? 'false' : 'true', sum: pgSum[g.id], sumCls: '', go: () => this.setPfSec(g.id) }); });
 
     /* ----- abertura ----- */
     const introOn = introRun || introHome || S.introPhase === 'skip';
@@ -3234,7 +3293,7 @@ class Component extends DCLogic {
       logs: ['servidor local · porta ' + (location.port || '80'), 'versão · ' + (V.instalada || '...'), 'idioma · pt-BR', 'clickup · ' + S.dues.length + ' prazos nos próximos 3 dias', 'agenda · ' + S.tasks.length + ' blocos para hoje', 'calibragem · dia ' + K.dia + ' de 30', 'pops · ' + PP.meus.length + ' na sua biblioteca', 'plano · ' + (S.planState === 'approved' ? 'aprovado' : S.planState === 'suggested' ? 'aguardando aprovação' : 'ainda não montado'), 'tudo pronto, ' + String(S.pessoa || '').toLowerCase()]
     };
 
-    const rootCls = ['m-' + M, pf.light ? 'is-light' : '', pf.glass && !pf.light ? 'has-blur' : '', prep ? 'is-prep' : '', introRun || introHome ? 'is-intro' : '', S.introPhase === 'skip' ? 'is-introskip' : '', S.sceneOn ? 'scene-on' : '', banner.on && showB && S.screen === 'dia' ? 'has-banner' : '', doneRow.on || ask.on ? 'has-after' : '', S.detailOpen ? 'has-detail' : '', compact ? 'is-compact' : '', S.hdPin || S.hdPeek || S.introPhase !== 'done' ? 'hd-on' : '', colOn ? 'col-on' : '', dockOn ? 'dock-on' : '', execOn ? 'is-exec' : '', 'scr-' + S.screen].filter(Boolean).join(' ');
+    const rootCls = ['m-' + M, pf.light ? 'is-light' : '', !pf.light ? 'has-blur' : '', prep ? 'is-prep' : '', introRun || introHome ? 'is-intro' : '', S.introPhase === 'skip' ? 'is-introskip' : '', S.sceneOn ? 'scene-on' : '', banner.on && showB && S.screen === 'dia' ? 'has-banner' : '', doneRow.on || ask.on ? 'has-after' : '', S.detailOpen ? 'has-detail' : '', compact ? 'is-compact' : '', S.hdPin || S.hdPeek || S.introPhase !== 'done' ? 'hd-on' : '', colOn ? 'col-on' : '', dockOn ? 'dock-on' : '', execOn ? 'is-exec' : '', 'scr-' + S.screen].filter(Boolean).join(' ');
     const brandName = String(S.gname || 'Guardião').toUpperCase();
     if (S.sessao && S.sessao !== this.sesRef) { this.sesRef = S.sessao; this.sesT = now; }
 
@@ -3249,6 +3308,7 @@ class Component extends DCLogic {
       done: doneRow, ask, adj: { cls: S.adjOn ? 'show' : '', a: S.adjA, b: S.adjB }, onNote: E('onNote'), onNoteKey: E('onNoteKey'), toggleAdj: C('toggleAdj'), undo: C('undo'), onAdjA: E('onAdjA'), onAdjB: E('onAdjB'), saveAdj: C('saveAdj'),
       doneCount, totalCount, cmdPh: S.net === 'offline' ? 'Guardião desligado' : execOn ? 'Fale ou escreva. Ex.: concluí, preciso de mais tempo' : voiceOn ? 'Fale ou escreva. Ex.: vou executar' : 'Escreva. Ex.: vou executar', cmdText: listenHome ? S.userLine : S.cmdText, cmdDis: S.net === 'offline', onCmdInput: E('onCmdInput'), onCmdKey: E('onCmdKey'),
       micCls: S.listening ? 'on' : '', micOn: S.listening, micAria: S.listening ? 'Ouvindo' : 'Falar com o Guardião', micDis: S.net === 'offline', micLabel: S.listening ? 'Ouvindo' : 'Falar', onMic: C('onMic'), onSend: C('onSend'),
+      spd: { on: voiceOn && orbEff === 'speaking' && !mini, label: String(pf.speed).replace('.', ',') + 'x', aria: 'Velocidade da voz: ' + String(pf.speed).replace('.', ',') + ' vezes. Toque para trocar.', go: C('trocarVelocidade') },
       voiceCls: voiceOn ? '' : 'muted', voiceMuted: !voiceOn, voiceLabel: voiceOn ? 'Silenciar a voz do Guardião' : 'Ligar a voz do Guardião', toggleVoice: C('toggleVoice'),
       dia, toggleNotice: C('toggleNotice'), askPlan: C('askPlan'),
       plan, plRailSt, col, colMsgs, dock, dockOpen: S.dockOpen, toggleSheet: C('toggleSheet'), setMsgsC: this.setMsgsC, setMsgsS: this.setMsgsS, review: { on: S.review }, approvePlan: C('approvePlan'), endReview: C('endReview'), setMsgs: this.setMsgs, chatMsgs, flows: FLOWS.map((f) => ({ label: f.label, go: () => this.startFlow(f) })),

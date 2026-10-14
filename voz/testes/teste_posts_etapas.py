@@ -22,12 +22,12 @@ cfg = {"clickup": {"user_id": "1", "listas": [{"id": "L1", "nome": "Conteúdos"}
 
 
 def bloco(i, etapa, post, ini, fim):
-    return {"id": i, "inicio": ini, "fim": fim, "titulo": f"Reserva: {etapa.lower()} de post ({post}), tema ainda não definido", "dono": "Milena",
+    return {"id": i, "inicio": ini, "fim": fim, "titulo": f"Reserva: {etapa.lower()} de post ({post}), tema ainda não definido", "dono": "Rafa Lima",
             "reserva_post": post, "etapa": etapa}
 
 
 hoje = {"data": "2026-10-14", "blocos": [bloco("r1", "Copy", "2026-10-19", "09:00", "10:00"), bloco("r2", "Design", "2026-10-19", "14:00", "16:00"),
-                                          {"id": "x", "inicio": "11:00", "fim": "12:00", "titulo": "Outro", "dono": "Milena"}]}
+                                          {"id": "x", "inicio": "11:00", "fim": "12:00", "titulo": "Outro", "dono": "Rafa Lima"}]}
 outro = {"data": "2026-10-16", "blocos": [bloco("r3", "Design", "2026-10-21", "15:30", "17:30")]}
 json.dump(hoje, open(os.path.join(tmp, "plano_do_dia.json"), "w", encoding="utf-8"))
 json.dump(outro, open(os.path.join(tmp, "planos", "plano_2026-10-16.json"), "w", encoding="utf-8"))

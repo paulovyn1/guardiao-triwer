@@ -10,7 +10,7 @@ import v2_base as B
 from v2_base import confere, h, v2
 
 SO = sys.argv[1] if len(sys.argv) > 1 else ""  # nome de uma etapa para parar depois dela (depuração)
-tmp, relogio = B.preparar(8776, hora="09:50")
+tmp, relogio = B.preparar(8776, hora="09:50", prefs={"execucao_ao_abrir": False})  # começa na Home em conversa (o padrão vai direto para a execução)
 nav = B.Navegador("http://localhost:8776/v2/?semabertura=1", porta_cdp=9342)
 js, espera, foto, clicar = nav.js, nav.espera, nav.foto, nav.clicar_texto
 
@@ -62,7 +62,9 @@ try:
     # ---------------- Home, estágio de conversa
     confere("a tela carrega e sai da preparação", espera("document.querySelector('.gd') && !document.querySelector('.gd').classList.contains('is-prep') && !document.querySelector('.gd').classList.contains('is-introskip')", 15))
     confere("palco encaixado na janela", js("getComputedStyle(document.getElementById('dc-root')).transform !== 'none'"))
-    confere("cabeçalho com nome e abas, e o relógio do servidor acima da bolinha", contem(".brand", "GUARDIÃO") and contem(".brand", "RAFA") and contem(".orbdate", "09:50") and js("document.querySelectorAll('.tab').length") == 5, texto(".hd"))
+    # o cabeçalho se esconde sozinho no desktop meio segundo depois de abrir: o nome é lido pelo conteúdo, não pelo texto visível
+    marca = js("(document.querySelector('.brand') || {}).textContent || ''").lower()
+    confere("cabeçalho com nome e abas, e o relógio do servidor acima da bolinha", "guardião" in marca and "rafa" in marca and contem(".orbdate", "09:50") and js("document.querySelectorAll('.tab').length") == 5, texto(".hd"))
     confere("Home em conversa: só a bolinha, o estado e três atalhos", not tem("is-exec") and contem(".gl-u", "DIGA EI GUARDIÃO") and js("[...document.querySelectorAll('.st.cur .arow .chip')].map(e => e.textContent).join('|')") == "Modo execução|Próximas tarefas|Ver o dia")
     confere("a bolinha 3D está desenhando", js("(() => { const c = document.querySelector('.orbw canvas'); return !!c && c.width > 100; })()"))
     confere("o console de simulação saiu", js("!document.querySelector('.simchip') && !document.querySelector('.sim')"))
@@ -71,7 +73,12 @@ try:
     # ---------------- modo execução
     clicar("Modo execução", ".st.cur .chip")
     confere("entrar em execução: a tarefa de agora aparece", espera("document.querySelector('.gd').classList.contains('is-exec')", 4) and contem(".f-title", "Montar as campanhas"))
-    confere("o servidor passa a acompanhar o tempo", pausa(0.5) and v2.estado_exec()["ativo"] and v2.estado_exec()["sessao"]["bloco"] == "b3")
+    confere("no horário dela, mas sem o clique, a tarefa NÃO começa: o botão é Iniciar", pausa(0.5) and v2.estado_exec()["ativo"] and v2.estado_exec()["sessao"] is None
+            and (contem(".st.cur .btn-pri", "INICIAR · 09:50") or contem(".st.cur .btn-pri", "INICIAR · 09:51")) and contem(".f-kick", "ainda não iniciada"), (texto(".st.cur .btn-pri"), texto(".f-kick")))
+    confere("a bolinha diz que é hora de começar", contem(".orbw", "HORA DE COMEÇAR") or "HORA DE COMEÇAR" in js("document.querySelector('.gd').textContent").upper())
+    js("document.querySelector('.st.cur .btn-pri').click()")
+    confere("Iniciar: o servidor passa a acompanhar o tempo a partir do clique", pausa(0.8) and v2.estado_exec()["sessao"] and v2.estado_exec()["sessao"]["bloco"] == "b3" and v2.estado_exec()["sessao"]["inicio"] in ("09:50", "09:51"), v2.estado_exec())
+    espera("document.querySelector('.st.cur .btn-pri').innerText.toUpperCase().includes('CONCLUIR')", 5)
     confere("botão Concluir com a hora e os quatro discretos", (contem(".st.cur .btn-pri", "CONCLUIR · 09:50") or contem(".st.cur .btn-pri", "CONCLUIR · 09:51")) and js("[...document.querySelectorAll('.f-sec .sec-b')].map(e => e.textContent.trim()).join('|')") == "Detalhes|ClickUp|Adiar|Sair", texto(".f-sec"))
     confere("linha de tempo restante", contem(".f-kick", "09:00 às 10:30") and (contem(".f-kick", "40 min restantes") or contem(".f-kick", "39 min restantes")), texto(".f-kick"))
     time.sleep(1.6)
@@ -88,6 +95,25 @@ try:
     falar("Faltam quarenta minutos para as campanhas da Clínica Vitta.")
     confere("a fala do guardião aparece na linha dele", espera("document.querySelector('.gl-g').innerText.toLowerCase().includes('faltam quarenta minutos')", 4), texto(".gl-g"))
     confere("o volume real chega à bolinha", js("window.GD_NIVEL.vivo === true && window.GD_NIVEL.voz > 0"))
+    # ---------------- velocidade da voz: botão discreto ao lado do campo de texto, só enquanto ele fala
+    h.bus.emitir("estado", v="aguardando")
+    confere("sem fala, o botão de velocidade não aparece", pausa(0.4) and not js("!!document.querySelector('.st.cur .cmd .spd')"))
+    h.bus.emitir("estado", v="falando")
+    confere("falando, com a voz ligada, aparece o botão de velocidade em 1x", espera("!!document.querySelector('.st.cur .cmd .spd')", 3) and contem(".st.cur .cmd .spd", "1x"), texto(".st.cur .cmd"))
+    js("document.querySelector('.st.cur .cmd .spd').click()")
+    confere("um toque troca para 1,5x e grava (a fala em curso acelera)", pausa(0.6) and h.preferencias()["voz_velocidade"] == 1.5 and contem(".st.cur .cmd .spd", "1,5x"), (h.preferencias()["voz_velocidade"], texto(".st.cur .cmd .spd")))
+    js("document.querySelector('.st.cur .cmd .spd').click()")
+    js("document.querySelector('.st.cur .cmd .spd').click()")
+    confere("depois 2x e de volta a 1x", pausa(0.6) and h.preferencias()["voz_velocidade"] == 1.0, h.preferencias()["voz_velocidade"])
+    eventos_esc = []
+    import controle_fala  # noqa: E402
+    esc_original = controle_fala.esc
+    controle_fala.esc = lambda: (eventos_esc.append(1), "voz")[1]
+    js("document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))")
+    confere("Esc enquanto ele fala vai para o guardião (e não tira do modo execução)", pausa(0.6) and eventos_esc == [1] and tem("is-exec"), eventos_esc)
+    confere("e a tela avisa que a voz foi desligada", espera("[...document.querySelectorAll('.toast')].some(t => t.innerText.includes('Voz desligada'))", 3))
+    controle_fala.esc = esc_original
+    h.bus.emitir("estado", v="aguardando")
     foto("03_home_fala")
 
     # ---------------- foco: a tarefa aparece em destaque enquanto ele fala dela
@@ -132,7 +158,10 @@ try:
     confere("a próxima tarefa já subiu", contem(".f-title", "Revisar o roteiro"), texto(".f-title"))
     time.sleep(1.0)
     foto("08_concluir_sem_frase")
-    confere("fecha no ClickUp na hora: sem comentário e com início e fim reais", pausa(1.5) and not any(m == "POST" and "cid3/comment" in u for m, u, c in B.ClickUpFalso.chamadas) and any(m == "PUT" and "cid3" in u and isinstance(c, dict) and "start_date" in c and c.get("status") == "complete" for m, u, c in B.ClickUpFalso.chamadas), B.ClickUpFalso.chamadas[n_antes:][-3:])
+    confere("fecha no ClickUp na hora, com o prazo combinado intacto e o horário realizado num comentário",
+            pausa(1.5) and any(m == "PUT" and "cid3" in u and isinstance(c, dict) and c.get("status") == "complete" and "due_date" not in c for m, u, c in B.ClickUpFalso.chamadas)
+            and any(m == "POST" and "cid3/comment" in u and str((c or {}).get("comment_text", "")).startswith("Realizado: das 09:50 às 10:40") for m, u, c in B.ClickUpFalso.chamadas),
+            B.ClickUpFalso.chamadas[n_antes:][-3:])
     reg = {b["id"]: b for b in h._registro_de_hoje()["blocos"]}
     confere("o registro guarda o horário real medido", reg["b3"]["estado"] == "feito" and reg["b3"]["real"] == {"inicio": "09:50", "fim": "10:40", "minutos": 50} and reg["b3"].get("nao_confirmado") is False, reg["b3"])
     confere("o tempo real entra no tempos.json", h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]["Tráfego"]["registros"][-1]["real"] == 50)
@@ -262,16 +291,33 @@ try:
 
     # ---------------- preferências
     js("document.querySelector('.ibtn[aria-label=\"Preferências\"]').click()")
-    confere("preferências abrem com os grupos", espera("document.querySelector('.prefs.open')", 3) and js("[...document.querySelectorAll('.prefs .pg-h .mono')].map(e => e.textContent).join('|')") == "Voz e sons|Comportamento|Aparência|Versão|Serviços")
+    confere("preferências abrem com três grupos", espera("document.querySelector('.prefs.open')", 3) and js("[...document.querySelectorAll('.prefs .pg-h .mono')].map(e => e.textContent).join('|')") == "Voz e sons|Comportamento|Aparência",
+            js("[...document.querySelectorAll('.prefs .pg-h .mono')].map(e => e.textContent).join('|')"))
     confere("as seções abrem fechadas, cada uma com um resumo do que tem dentro",
-            js("document.querySelectorAll('.prefs .pg.open').length") == 0 and js("getComputedStyle(document.querySelector('.prefs .sw')).visibility") == "hidden"
+            js("document.querySelectorAll('.prefs .pg.open').length") == 0 and js("getComputedStyle(document.querySelector('.prefs .pg .sw')).visibility") == "hidden"
             and "Voz ligada" in js("document.querySelector('.prefs .pg-s').textContent"), js("[...document.querySelectorAll('.prefs .pg-s')].map(e => e.textContent).join('|')"))
+    topo = js("document.querySelector('.prefs .ptop').textContent") if pausa(0.8) else ""
+    confere("à vista, sem abrir nada: a versão, os serviços e o modo leve", "Guardião" in topo and "Microfone:" in topo and "Claude:" in topo and "Modo leve" in topo
+            and js("getComputedStyle(document.querySelector('.prefs .ptop .sw[aria-label=\"Modo leve\"]')).visibility") == "visible", topo)
+    confere("as opções que saíram não aparecem mais", all(x not in texto(".prefs") for x in ("Animação de abertura", "Saudação ao abrir", "Vidro com desfoque", "Rever a abertura")), texto(".prefs")[:600])
     js("document.querySelectorAll('.prefs .pg-h')[0].click()")
     confere("clicar numa seção mostra as opções dela", pausa(0.7) and js("document.querySelectorAll('.prefs .pg.open').length") == 1
             and js("getComputedStyle(document.querySelector('.prefs .sw[aria-label=\"Voz do Guardião\"]')).visibility") == "visible")
     js("document.querySelectorAll('.prefs .pg-h')[2].click()")
-    confere("abrir outra seção fecha a anterior", pausa(0.7) and js("[...document.querySelectorAll('.prefs .pg')].map(e => e.classList.contains('open') ? 1 : 0).join('')") == "00100")
-    js("document.querySelectorAll('.prefs .pg-h')[4].click()")
+    confere("abrir outra seção fecha a anterior", pausa(0.7) and js("[...document.querySelectorAll('.prefs .pg')].map(e => e.classList.contains('open') ? 1 : 0).join('')") == "001")
+    js("document.querySelectorAll('.prefs .pg-h')[0].click()")
+    pausa(0.7)
+    confere("os sons viraram três controles: Sons, Volume e Som de digitação, e a velocidade da voz entrou",
+            all(x in texto(".prefs .pg.open") for x in ("Sons", "Volume", "Som de digitação", "Velocidade da voz")) and "Movimento" not in texto(".prefs .pg.open") and "Toques" not in texto(".prefs .pg.open"), texto(".prefs .pg.open"))
+    js("[...document.querySelectorAll('.prefs .seg-b')].find(b => b.textContent.trim() === '2x').click()")
+    confere("velocidade escolhida nas preferências grava", pausa(0.6) and h.preferencias()["voz_velocidade"] == 2.0, h.preferencias()["voz_velocidade"])
+    js("document.querySelector('.prefs .sw[aria-label=\"Sons\"]').click()")
+    pr = h.preferencias() if pausa(0.8) else {}
+    confere("desligar Sons desliga o grupo inteiro (cliques, telas, avisos, estados e trilha); a digitação tem chave própria",
+            not pr["sons"] and not any(pr[k] for k in ("som_movimento", "som_toques", "som_avisos", "som_estados", "som_abertura")) and pr["som_digitacao"], pr)
+    js("document.querySelector('.prefs .sw[aria-label=\"Sons\"]').click()")
+    confere("e ligar religa todos", pausa(0.8) and all(h.preferencias()[k] for k in ("sons", "som_movimento", "som_toques", "som_avisos", "som_estados", "som_abertura")))
+    h.salvar_preferencias({"voz_velocidade": 1.0})
     time.sleep(0.9)
     foto("20_preferencias")
     js("document.querySelector('.prefs .sw[aria-label=\"Voz do Guardião\"]').click()")

@@ -1,4 +1,5 @@
-"""Cérebro do guardião na revisão do plano: marcas, permissões, aprovação com "sim", saudação, microfone aberto. Sem Claude, sem áudio, sem navegador."""
+"""Cérebro do guardião na revisão do plano: marcas, permissões, aprovação com "sim", abertura do dia (plano lido tarefa a tarefa, pedido de ok,
+execução com incentivo), microfone aberto. Sem Claude, sem áudio, sem navegador."""
 import argparse
 import json
 import os
@@ -26,7 +27,6 @@ def confere(nome, ok, detalhe=""):
 
 tmp = tempfile.mkdtemp(prefix="gv_oper_rev_")
 h.OPER = tmp
-g.SAUDACAO_ARQ = os.path.join(tmp, "logs", "saudacao.json")
 hoje = date.today().isoformat()
 caminho = os.path.join(tmp, "plano_do_dia.json")
 
@@ -124,28 +124,80 @@ confere("depois de aprovado, mover pela voz é recusado", plano()["blocos"][1]["
 g.AVISOS_AO_MODELO.clear()
 gravar_plano()
 
-# ---- saudação
-confere("pode saudar na primeira vez", g.pode_saudar())
-g.registrar_saudacao("Bom dia, Rafa! Hoje é sábado, 10 de outubro. Quer revisar o plano?")
-confere("não repete a saudação em menos de 3 horas, a não ser forçando", not g.pode_saudar() and g.pode_saudar(True))
-arq = json.load(open(g.SAUDACAO_ARQ, encoding="utf-8"))
-arq["ts"] -= 4 * 3600
-json.dump(arq, open(g.SAUDACAO_ARQ, "w", encoding="utf-8"))
-confere("depois de 3 horas pode saudar de novo", g.pode_saudar())
-pedido = g.pedido_saudacao()
-confere("pedido: avisa que não é fala do Rafa, traz data e horário, convida a revisar o plano sugerido", "não é uma fala do Rafa" in pedido and "de outubro" in pedido and "NÃO foi aprovado" in pedido and "revisar o plano" in pedido, pedido)
-confere("pedido: lembra a saudação anterior para variar", "Quer revisar o plano?" in pedido)
-gravar_plano("aprovado")
-confere("pedido com plano aprovado fala do próximo bloco", "já está aprovado" in g.pedido_saudacao() and "próximo bloco" in g.pedido_saudacao())
-os.remove(caminho)
-confere("pedido sem plano diz que não há plano", "Ainda não existe plano" in g.pedido_saudacao())
-gravar_plano()
-g.PROPOSTA = {"tipo": "criar", "dados": {}, "quando": time.time()}
-confere("com uma proposta esperando, não saúda", not g.pode_saudar(True))
+# ---- abertura do dia: o guardião monta (se preciso), lê o plano tarefa a tarefa e pede o ok; nas outras aberturas, execução com incentivo
+import controle_fala  # noqa: E402
+import guardiao_v2 as v2  # noqa: E402
+a = argparse.Namespace(cerebro=True, voz="kokoro", voz_kokoro="pm_santa", voz_nome="", sem_preview=True, previa_local=True, sem_escuta_aberta=False)
+ditas = []
+pular_na_leitura = [False]
+
+
+def dizer_falso(texto, a_, marcas=False):
+    ditas.append((texto, marcas))
+    if marcas and pular_na_leitura[0]:
+        controle_fala.esc()  # a pessoa aperta Esc no meio da leitura
+    return texto
+
+
+dizer_original = g.dizer
+g.dizer = dizer_falso
+h.bus.portao_saudacao.set()  # a animação de abertura já terminou
+eventos()
+r = g.abrir_o_dia(a, primeira=True)
+ev = eventos()
+leitura = next((t for t, m in ditas if m), "")
+confere("primeira abertura com plano sugerido: vai para a aba Dia", any(e["t"] == "ui" and e.get("cmd") == "tela" and e.get("id") == "dia" for e in ev), [e["t"] for e in ev])
+confere("e lê cada tarefa, com a marca que destaca a da vez", "{{foco:b1}}Primeiro, das 09:00 às 09:30, Primeira." in leitura and "{{foco:b2}}Por último, das 10:00 às 11:00, Segunda." in leitura, leitura)
+confere("cumprimenta pelo nome e diz quantas tarefas são", leitura.startswith(g.saudacao_local()) and "2 tarefas" in leitura, leitura[:120])
+confere("no fim pede o ok, com a proposta de aprovar na tela, e espera resposta", r is True and g.PROPOSTA and g.PROPOSTA["tipo"] == "aprovar"
+        and any(e["t"] == "proposta" and e.get("tipo") == "aprovar" for e in ev) and "Posso aprovar o plano?" in ditas[-1][0], (r, ditas[-1]))
+confere("a revisão fica aberta: dá para pedir mudança antes de aprovar", g.revisao_ativa())
+confere("sem o ok, nada de execução", not v2.estado_exec()["ativo"])
+confere("a leitura não fica marcada depois que termina", not controle_fala.LEITURA.is_set())
 g.PROPOSTA = None
+g.encerrar_revisao()
+ditas.clear()
+r = g.abrir_o_dia(a, primeira=False)
+confere("reaberta no mesmo dia com o plano ainda sem ok: não lê de novo, só pede o ok", r is True and len(ditas) == 1 and "ainda espera o seu ok" in ditas[0][0] and g.PROPOSTA, ditas)
+g.PROPOSTA = None
+ditas.clear()
+g.ABERTURA["leu"] = ""
+pular_na_leitura[0] = True
+g.abrir_o_dia(a, primeira=True)
+confere("Esc na leitura: pula direto para o pedido de ok", ditas[-1][0].startswith("Pulei a leitura.") and "Posso aprovar" in ditas[-1][0] and g.PROPOSTA, ditas[-1])
+confere("e o Esc da leitura não desliga a voz nem corta a próxima fala", h.preferencias()["voz_guardiao"] is True and not controle_fala.PULAR_LEITURA.is_set())
+pular_na_leitura[0] = False
+g.PROPOSTA = None
+g.encerrar_revisao()
+gravar_plano("aprovado")
+ditas.clear()
+r = g.abrir_o_dia(a, primeira=False)
+e = v2.estado_exec()
+confere("plano aprovado: entra em execução sozinho, sem iniciar a tarefa", e["ativo"] and e["sessao"] is None, e)
+confere("e fala uma frase de incentivo com a tarefa de agora", r is False and len(ditas) == 1 and ditas[0][0].startswith(g.saudacao_local()) and "Primeira" in ditas[0][0], ditas)
+v2.sair()
+h.salvar_preferencias({"execucao_ao_abrir": False})
+g.abrir_o_dia(a, primeira=False)
+confere("com 'ir direto para a execução' desligado, só o incentivo", not v2.estado_exec()["ativo"])
+h.salvar_preferencias({"execucao_ao_abrir": True})
+os.remove(caminho)
+pedidos = []
+iniciar_original = g.iniciar_completo
+g.iniciar_completo = lambda pedido: pedidos.append(pedido) or True
+ditas.clear()
+r = g.abrir_o_dia(a, primeira=True)
+confere("sem plano: pede para montar sem perguntar e avisa que está montando", pedidos == [g.PEDIDO_PLANO_DO_DIA] and g.ABERTURA["esperando_plano"] and "Estou montando o seu plano de hoje" in ditas[0][0] and r is False, (pedidos, ditas))
+gravar_plano()
+ditas.clear()
+r = g.plano_montado_na_abertura(a, {"pedido": g.PEDIDO_PLANO_DO_DIA, "mudou": True, "fala": "Montei."})
+confere("plano montado: lê tarefa a tarefa e pede o ok", r is True and not g.ABERTURA["esperando_plano"] and any(m for _, m in ditas) and "Posso aprovar" in ditas[-1][0], ditas)
+g.PROPOSTA = None
+g.encerrar_revisao()
+g.iniciar_completo = iniciar_original
+g.dizer = dizer_original
+g.ABERTURA.update(esperando_plano=False, leu="")
 
 # ---- atender: microfone aberto depois de pergunta
-a = argparse.Namespace(cerebro=True, voz="kokoro", voz_kokoro="pm_santa", voz_nome="", sem_preview=True, previa_local=True, sem_escuta_aberta=False)
 g.winsound.Beep = lambda *x: (_ for _ in ()).throw(AssertionError("bipe tocou no seguimento"))
 g.dizer = lambda *x, **k: None
 chamadas_resp = []
@@ -162,10 +214,6 @@ FALA = ["Quer revisar o plano agora?"]
 g.responder_falando = falso_responder
 g.executar_diretivas = lambda *x, **k: None
 q = queue.Queue()
-r = g.atender(a, q, None, None, 0, texto_digitado="Isto é um pedido de saudação", saudacao=True)
-confere("saudação: não mostra 'você', usa o portão, sem ações, e pede o microfone aberto", r is True and chamadas_resp[-1] == {"texto_usuario": "", "acoes": False, "portao": True} and not any(e["t"] == "voce" for e in eventos()), chamadas_resp)
-confere("a saudação vai para o modelo padrão (Sonnet), com o motivo", modelos_usados[-1] == (g.MODELO_PADRAO, "saudação"), modelos_usados)
-confere("saudação fica registrada para variar amanhã", "Quer revisar o plano agora?" in json.load(open(g.SAUDACAO_ARQ, encoding="utf-8"))["textos"])
 r = g.atender(a, q, None, None, 0, texto_digitado="e agora?")
 confere("pergunta digitada nunca abre o microfone sozinho", r is False)
 FALA[0] = "Pronto, está feito."

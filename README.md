@@ -39,7 +39,7 @@ Pulou esse passo? O painel funciona do mesmo jeito, por texto. Para ligar o micr
 - Leve o cursor ao topo da janela para ver o menu: o dia, o planejador, a calibragem, os POPs e as preferências.
 - **Fechar a janela não desliga o guardião.** Ele segue ouvindo "Ei guardião" em segundo plano; se estava falando, para na hora. Para desligar de vez: `Guardiao-do-dia\voz\parar_guardiao.bat`.
 - Sem a "Conversa com memória" (o padrão), ele lembra das últimas 10 falas e de um resumo do dia, mesmo depois de reiniciar. "Nova conversa" esquece tudo.
-- Em Preferências você ajusta os sons, a abertura, a saudação e liga a conversa com memória.
+- Em Preferências você ajusta a voz (inclusive a velocidade), os sons e liga a conversa com memória. A versão, os serviços e o modo leve ficam à vista no alto.
 
 ## Se algo não funcionar
 
@@ -50,7 +50,9 @@ Pulou esse passo? O painel funciona do mesmo jeito, por texto. Para ligar o micr
 - **Ele não me ouve quando chamo:** diga "Ei guardião" junto, no começo da frase, e espere o som antes de falar o resto.
 - **Ele diz que atingiu o limite do plano ou que o Claude Code não está conectado:** é a conta do Claude, não o guardião. O limite volta na hora que ele informa; para entrar na conta, abra o Claude Code e faça o login.
 - **Ele demora para responder, ou a voz tem pausas entre as frases:** dê dois cliques em `Guardiao-do-dia\voz\diagnostico.bat`. Ele mede o Claude, a voz e o computador, diz onde está o problema e escreve `Guardiao-do-dia\logs\diagnostico.txt`. Se pedirem, mande também `logs\latencia.jsonl`.
-- **O painel abre no seu navegador padrão, no seu perfil:** o guardião não cria perfil, não entra em conta e não mexe em extensão. No Chrome e no Edge ele abre como janela de aplicativo (sem abas); no Opera, Brave, Vivaldi, Firefox e nos outros, numa aba do navegador que já está aberto. Os sons da abertura podem esperar o seu primeiro clique, porque o navegador não deixa uma página tocar som sozinha.
+- **O botão de atualizar não aparece ou não funciona:** dê dois cliques em `Guardiao-do-dia\atualizar_guardiao.bat`. Ele faz o mesmo que o botão "Nova versão" e mantém a sua memória, os planos e as preferências.
+- **O painel abre no Microsoft Edge, como um aplicativo:** janela própria, sem abas nem barra de endereço, no seu perfil do Edge. O guardião não cria perfil, não entra em conta e não mexe em extensão. O Edge vem com o Windows; se ele tiver sido removido, o painel abre no Chrome e, sem os dois, numa aba do seu navegador. Os sons da abertura podem esperar o seu primeiro clique, porque o navegador não deixa uma página tocar som sozinha.
+- **Esc:** pula a animação de abertura e a leitura do plano. Com o guardião falando, o primeiro Esc corta a voz e ele segue por escrito; o segundo cancela o resto da resposta.
 - **Nada disso resolveu:** abra o Claude Code e escreva "o guardião não está funcionando, confere a instalação". Ele sabe conferir o que falta.
 
 ## Atualizar e desinstalar
