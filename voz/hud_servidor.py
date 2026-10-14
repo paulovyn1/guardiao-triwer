@@ -502,10 +502,37 @@ def atualizar_resumo_clickup():
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if r.returncode != 0:
             print("  (a leitura ao vivo do ClickUp falhou, uso o resumo antigo:", r.stderr.decode("utf-8", "replace")[:200], ")")
+        else:
+            _renovar_posts_se_velho()
         return r.returncode == 0
     except (OSError, subprocess.SubprocessError) as erro:
         print("  (não consegui rodar a leitura ao vivo do ClickUp, uso o resumo antigo:", erro, ")")
         return False
+
+
+POSTS_VELHO_HORAS = 3
+
+
+def _renovar_posts_se_velho():
+    """Carona na leitura do ClickUp: o posts_maes.json (mães dos posts e datas) só era refeito ao aprovar o plano e chegou a ficar 2 dias velho,
+    e é por ele que o guardião acha "o post de quinta". Se tem mais de 3 h, é refeito em segundo plano, sem segurar quem pediu a leitura."""
+    arq = os.path.join(OPER, "posts_maes.json")
+    try:
+        if os.path.exists(arq) and time.time() - os.path.getmtime(arq) < POSTS_VELHO_HORAS * 3600:
+            return
+    except OSError:
+        return
+    token = _token_clickup()
+    if not token:
+        return
+
+    def renovar():
+        try:
+            import posts_maes
+            posts_maes.atualizar(_config(), token, OPER)
+        except Exception as erro:
+            print("  (não consegui renovar as mães dos posts:", erro, ")")
+    threading.Thread(target=renovar, daemon=True).start()
 
 
 def _palavras_do_titulo(titulo):

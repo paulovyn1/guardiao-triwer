@@ -55,15 +55,19 @@ def parar_em(dia, memoria=None):
     return max(vs.hora_de_parar(dia, memoria), ESTENDER.get(dia, 0))
 
 
-def janelas(tipo, parar):
-    """Onde cada tipo pode cair (minutos). Pesado só no nobre; design no nobre e na tarde de 14h a 16h; leve em qualquer hora."""
+def janelas(tipo, parar, fora=False):
+    """Onde cada tipo cai DE PREFERÊNCIA (minutos). Pesado no nobre; design no nobre e na tarde de 14h a 16h; leve fora do nobre.
+    fora=True: o dia inteiro. É o segundo recurso: pesado e design só quando o prazo não espera (não se atrasa um post por falta de nobre);
+    leve só quando não há outro espaço, e aí o guardião confere antes se alguma tarefa pesada pode ser adiantada para aquele horário."""
     m1, m2 = vs.NOBRE_MANHA
     noite = (vs.NOBRE_NOITE_INICIO, parar)
+    if fora:
+        return [(vs.CHEGADA, parar)]
     if tipo == "pesado":
         return [(m1, m2), noite]
     if tipo == "design":
         return [(m1, m2), (14 * 60, 16 * 60), noite]
-    return [(vs.CHEGADA, parar)]
+    return [(m2, vs.NOBRE_NOITE_INICIO)]
 
 
 def _config():
@@ -83,6 +87,7 @@ def fixos_do_dia(dia, cfg=None):
     for f in rotina.get("cancelados") or []:  # exceção a um fixo da semana (ex.: unha que não vai acontecer)
         if f.get("data") == dia.isoformat():
             fixos = [x for x in fixos if _norm(x.get("titulo")) != _norm(f.get("titulo"))]
+    fixos = [dict(f) for f in fixos]  # cópia: quem recebe pode mexer (o almoço anda depois de um compromisso) sem alterar a configuração
     if not fixos and rotina.get("almoco"):
         ini = vs.hm(rotina["almoco"])
         fixos.append({"inicio": vs.fmt(ini), "fim": vs.fmt(ini + 60), "titulo": "Almoço"})
@@ -99,12 +104,12 @@ def plano_efetivo(dia, planos, cfg=None):
     return base
 
 
-def espacos(plano, dia, tipo, a_partir=None, memoria=None, ignorar=()):
+def espacos(plano, dia, tipo, a_partir=None, memoria=None, ignorar=(), fora=False):
     """Espaços livres contínuos (ini, fim) nas janelas do tipo, descontando blocos e fixos."""
     parar = parar_em(dia, memoria)
     ocupados = vs._intervalos(plano, ignorar)
     livres = []
-    for a, b in janelas(tipo, parar):
+    for a, b in janelas(tipo, parar, fora):
         a = max(a, a_partir or 0)
         cursor = a
         for x, y in ocupados:
@@ -153,8 +158,7 @@ def data_segura(prazo, hoje, depende_dias=0):
 
 def _leves_no_nobre(plano, dia, memoria):
     """Blocos leves no horário nobre que podem ir para a tarde do mesmo dia (preferência dela: tirar o leve do nobre, não empurrar a copy)."""
-    tarde = espacos(plano, dia, "leve", memoria=memoria)
-    tarde = [(a, b) for a, b in tarde if a >= 14 * 60 and b <= vs.NOBRE_NOITE_INICIO]
+    tarde = [(a, b) for a, b in espacos(plano, dia, "leve", memoria=memoria) if a >= 14 * 60]
     troca = []
     for b in plano.get("blocos") or []:
         try:
@@ -182,9 +186,9 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
     if prazo and prazo < hoje:
         r["motivos"].append(f"O prazo final ({prazo:%d/%m}) já passou: diga isso a ela antes de encaixar.")
 
-    def candidatos_no_dia(dia, a_partir=None):
+    def candidatos_no_dia(dia, a_partir=None, fora=False):
         plano = plano_efetivo(dia, planos, cfg)
-        livres = espacos(plano, dia, tipo, a_partir, memoria)
+        livres = espacos(plano, dia, tipo, a_partir, memoria, fora=fora)
         maior = max((y - x for x, y in livres), default=0)
         total = sum(y - x for x, y in livres)
         cands = []
@@ -194,8 +198,13 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
             x, y = min(cabem, key=lambda e: (tipo != "pesado" and _no_nobre(e[0]), e[0]))
             if flexivel:  # tarefa com folga vai para o fim do espaço: fica adiável e não toma o começo do nobre
                 x = max(x, y - precisa) if precisa <= y - x else x
-            cands.append({"dia": dia, "inicio": x, "fim": min(y, x + precisa), "como": "espaço livre"})
-        elif tipo == "pesado":
+            como = "espaço livre"
+            if fora and tipo == "leve" and _no_nobre(x):
+                como = "espaço livre NO NOBRE, porque não há outro: antes, veja se alguma tarefa pesada pode ser adiantada para este horário"
+            elif fora and tipo != "leve" and not any(a <= x < b for a, b in janelas(tipo, parar_em(dia, memoria))):
+                como = "espaço livre FORA DO NOBRE: o prazo não espera e não vale atrasar por falta de horário nobre"
+            cands.append({"dia": dia, "inicio": x, "fim": min(y, x + precisa), "como": como})
+        elif tipo == "pesado" and not fora:
             for b in _leves_no_nobre(plano, dia, memoria):
                 sem = espacos(plano, dia, tipo, a_partir, memoria, ignorar={b.get("id")})
                 if max((y - x for x, y in sem), default=0) >= contiguo and sum(y - x for x, y in sem) >= precisa:
@@ -204,28 +213,36 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
                     break
         return cands, maior, plano
 
-    # nível 1: hoje, a partir de agora
+    def varrer(de, ate_dia, fora=False):
+        cands, d = [], de
+        while d <= ate_dia:
+            if d.weekday() < 5 or d in ESTENDER:
+                cands += candidatos_no_dia(d, agora_min + COLCHAO_AGORA if d == hoje else None, fora)[0]
+            d += timedelta(days=1)
+        return cands
+
+    # nível 1: hoje, a partir de agora. Fora da janela preferida só se hoje já é a data segura (o prazo não espera)
     c_hoje, maior_hoje, _ = candidatos_no_dia(hoje, agora_min + COLCHAO_AGORA)
-    if c_hoje and c_hoje[0]["como"] == "espaço livre" and (not segura or hoje <= segura or hoje <= prazo):
+    urgente_hoje = bool(segura and segura <= hoje)
+    if not c_hoje and urgente_hoje:
+        c_hoje = candidatos_no_dia(hoje, agora_min + COLCHAO_AGORA, fora=True)[0]
+    if c_hoje and c_hoje[0]["como"].startswith("espaço livre") and (not segura or hoje <= segura or hoje <= prazo):
         r.update(nivel=1, candidatos=c_hoje)
         r["motivos"].append(f"Cabe hoje: maior espaço {tipo} livre a partir de agora é {vs.duracao(maior_hoje)} e a tarefa pede {vs.duracao(precisa)}.")
     else:
         r["motivos"].append(f"Não cabe hoje sem mexer em nada: maior espaço {tipo} livre a partir de agora é {vs.duracao(maior_hoje)}, a tarefa pede {vs.duracao(precisa)}.")
         fim_semana = hoje + timedelta(days=HORIZONTE_SEMANA)
         ate = min(segura, fim_semana) if segura else fim_semana
-        cands = list(c_hoje)  # troca de leve hoje também vale
-        d = hoje + timedelta(days=1)
-        while d <= ate:
-            if d.weekday() < 5:
-                cands += candidatos_no_dia(d)[0]
-            d += timedelta(days=1)
-        if not cands and prazo and segura and segura < prazo <= fim_semana:  # sem espaço com folga: o próprio prazo, sem folga
-            d = segura + timedelta(days=1)
-            while d <= prazo:
-                if d.weekday() < 5 or d in ESTENDER:
-                    for c in candidatos_no_dia(d)[0]:
-                        cands.append(dict(c, como=c["como"] + ", SEM FOLGA (no limite do prazo; diga isso a ela)"))
-                d += timedelta(days=1)
+        # 1º janela preferida (ou trocando um leve do nobre) até a data segura; 2º fora dela, se há prazo ou se é leve;
+        # 3º o próprio dia do prazo, sem folga. Prioridade manda: não se atrasa um post por falta de horário nobre.
+        cands = list(c_hoje) + varrer(hoje + timedelta(days=1), ate)
+        if not cands and (prazo or tipo == "leve"):
+            cands = varrer(hoje, ate, fora=True)
+        if not cands and prazo and segura and segura < prazo <= fim_semana:
+            for fora in (False, True):
+                cands = [dict(c, como=c["como"] + ", SEM FOLGA (no limite do prazo; diga isso a ela)") for c in varrer(segura + timedelta(days=1), prazo, fora)]
+                if cands:
+                    break
         if prazo and prazo > fim_semana:
             r["nivel"] = 3
             r["motivos"].append(f"O prazo final ({prazo:%d/%m}) passa da semana: o encaixe sai do horizonte, de trás para frente a partir da data segura ({segura:%d/%m}).")
@@ -234,7 +251,7 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
             while d > hoje and vistos < JANELA_LONGA:  # os dias úteis até a data segura, de trás para frente
                 if d.weekday() < 5:
                     vistos += 1
-                    c = candidatos_no_dia(d)[0][:1]
+                    c = candidatos_no_dia(d)[0][:1] or candidatos_no_dia(d, fora=True)[0][:1]
                     if c:
                         c[0]["nobre_livre"] = vs.livre_do_dia(plano_efetivo(d, planos, cfg), d, memoria)[1]
                         c[0]["critico"] = d in criticos
@@ -244,7 +261,7 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
                 d -= timedelta(days=1)
             # 1º dia sem marco crítico; 2º perto da data segura (até 5 dias úteis antes vale igual) com mais nobre livre; 3º o mais tarde
             perto = dias_uteis_antes(segura, 5)
-            cands.sort(key=lambda c: (c["critico"], c["dia"] < perto, -c["nobre_livre"], -c["dia"].toordinal()))
+            cands.sort(key=lambda c: (c["critico"], "FORA DO NOBRE" in c["como"] or "NO NOBRE" in c["como"], c["dia"] < perto, -c["nobre_livre"], -c["dia"].toordinal()))
         elif cands:
             r["nivel"] = 2
         else:
@@ -252,7 +269,8 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
             r["motivos"].append("A semana não tem espaço até a data segura, nem trocando um leve do nobre: precisa decidir o que sai, olhando o horizonte inteiro.")
         importante = not flexivel
         if r["nivel"] != 3 or not (prazo and prazo > fim_semana):
-            cands.sort(key=lambda c: (c["como"] != "espaço livre", c["dia"] if importante else -c["dia"].toordinal(), c["inicio"]))
+            cands.sort(key=lambda c: (not c["como"].startswith("espaço livre") or "NO NOBRE" in c["como"] or "FORA DO NOBRE" in c["como"],
+                                      c["dia"] if importante else -c["dia"].toordinal(), c["inicio"]))
         r["candidatos"] = cands[:4]
     r["alertas"] = alertas(planos, hoje, cfg, memoria, oper)
     if r["nivel"] == 3:

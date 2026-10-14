@@ -964,7 +964,9 @@ INTRO_SESSAO = (
     "- Não use AskUserQuestion nem modo de planejamento: pergunte em voz alta, uma pergunta por vez, e espere a resposta.\n"
     "- Para consulta simples sobre o dia (o que tenho agora, a que horas é tal tarefa), responda direto pelo CONTEXTO DESTE MOMENTO que chega junto de cada pedido. "
     "Acione a skill guardiao-triwer quando o pedido for planejar o dia ou a semana, destrinchar uma tarefa, decidir algo ou mexer na memória, e siga as regras dela, "
-    "inclusive as extensões locais que ela mandar ler.\n"
+    "inclusive as extensões locais que ela mandar ler. As extensões (extensoes-*.md), o aprendizados.md e o perfil.md já estão abaixo, em REGRAS LOCAIS e PERFIL: "
+    "não releia esses arquivos quando a skill mandar. A agenda da semana, os prazos e os alertas chegam calculados na VISÃO DA SEMANA: não abra resumo_clickup.json "
+    "nem planos de outros dias para saber o que já está lá.\n"
     "- Você tem os conectores, as skills e os agentes desta pasta. Use quando o pedido precisar, sem listar o que existe.\n"
     "- Nunca mande <o Fulano> fazer num conector o que você mesmo pode fazer por ele (concluir, apagar, mover ou comentar uma tarefa, criar um evento, e parecidos): "
     "diga o que vai fazer e faça pelo conector. Ao concluir uma tarefa no ClickUp, siga a regra de registro da skill e das extensões locais.\n"
@@ -1034,6 +1036,12 @@ def _regras_locais():
 def mensagem_da_sessao(pergunta, conversa):
     """O que entra na sessão a cada fala: a hora, o estado do plano, o que mudou desde a última fala e o pedido."""
     partes = [f"Agora sao {time.strftime('%d/%m/%Y %H:%M')}."]
+    if conversa not in _ENVIADO:  # primeira fala desta conversa: o que veio antes (conversa que ficou grande ou parou) entra resumido
+        anteriores = memoria_conversa.recentes(6)
+        resumo_dia = memoria_conversa.resumo()
+        if anteriores or resumo_dia:
+            ponte = (f"Resumo do dia: {resumo_dia}\n" if resumo_dia else "") + "\n".join(f"{pessoa()['primeiro']}: {u}\nGuardiao: {g}" for _, u, g in anteriores)
+            partes.append("CONVERSA ANTERIOR DE HOJE (continuação: considere o que já foi combinado; os planos gravados valem mais que isto):\n" + ponte)
     enviado = _ENVIADO.setdefault(conversa, {})
     for nome, bloco in (("plano", f"PLANO DE HOJE:\n{_plano_texto()}"), ("proximos", contexto_proximos_dias()),
                         ("tarefas", f"TAREFAS CONHECIDAS (id | quando | titulo | estado ou lista):\n{refs_conhecidas()}")):

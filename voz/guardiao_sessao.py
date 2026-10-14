@@ -202,7 +202,8 @@ def configuracao():
         except (TypeError, ValueError):
             return padrao
     return {"pasta": pasta if pasta and os.path.isdir(pasta) else h.OPER, "modelo": str(c.get("modelo") or "").strip() or MODELO_PADRAO,
-            "esforco": "" if str(c.get("esforco") or "").strip().lower() in ("padrao", "padrão", "default") else str(c.get("esforco") or "low").strip(), "ociosa": numero("fecha_apos_min", 15) * 60, "nova_apos": numero("nova_conversa_apos_horas", 3) * 3600}
+            "esforco": "" if str(c.get("esforco") or "").strip().lower() in ("padrao", "padrão", "default") else str(c.get("esforco") or "low").strip(), "ociosa": numero("fecha_apos_min", 15) * 60, "nova_apos": numero("nova_conversa_apos_horas", 3) * 3600,
+            "teto": numero("nova_conversa_acima_mil_tokens", 150) * 1000}
 
 
 # ---------------- as conversas ----------------
@@ -252,7 +253,13 @@ def atual(criar=True):
     with _trava:
         ind = _indice()
         c = _achar(ind, ind.get("atual"))
-        vencida = bool(c and c.get("turnos") and time.time() - _segundos(c.get("ultima")) > configuracao()["nova_apos"] > 0)
+        cfg = configuracao()
+        parada = time.time() - _segundos(c.get("ultima")) > cfg["nova_apos"] > 0 if c else False
+        # Conversa grande demais ou de outro dia também vence: cada fala reenvia o contexto inteiro (em 14/10 uma conversa chegou a 264 mil
+        # tokens). A nova recebe o resumo e as últimas falas da memória curta (guardiao_voz.mensagem_da_sessao), e o plano vai em arquivo.
+        grande = bool(c and cfg["teto"] > 0 and int(c.get("contexto") or 0) > cfg["teto"])
+        outro_dia = bool(c and str(c.get("criada") or "")[:10] not in ("", time.strftime("%Y-%m-%d")))
+        vencida = bool(c and c.get("turnos") and (parada or grande or outro_dia))
         if c and not vencida:
             return c
         return nova() if criar else None
@@ -430,6 +437,13 @@ def _dentro(caminho, pasta):
         return False
 
 
+def _mtime_campanha(slug):
+    try:
+        return os.path.getmtime(os.path.join(_pasta_memoria(), "campanhas", slug + ".md"))
+    except OSError:
+        return None
+
+
 def _pasta_memoria():
     return (_config().get("pastas") or {}).get("memoria") or os.path.join(h.OPER, "memoria")
 
@@ -544,7 +558,7 @@ class Processo:
         self.aquecida = threading.Event()  # os conectores terminaram de ligar
         self.contexto = 0  # tamanho da conversa na última chamada ao Claude (o fecho do turno soma todas as chamadas, o que não serve para isso)
         self.usado_em = time.time()
-        self.lidas = set()  # campanhas lidas desde que o plano foi gravado pela última vez
+        self.lidas = {}  # campanha -> data de modificação da nota quando foi lida nesta conversa (nota que não mudou não precisa ser relida)
         self.rota = False  # o roteador da agenda (onde_cabe.ps1) rodou desde a última gravação do plano
         self.gravou_plano = False
         self.escrita = threading.Lock()
@@ -575,7 +589,7 @@ class Processo:
                         if isinstance(bloco, dict) and bloco.get("type") == "tool_use":
                             slug = cp.slug_lido(str(bloco.get("name") or ""), bloco.get("input"), _pasta_memoria())
                             if slug:
-                                self.lidas.add(slug)
+                                self.lidas[slug] = _mtime_campanha(slug)
                             if bloco.get("name") in ("Bash", "PowerShell") and "onde_cabe" in str((bloco.get("input") or {}).get("command") or "").lower():
                                 self.rota = True
                 if tipo == "control_response":
@@ -690,7 +704,7 @@ class Processo:
         caminho = str(entrada.get("file_path") or "")
         if not cp.eh_arquivo_de_plano(caminho):
             return ""
-        faltam = [c for c in cp.campanhas_ativas(_pasta_memoria()) if c not in self.lidas]
+        faltam = [c for c in cp.campanhas_ativas(_pasta_memoria()) if c not in self.lidas or self.lidas[c] != _mtime_campanha(c)]
         if faltam:
             return ("Não grave o plano ainda: você não leu a agenda inteira. Leia estas campanhas ativas e só depois grave "
                     f"(powershell -File ler_campanha.ps1 -Slug <slug>, na pasta operacional): {', '.join(faltam)}. "
@@ -747,8 +761,9 @@ class Processo:
         if not self.viva():
             raise RuntimeError("a sessão do Claude Code fechou")
         self._esperar_fecho_da_interrupcao()
-        if self.gravou_plano:  # o plano mudou no turno anterior: refazer exige ler a agenda de novo
-            self.lidas.clear()
+        if self.gravou_plano:  # o plano mudou no turno anterior: a próxima mudança passa de novo pelo roteador.
+            # As campanhas não: o que foi lido já está nesta conversa, e reler a mesma nota a cada regravação custava milhares de tokens.
+            # Só a nota que mudou desde a leitura (data de modificação) volta a ser exigida.
             self.rota = False
             self.gravou_plano = False
         self.em_turno = True
