@@ -293,12 +293,35 @@ h._plano_de_hoje = lambda: (lambda p: ([b.update(clickup_id="cid5") for b in p["
 h._ULTIMA_SINCRONIA.clear()
 v2.sair()
 v2.entrar()
-relogio.hora = "10:30"
+relogio.hora = "11:05"
+v2._viradas_vistas.clear()
+confere("primeira volta confere uma vez", v2._virada_do_plano() is True)
+confere("sem virada nova, não confere de novo", v2._virada_do_plano() is False)
+relogio.hora = "13:00"
+confere("fim do bloco e marcas de aviso são virada", v2._virada_do_plano() is True and v2._virada_do_plano() is False)
+relogio.hora = "11:05"
+h.atualizar_resumo_clickup = lambda: False  # sem PowerShell no teste
 fechados = h.sincronizar_com_clickup(espaco=0)
 confere("tarefa concluída no ClickUp vira feita no plano, sem cobrança", fechados == ["Fechar o relatório mensal da Loja Nativa"]
         and next(b for b in h._registro_de_hoje()["blocos"] if b["id"] == "b5")["estado"] == "feito", fechados)
 confere("o bloco concluído lá deixa de ser o atual", (v2.bloco_atual() or {}).get("id") != "b5")
 confere("sem aviso de tempo para o que já foi concluído no ClickUp", v2._tique() is None and not v2.CHECKIN)
+# a mesma chamada renova o resumo: tarefa que consta como aberta no resumo novo não gasta chamada, e tarefa nova é contada
+resumo_arq = os.path.join(tmp, "resumo_clickup.json")
+with open(resumo_arq, "w", encoding="utf-8") as f:
+    json.dump({"tarefas": [{"id": "cidA", "nome": "Antiga", "prazo": "2026-10-14"}]}, f)
+
+
+def _renovar():
+    with open(resumo_arq, "w", encoding="utf-8") as f:
+        json.dump({"tarefas": [{"id": "cidA", "nome": "Antiga", "prazo": "2026-10-14"}, {"id": "cidN", "nome": "Nova", "prazo": "2026-10-14"}]}, f)
+    return True
+
+
+h.atualizar_resumo_clickup = _renovar
+n_ev = len(v2._eventos())
+h.sincronizar_com_clickup(espaco=0)
+confere("a mesma passada registra tarefa nova do ClickUp", any(e["tipo"] == "tarefas_novas" and e.get("quantidade") == 1 for e in v2._eventos()[n_ev - 1:] if True))
 chamadas.clear()
 h.sincronizar_com_clickup(espaco=60)
 confere("a conferência não repete a chamada dentro do intervalo", not any(u.endswith("/cid4") for u in chamadas))

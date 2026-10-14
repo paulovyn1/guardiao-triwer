@@ -524,6 +524,29 @@ def _tique_fixos():
     return c
 
 
+_viradas_vistas = set()
+
+
+def _virada_do_plano():
+    """True uma vez a cada virada do plano: começo e fim de cada bloco pendente e os pontos em que o aviso de tempo sairia (faltam 30 ou 10 min).
+    É só nesses momentos que vale conferir o ClickUp. Na primeira volta (app recém-aberto) confere uma vez e dá o passado por visto."""
+    plano = h._plano_de_hoje()
+    if not plano or plano.get("status") != "aprovado":
+        return False
+    agora = _agora_min()
+    reg = _estados_de_hoje()
+    chaves, primeira = set(), not _viradas_vistas
+    for b in plano.get("blocos", []):
+        if (reg.get(b.get("id")) or {}).get("estado") in ("feito", "adiado") or not (h._hora(b.get("inicio")) and h._hora(b.get("fim"))):
+            continue
+        ini, fim = h._min(b["inicio"]), h._min(b["fim"])
+        momentos = [("ini", ini), ("fim", fim)] + [(f"m{m}", fim - m) for m in _marcas(fim - ini)]
+        chaves.update((_hoje(), b.get("id"), nome, t) for nome, t in momentos if t <= agora)
+    novas = chaves - _viradas_vistas
+    _viradas_vistas.update(chaves)
+    return bool(novas) or primeira
+
+
 _vigia_ligado = False
 
 
@@ -536,7 +559,8 @@ def ligar_vigia():
     def laco():
         while True:
             try:
-                h.sincronizar_com_clickup()  # antes de qualquer aviso: o que ela já concluiu no ClickUp não é cobrado
+                if _virada_do_plano():
+                    h.sincronizar_com_clickup(espaco=0)  # só nas viradas: o que ela já concluiu no ClickUp não é cobrado
                 _tique()
                 _tique_fixos()
             except Exception as erro:  # o vigia nunca pode derrubar o guardião

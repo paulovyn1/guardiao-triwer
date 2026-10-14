@@ -413,23 +413,35 @@ def concluir_bloco(dados):
 _ULTIMA_SINCRONIA = {}
 
 
-def sincronizar_com_clickup(espaco=60):
-    """Reconcilia o plano de hoje com o ClickUp: bloco pendente cuja tarefa já foi concluída lá vira "feito" aqui, sem aviso de tempo e sem pergunta.
-    Só confere os blocos que já começaram ou começam na próxima hora, no máximo uma vez por `espaco` segundos cada. Devolve os títulos que fechou."""
+def sincronizar_com_clickup(espaco=20):
+    """Reconcilia o plano de hoje com o ClickUp numa só passada: renova o resumo (tarefas novas) e fecha o bloco pendente cuja tarefa já foi concluída lá vira "feito" aqui, sem aviso de tempo e sem pergunta.
+    Só confere os blocos que já começaram (quem chama decide o momento: viradas do plano), no máximo uma vez por `espaco` segundos cada. Devolve os títulos que fechou."""
     plano = _plano_de_hoje()
     if not plano or plano.get("status") != "aprovado":
         return []
     token = _token_clickup()
     if not token:
         return []
+    def ids_do_resumo():
+        return {t.get("id") for t in (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", []) if t.get("id")}
+    antes = ids_do_resumo()
+    renovou = atualizar_resumo_clickup()  # a mesma chamada traz as tarefas novas que apareceram desde a última leitura
+    abertas = ids_do_resumo() if renovou else set()
+    novas = (abertas - antes) if (renovou and antes) else set()
+    if novas:
+        print(f"  ({len(novas)} tarefa(s) nova(s) no ClickUp desde a última leitura)")
+        try:
+            _v2().registrar_evento("tarefas_novas", None, quantidade=len(novas))
+        except Exception:
+            pass
     estados = {b.get("id"): b.get("estado") for b in _registro_de_hoje().get("blocos", [])}
     agora, fechados = time.time(), []
-    limite = _min(time.strftime("%H:%M")) + 60
+    limite = _min(time.strftime("%H:%M"))
     for b in plano.get("blocos", []):
         cid = b.get("clickup_id")
         if not cid or estados.get(b.get("id")) in ("feito", "adiado") or not _hora(b.get("inicio")) or _min(b["inicio"]) > limite:
             continue
-        if agora - _ULTIMA_SINCRONIA.get(cid, 0) < espaco:
+        if cid in abertas or agora - _ULTIMA_SINCRONIA.get(cid, 0) < espaco:  # na leitura que acabou de sair = ainda aberta, sem chamada extra
             continue
         _ULTIMA_SINCRONIA[cid] = agora
         try:
@@ -447,7 +459,7 @@ def sincronizar_com_clickup(espaco=60):
         except Exception as erro:
             print("  (não consegui fechar a sessão do bloco concluído no ClickUp:", erro, ")")
         fechados.append(b.get("titulo"))
-    if fechados:
+    if fechados or novas:
         bus.emitir("plano")
     return fechados
 
