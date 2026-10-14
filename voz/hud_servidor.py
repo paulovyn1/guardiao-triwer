@@ -477,6 +477,11 @@ def achar_parecida(titulo, tarefas):
     return (melhor[1], False) if melhor else (None, False)
 
 
+def eh_etapa_de_post(nome, etapa=None):
+    """Copy, design, manychat e roteiro de um post: só existem como subtarefa da mãe. Stories, caixinha, material de aula e cronograma são tarefas próprias e ficam soltas."""
+    return bool(etapa) or bool(re.match(r"\s*(\[design\]|(?:copy|design|manychat|roteiro)\b)", str(nome or ""), re.I))
+
+
 def lista_conteudos_id():
     """Id da lista de conteúdos (config.clickup.posts.lista): nela toda tarefa é subtarefa de uma mãe, nunca solta."""
     c = _config().get("clickup") or {}
@@ -539,8 +544,8 @@ def aprovar_plano():
                     continue
             if b.get("clickup_id") or not b.get("lista_id"):
                 continue
-            if lista_conteudos_id() and str(b["lista_id"]) == lista_conteudos_id() and not b.get("pai"):
-                erros.append(f"{b.get('titulo')}: tarefa de conteúdo sem tarefa mãe (campo pai ou post). Não criei uma tarefa solta.")
+            if lista_conteudos_id() and str(b["lista_id"]) == lista_conteudos_id() and not b.get("pai") and eh_etapa_de_post(b.get("titulo"), b.get("etapa")):
+                erros.append(f"{b.get('titulo')}: etapa de post sem tarefa mãe (campo pai ou post). Não criei uma tarefa solta.")
                 continue
             existente, _ = achar_parecida(b.get("titulo"), abertas)
             if existente:  # mesmo assunto com outras palavras: não cria, a pessoa decide se é a mesma

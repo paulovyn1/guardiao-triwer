@@ -1,7 +1,7 @@
 ---
 name: guardiao-triwer
 description: Guardião do dia, gestor de projetos pessoal para infoprodutores e prestadores de serviço. Transforma responsabilidades em tarefas com dono, tempo, dia e hora, cria as tarefas no ClickUp, delega o que não é da pessoa com briefing pronto, acompanha o dia num painel local com voz e confere o dia no fim. Acionar quando o usuário chamar o guardião (ou o nome que deu a ele), pedir para planejar o dia ou a semana, montar a agenda, encaixar uma tarefa nos horários, dar prazo a uma tarefa, destrinchar uma tarefa grande em ações menores, disser que está travado numa tarefa complexa, trouxer um entregável com data, ou chamar no fim do dia para conferir o que foi feito. Acionar também no primeiro uso, quando ainda não existe configuração, para rodar o onboarding. Dois modos, planejar e destrinchar. NÃO acionar em conversas de copy, conteúdo, skills ou outros projetos.
-metadata: "v0.8.1, outubro 2026. Histórico em CHANGELOG.md."
+metadata: "v0.8.2, outubro 2026. Histórico em CHANGELOG.md."
 ---
 
 # Guardião do dia
@@ -166,21 +166,10 @@ Terminar sempre com o plano para aprovação. Depois do ok, gravar `plano_do_dia
 
 **O que o painel faz sozinho, sem o guardião do chat:**
 - Ao **aprovar o plano**, cria as tarefas dos blocos novos no ClickUp (com dono, início, fim e estimativa) e grava os `clickup_id`.
-- Ao **concluir** uma tarefa (o check na tela), conclui na hora no ClickUp (status do tipo closed da lista) e grava o horário real de início e fim na própria tarefa. Não pede frase nem escreve comentário. Reabrir desfaz.
+- Ao **concluir** uma tarefa (o check na tela), conclui na hora no ClickUp (status do tipo closed da lista). O início e o prazo combinados ficam intactos na tarefa; o horário real vai num comentário curto e assinado ("Realizado: das 9:00 às 10:15 (1 h 15 min)."). Não pede frase. Reabrir desfaz.
 - Grava `registros\registro_AAAA-MM-DD.json` a cada marcação.
 
-**Concluir tarefa pelo chat:**
-- Mudar o status para o tipo closed da lista (`clickup_update_task`) e gravar o início e o fim reais na própria tarefa. Sem comentário de status e sem assinatura: o ClickUp já registra quando a tarefa fechou. Só comentar se a pessoa pedir.
-- **"Já concluí X":** se a pessoa disser que concluiu uma tarefa e o ClickUp ainda a mostra aberta, a fala dela é a autorização, e vale só para a tarefa que ela citou. Concluir direto, sem montar plano nem pedir ok. Contar em uma linha o que mudou e registrar no registro do dia ou no `estado.md`. Sem horário real, marcar "não confirmado" e deixar fora da média de tempo.
-
-**Modo automático** (`gerar_plano.ps1`, no logon e no horário de `rotina.gerar_plano_as`, 1 vez por dia de trabalho): o guardião não pergunta nada, grava SÓ o `plano_do_dia.json` com `"status": "sugerido"` e nunca escreve no ClickUp. Quem cria as tarefas é o painel, quando a pessoa aprova.
-
-**Fim do dia, no chat, quando a pessoa chamar:**
-1. Ler `registros\registro_AAAA-MM-DD.json`. O que ela concluiu o painel já concluiu no ClickUp; conferir `clickup` de cada bloco (erro aparece ali).
-2. Para cada bloco NÃO concluído, reprogramar a tarefa no ClickUp (`clickup_update_task`, novo dia e hora) e refazer o plano, mostrando a mudança antes de gravar.
-3. Registrar o tempo real em `tempos.json` por tipo de tarefa. Bloco sem horário real: assumir o planejado e marcar "não confirmado", fora da média. Procurar o padrão do desvio (sempre estoura um tipo de tarefa? o bloco da tarde nunca acontece?).
-4. Tarefa adiada 3 vezes: perguntar o motivo. Atualizar `estado.md`.
-5. Reler `aprendizados.md` e gravar o desvio de tempo (seção 7). Correção do dia que ainda não tem linha lá: escrever agora.
+**Concluir pelo chat, modo automático e fim do dia:** ler `references/fechamento.md` quando o assunto for concluir uma tarefa pelo chat (inclui "já concluí X"), o plano gerado automaticamente ou a conferência do fim do dia.
 
 ## 7. Aprender com as correções
 

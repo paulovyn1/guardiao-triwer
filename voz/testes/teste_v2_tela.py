@@ -62,7 +62,9 @@ try:
     # ---------------- Home, estágio de conversa
     confere("a tela carrega e sai da preparação", espera("document.querySelector('.gd') && !document.querySelector('.gd').classList.contains('is-prep') && !document.querySelector('.gd').classList.contains('is-introskip')", 15))
     confere("palco encaixado na janela", js("getComputedStyle(document.getElementById('dc-root')).transform !== 'none'"))
-    confere("cabeçalho com nome e abas, e o relógio do servidor acima da bolinha", contem(".brand", "GUARDIÃO") and contem(".brand", "RAFA") and contem(".orbdate", "09:50") and js("document.querySelectorAll('.tab').length") == 5, texto(".hd"))
+    # o cabeçalho se esconde sozinho no desktop meio segundo depois de abrir: o nome é lido pelo conteúdo, não pelo texto visível
+    marca = js("(document.querySelector('.brand') || {}).textContent || ''").lower()
+    confere("cabeçalho com nome e abas, e o relógio do servidor acima da bolinha", "guardião" in marca and "rafa" in marca and contem(".orbdate", "09:50") and js("document.querySelectorAll('.tab').length") == 5, texto(".hd"))
     confere("Home em conversa: só a bolinha, o estado e três atalhos", not tem("is-exec") and contem(".gl-u", "DIGA EI GUARDIÃO") and js("[...document.querySelectorAll('.st.cur .arow .chip')].map(e => e.textContent).join('|')") == "Modo execução|Próximas tarefas|Ver o dia")
     confere("a bolinha 3D está desenhando", js("(() => { const c = document.querySelector('.orbw canvas'); return !!c && c.width > 100; })()"))
     confere("o console de simulação saiu", js("!document.querySelector('.simchip') && !document.querySelector('.sim')"))

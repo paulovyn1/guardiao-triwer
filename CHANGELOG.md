@@ -7,6 +7,11 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.8.2 - 2026-10-13
+- O plano automático já deixa pronto o rascunho de um trabalho do guardião que venceu.
+- A skill ficou mais leve: o fechamento do dia foi para um arquivo lido só quando precisa.
+- Stories, caixinha e material de aula podem ser criados direto na lista de conteúdo.
+
 ## 0.8.1 - 2026-10-13
 - O aviso de versão nova ficou curto e o botão de atualizar sempre aparece.
 - Mais tempo e adiar pela voz, na hora, sem gastar o plano do Claude.

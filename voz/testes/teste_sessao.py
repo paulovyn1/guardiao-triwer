@@ -86,8 +86,11 @@ try:
     antes = gs.h.lista_conteudos_id
     gs.h.lista_conteudos_id = lambda: "L9"
     confere("tarefa na lista de conteúdo sem parent é negada, com a orientação de achar a mãe",
-            c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "name": "Design"})[0] == "negar"
-            and "parent" in c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9"})[2])
+            c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "name": "Design do post X"})[0] == "negar"
+            and "parent" in c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "name": "Copy | Post X"})[2])
+    confere("stories, caixinha e material de aula ficam soltos na lista de conteúdo sem trava",
+            all(c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "name": n})[0] == "perguntar"
+                for n in ("Stories da sala secreta: 3 telas", "Caixinha de perguntas", "Material de aula da sala secreta")))
     confere("com parent, ou em outra lista, segue a regra normal (pergunta)",
             c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "parent": "M1"})[0] == "perguntar"
             and c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "OUTRA"})[0] == "perguntar")
