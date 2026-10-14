@@ -119,6 +119,77 @@ def conferir(plano, anterior=None, feitos=()):
     return problemas
 
 
+FRENTES_FLEXIVEIS = {"agencia", "agencias", "cliente", "clientes", "operacional", "operacao", "gestao", "administrativo", "admin"}
+
+
+def data_do_plano(caminho, plano, hoje=None):
+    """A data a que o plano se refere: a do nome do arquivo (planos/plano_AAAA-MM-DD.json), a do campo "data" ou hoje."""
+    m = re.search(r"plano_(\d{4}-\d{2}-\d{2})\.json$", str(caminho or "").replace("\\", "/"))
+    for cand in (m.group(1) if m else "", str((plano or {}).get("data") or "")):
+        try:
+            return date.fromisoformat(cand)
+        except ValueError:
+            continue
+    return hoje or date.today()
+
+
+def _chave_bloco(b):
+    return b.get("clickup_id") or re.sub(r"\s+", " ", str(b.get("titulo") or "").lower()).strip()
+
+
+def conferir_semana(plano, dia, anterior=None, outros=None, pendentes=None, feitos=(), memoria=None):
+    """Conferência da semana: o plano de um dia não pode quebrar os outros. Lista vazia = pode gravar.
+    outros = {AAAA-MM-DD: plano} dos demais dias gravados; pendentes = ids de tarefas ainda abertas no ClickUp (None = não sei)."""
+    import visao_semana as vs
+    problemas = []
+    outros = outros or {}
+    iso = dia.isoformat()
+    novos = {_chave_bloco(b) for b in plano.get("blocos") or []}
+    em_outros = {_chave_bloco(b) for d, p in outros.items() if d != iso for b in (p.get("blocos") or [])}
+    removidos = {_norm(t) for t in list((anterior or {}).get("removidos") or []) + list(plano.get("removidos") or []) if str(t).strip()}
+    # 1. nada some: bloco que estava neste dia e não está mais precisa estar em outro dia (ou em removidos, se ela mandou tirar)
+    for b in (anterior or {}).get("blocos") or []:
+        if b.get("id") in feitos:
+            continue
+        cid = b.get("clickup_id")
+        if cid and pendentes is not None and cid not in pendentes:
+            continue  # já concluída no ClickUp
+        chave = _chave_bloco(b)
+        titulo = _norm(b.get("titulo"))
+        if chave in novos or chave in em_outros or any(r and (r in titulo or titulo in r) for r in removidos):
+            continue
+        problemas.append(f"O bloco \"{b.get('titulo')}\" saiu de {iso} e não está em nenhum outro dia da semana. Tarefa não some: coloque-a no dia certo "
+                         "(grave primeiro o plano do dia que recebe, em planos/plano_AAAA-MM-DD.json, depois este) ou, se ela mandou tirar, ponha o título em \"removidos\".")
+    antigos = {_chave_bloco(b): b for b in (anterior or {}).get("blocos") or []}
+    for d, p in outros.items():
+        if d != iso:
+            antigos.update({_chave_bloco(b): b for b in p.get("blocos") or [] if b.get("prazo_final")})
+    prime_livre = None
+    for b in plano.get("blocos") or []:
+        if b.get("id") in feitos:
+            continue
+        final = str(b.get("prazo_final") or antigos.get(_chave_bloco(b), {}).get("prazo_final") or "")
+        # 2. o prazo final manda: bloco nunca cai depois dele
+        if final and final < iso:
+            problemas.append(f"\"{b.get('titulo')}\" está em {iso}, depois do prazo final ({final}). Traga para antes do prazo ou diga a ela que não cabe.")
+        # 3. o prazo final acompanha o bloco quando ele muda de dia
+        if not b.get("prazo_final") and antigos.get(_chave_bloco(b), {}).get("prazo_final"):
+            problemas.append(f"\"{b.get('titulo')}\" tinha prazo final {antigos[_chave_bloco(b)]['prazo_final']} e o campo \"prazo_final\" sumiu ao mudar de dia. Mantenha.")
+        # 4. tarefa de agência ou operacional com folga não toma o horário nobre de um dia cheio
+        if final and final > iso and _norm(b.get("frente")) in FRENTES_FLEXIVEIS:
+            try:
+                comeca = vs.hm(b["inicio"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if vs.NOBRE_MANHA[0] <= comeca < vs.NOBRE_MANHA[1]:
+                if prime_livre is None:  # o que sobra livre na manhã nobre com esse bloco dentro
+                    prime_livre = vs._livre_em(vs.NOBRE_MANHA, vs._intervalos(plano, feitos))
+                if prime_livre < 30:
+                    problemas.append(f"\"{b.get('titulo')}\" tem prazo final em {final} (folga) e está no horário nobre da manhã de {iso}, que ficou cheia. "
+                                     "O nobre é do que é importante e urgente: mova para o fim do dia ou para um dia mais perto do prazo, e diga o que isso desloca.")
+    return problemas
+
+
 def texto_do_plano(entrada):
     """O JSON que o Write vai gravar, ou None se não dá para saber (Edit parcial)."""
     c = (entrada or {}).get("content")

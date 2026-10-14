@@ -46,4 +46,44 @@ confere("sobreposição barra", any("sobrepõe" in p for p in cp.conferir(sobre)
 confere("bloco já feito não conta na sobreposição", cp.conferir(sobre, feitos={"b2"}) == [])
 volta = dict(bom, blocos=bom["blocos"] + [{"id": "b7", "inicio": "18:00", "fim": "18:15", "titulo": "Aprovações do Vitor (1 do Carlos)"}])
 confere("removido não volta", any("Vitor" in p for p in cp.conferir(volta, {"removidos": ["Aprovações do Vitor"]})))
+
+# conferência de semana (2026-10-14): tarefa não some, prazo final vale, nobre é do importante
+qui = date(2026, 10, 15)
+base = {"agenda_impoe": "x", "fixos": [{"inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}], "blocos": [
+    {"id": "b1", "inicio": "08:50", "fim": "09:50", "titulo": "Copy do post de segunda", "frente": "Conteúdo", "clickup_id": "c1"},
+    {"id": "b2", "inicio": "09:50", "fim": "13:00", "titulo": "Roteiro", "frente": "Rebranding"},
+    {"id": "b3", "inicio": "19:45", "fim": "21:15", "titulo": "Página do Carlos", "frente": "Agência", "prazo_final": "2026-10-16"}]}
+confere("semana: plano intacto passa", cp.conferir_semana(base, qui, base, {}, {"c1"}) == [])
+sumiu = dict(base, blocos=base["blocos"][1:])
+confere("semana: copy que some sem ir para outro dia barra", any("não está em nenhum outro dia" in p for p in cp.conferir_semana(sumiu, qui, base, {}, {"c1"})))
+confere("semana: copy movida para sexta passa", cp.conferir_semana(sumiu, qui, base, {"2026-10-16": {"blocos": [base["blocos"][0]]}}, {"c1"}) == [])
+confere("semana: tarefa já concluída no ClickUp pode sair", cp.conferir_semana(sumiu, qui, base, {}, set()) == [])
+confere("semana: removido a pedido pode sair", cp.conferir_semana(dict(sumiu, removidos=["Copy do post de segunda"]), qui, base, {}, {"c1"}) == [])
+manha = dict(base, blocos=[dict(base["blocos"][2], inicio="09:50", fim="11:20"), dict(base["blocos"][1], inicio="11:20", fim="13:00"), base["blocos"][0]])
+manha["blocos"][2] = dict(base["blocos"][0], inicio="08:40", fim="09:50")
+confere("semana: agência com folga no nobre cheio barra", any("horário nobre" in p for p in cp.conferir_semana(manha, qui, base, {}, {"c1"})))
+vazio = {"agenda_impoe": "x", "blocos": [dict(base["blocos"][2], inicio="09:00", fim="10:30")]}
+confere("semana: agência no nobre de manhã vazia passa", not any("horário nobre" in p for p in cp.conferir_semana(vazio, qui, None, {}, set())))
+confere("semana: depois do prazo final barra", any("depois do prazo final" in p for p in cp.conferir_semana(base, date(2026, 10, 19), None, {}, {"c1"})))
+sem_prazo = dict(base, blocos=base["blocos"][:2] + [{k: v for k, v in base["blocos"][2].items() if k != "prazo_final"}])
+confere("semana: prazo final não pode sumir ao mudar", any("prazo_final" in p for p in cp.conferir_semana(sem_prazo, qui, base, {}, {"c1"})))
+confere("data do plano pelo arquivo", cp.data_do_plano("D:/x/planos/plano_2026-10-16.json", {}) == date(2026, 10, 16))
+
+# visão da semana: pré-plano do ClickUp nos dias sem plano gravado
+import json
+import visao_semana as vs
+oper = tempfile.mkdtemp()
+os.makedirs(os.path.join(oper, "planos"))
+with open(os.path.join(oper, "planos", "plano_2026-10-15.json"), "w", encoding="utf-8") as f:
+    json.dump(base, f)
+with open(os.path.join(oper, "resumo_clickup.json"), "w", encoding="utf-8") as f:
+    json.dump({"tarefas": [{"id": "c9", "nome": "Design do post de segunda", "prazo": "2026-10-16", "inicio": "11:00", "fim": "13:00", "lista": "Conteúdos"},
+                           {"id": "c1", "nome": "Copy do post de segunda", "prazo": "2026-10-15", "lista": "Conteúdos"},
+                           {"id": "c7", "nome": "Esquecida", "prazo": "2026-10-15", "inicio": "15:00", "fim": "16:00", "lista": "Conteúdos"}]}, f)
+t = vs.texto(oper, mem, hoje=date(2026, 10, 15))
+confere("visão: sexta sem plano mostra o pré-plano do ClickUp", "Sex 16/10" in t and "pré-planejado no ClickUp" in t and "11:00-13:00 Design do post de segunda" in t)
+confere("visão: tarefa do dia fora do plano aparece para decidir", "Esquecida" in t and "c1" not in t.split("FORA DELE")[1].split("COMO USAR")[0])
+confere("visão: livre e nobre calculados", "Qui 15/10" in t and "horário nobre" in t)
+com_c9 = dict(base, blocos=base["blocos"] + [{"id": "b9", "titulo": "Design do post de segunda", "clickup_id": "c9", "inicio": "15:00", "fim": "16:00"}])
+confere("semana: tarefa que já está no pré-plano de outro dia pode sair", cp.conferir_semana(base, qui, com_c9, vs.planos_da_semana(oper, qui), {"c1", "c9"}) == [])
 sys.exit(1 if falhas else 0)

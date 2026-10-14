@@ -378,6 +378,16 @@ class PreviaGroq:
 
 
 def contexto_proximos_dias():
+    """A semana inteira (visao_semana): plano de cada dia, tempo livre, prazos finais e tarefas sem lugar. Sem o módulo, cai nos 3 próximos dias."""
+    try:
+        import visao_semana
+        return visao_semana.texto(OPER, pasta_memoria(), incluir_hoje=False)  # hoje vai no PLANO DE HOJE; aqui ele mudaria o prompt a cada turno e perderia o cache
+    except Exception as erro:
+        print("  Visão da semana falhou, usando os 3 próximos dias:", erro)
+        return _proximos_3_dias()
+
+
+def _proximos_3_dias():
     """Planos já montados para os próximos 3 dias e tarefas do ClickUp com prazo nesse período."""
     hoje = time.strftime("%Y-%m-%d")
     limite = time.strftime("%Y-%m-%d", time.localtime(time.time() + 3 * 86400))
@@ -1557,7 +1567,7 @@ REGRAS_DO_PLANO = (
     "(a pessoa aprova na tela e o servidor cria ou move as tarefas no ClickUp). Mantenha os blocos já feitos, mantenha o id e o clickup_id dos blocos que continuam, "
     "dê aos blocos novos um id ainda não usado (b seguido de número), use clickup_id para tarefa que já existe no resumo e lista_id só para bloco realmente novo, "
     "e ponha \"reagendado\": true em todo bloco com clickup_id que mudou de horário ou que entrou no dia agora. Nenhum bloco pendente pode começar antes de agora. "
-    "Antes de gravar, leia as campanhas ativas (o servidor nega a gravação sem isso) e ponha no plano \"agenda_impoe\": uma frase do que a agenda delas impõe a este dia, com prazo e dependência de outra pessoa tirados da nota da campanha, nunca perguntados. Quando a pessoa mandar tirar um bloco, ponha o título dele em \"removidos\" e mantenha essa lista nas próximas gravações. Se algo não cabe, não diga só que não cabe: grave o reencaixe pela prioridade da campanha e diga o que saiu."
+    "Antes de gravar, leia as campanhas ativas (o servidor nega a gravação sem isso) e ponha no plano \"agenda_impoe\": uma frase do que a agenda delas impõe a este dia, com prazo e dependência de outra pessoa tirados da nota da campanha, nunca perguntados. Quando a pessoa mandar tirar um bloco, ponha o título dele em \"removidos\" e mantenha essa lista nas próximas gravações. Se algo não cabe, não diga só que não cabe: grave o reencaixe pela prioridade da campanha e diga o que saiu. Bloco de tarefa com prazo final leva \"prazo_final\": \"AAAA-MM-DD\" e o mantém quando muda de dia. Use a VISÃO DA SEMANA: mexer num dia é mexer na semana, e tarefa que sai de um dia entra em outro na mesma resposta."
 )
 COMPLETO = None  # pedido em andamento: {"pedido": texto, "inicio": time}
 COMANDO_COMPLETO = None  # os testes trocam por uma função (pedido, arquivo do plano) -> texto da resposta

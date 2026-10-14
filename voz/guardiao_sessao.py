@@ -696,11 +696,26 @@ class Processo:
         if plano is not None:
             registro = h._registro_de_hoje().get("blocos", [])
             feitos = {b.get("id") for b in registro if b.get("estado") in ("feito", "adiado")}
-            problemas = cp.conferir(plano, _ler_json(caminho), feitos)
+            anterior = _ler_json(caminho)
+            problemas = cp.conferir(plano, anterior, feitos)
+            problemas += self._conferir_semana(plano, caminho, anterior, feitos)
             if problemas:
                 return "O plano não pode ser gravado assim. Corrija e grave de novo:\n- " + "\n- ".join(problemas)
         self.gravou_plano = True
         return ""
+
+    def _conferir_semana(self, plano, caminho, anterior, feitos):
+        """O plano de um dia não pode quebrar os outros: tarefa não some, prazo final vale, nobre é do importante (conferencia_plano.conferir_semana)."""
+        try:
+            import visao_semana as vs
+            dia = cp.data_do_plano(caminho, plano)
+            outros = vs.planos_da_semana(h.OPER)  # inclui o pré-plano do ClickUp nos dias sem plano gravado
+            resumo = _ler_json(os.path.join(h.OPER, "resumo_clickup.json")) or {}
+            pendentes = {t.get("id") for t in resumo.get("tarefas") or []} if resumo.get("tarefas") is not None else None
+            return cp.conferir_semana(plano, dia, anterior, outros, pendentes, feitos, _pasta_memoria())
+        except Exception as erro:  # a conferência nunca pode impedir o guardião de gravar por um defeito dela
+            print("  Conferência de semana falhou:", erro)
+            return []
 
     def turno(self, mensagem):
         """Manda a fala e devolve o que acontece, na ordem: ('texto', pedaço), ('ferramenta', dados), ('permissao', pedido) e, no fim, ('fim', evento).
