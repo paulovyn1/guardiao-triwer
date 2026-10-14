@@ -411,6 +411,7 @@ def concluir_bloco(dados):
 
 
 _ULTIMA_SINCRONIA = {}
+ULTIMAS_NOVAS = []  # tarefas que apareceram no ClickUp e que o guardião ainda não anunciou
 
 
 def sincronizar_com_clickup(espaco=20):
@@ -428,6 +429,10 @@ def sincronizar_com_clickup(espaco=20):
     renovou = atualizar_resumo_clickup()  # a mesma chamada traz as tarefas novas que apareceram desde a última leitura
     abertas = ids_do_resumo() if renovou else set()
     novas = (abertas - antes) if (renovou and antes) else set()
+    if novas:
+        no_plano = {b.get("clickup_id") for b in plano.get("blocos", [])}
+        tarefas = (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", [])
+        ULTIMAS_NOVAS.extend(t for t in tarefas if t.get("id") in novas and t.get("id") not in no_plano and not t.get("aprovar"))
     if novas:
         print(f"  ({len(novas)} tarefa(s) nova(s) no ClickUp desde a última leitura)")
         try:

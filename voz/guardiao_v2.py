@@ -524,6 +524,35 @@ def _tique_fixos():
     return c
 
 
+def _avisar_tarefas_novas():
+    """Tarefa que apareceu no ClickUp desde a última leitura: avisa e pergunta se ela quer replanejar o dia. Não mexe no plano sozinho."""
+    global CHECKIN
+    if not h.ULTIMAS_NOVAS or CHECKIN:
+        return None  # com um aviso de tempo aberto, espera a vez
+    with _trava:
+        novas = list(h.ULTIMAS_NOVAS)
+        del h.ULTIMAS_NOVAS[:]
+        d = _ler_exec()
+        novas = [t for t in novas if f"nova|{t.get('id')}" not in d["avisados"]]
+        if not novas:
+            return None
+        d["avisados"] += [f"nova|{t.get('id')}" for t in novas]
+        _gravar(_arq_exec(), d)
+        nomes = [_curto(t.get("nome"), 60) for t in novas]
+        lista = "; ".join(nomes[:3]) + (f" e mais {len(nomes) - 3}" if len(nomes) > 3 else "")
+        texto = (f"Apareceu {len(nomes)} tarefa nova no ClickUp: {lista}. Quer que eu replaneje o dia?" if len(nomes) == 1
+                 else f"Apareceram {len(nomes)} tarefas novas no ClickUp: {lista}. Quer que eu replaneje o dia?")
+        CHECKIN = {"id": f"novas|{int(time.time())}", "bloco": "novas", "titulo": "Tarefas novas", "faltam": 0, "fim": None, "passo": "inicio", "quando": time.time(),
+                   "dados": {"pedido": ("Sim, quero replanejar o dia. Apareceram tarefas novas no ClickUp: " + "; ".join(nomes)
+                                        + ". Revise o plano de hoje encaixando essas tarefas, sem aprovar nada sem eu ver.")},
+                   "texto": texto, "opcoes": [{"rotulo": "Replanejar", "resposta": "novas_replanejar"}, {"rotulo": "Depois", "resposta": "novas_depois"}]}
+        c = dict(CHECKIN)
+    registrar_evento("checkin_novas", None, quantidade=len(nomes))
+    h.bus.emitir("checkin", **_publico_checkin())
+    h.bus.comandos.put(("checkin", {"texto": c["texto"], "id": c["id"]}))
+    return c
+
+
 _viradas_vistas = set()
 
 
@@ -563,6 +592,7 @@ def ligar_vigia():
                     h.sincronizar_com_clickup(espaco=0)  # só nas viradas: o que ela já concluiu no ClickUp não é cobrado
                 _tique()
                 _tique_fixos()
+                _avisar_tarefas_novas()
             except Exception as erro:  # o vigia nunca pode derrubar o guardião
                 print("  (vigia da execução falhou:", erro, ")")
             time.sleep(15)
@@ -601,6 +631,14 @@ def responder_checkin(dados):
         bloco_id = (c or {}).get("bloco") or dados.get("bloco")
         if not bloco_id:
             return {"ok": False, "erro": "Não há aviso de tempo em aberto."}
+        if bloco_id == "novas" and resposta in ("novas_replanejar", "novas_depois"):
+            pedido = (c or {}).get("dados", {}).get("pedido")
+            CHECKIN = None
+            h.bus.emitir("checkin_fim", motivo="respondido")
+            _avisar_tela()
+            if resposta == "novas_replanejar" and pedido:
+                h.bus.comandos.put(("perguntar", pedido))  # entra na conversa como se ela tivesse escrito: o guardião refaz o plano
+            return {"ok": True, "fim": True, "texto": "Combinado." if resposta == "novas_replanejar" else "Combinado. As tarefas novas ficam para depois."}
         if bloco_id == "fixo" and resposta in ("fixo_feito", "fixo_nao"):
             titulo = (c or {}).get("titulo")
             registrar_evento("checkin_fixo_resposta", {"id": "fixo", "titulo": titulo}, resposta="feito" if resposta == "fixo_feito" else "nao_fez")
