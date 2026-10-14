@@ -77,7 +77,8 @@ try:
         f.write("0.3.1\n")
     clicar("Conferir", ".prefs button")
     confere("conferir agora acha a versão nova e a linha vira 'disponível'", espera("document.querySelector('.prefs').innerText.includes('Versão 0.3.1 disponível')", 8), texto(".prefs")[-400:])
-    confere("o botão discreto aparece no topo", espera("document.querySelector('.hd .upd')", 8) and "NOVA VERSÃO" in texto(".hd .upd").upper(), texto(".hd-r"))
+    # o cabeçalho se esconde sozinho no desktop: o texto do botão é lido pelo conteúdo, não pelo texto visível
+    confere("o botão discreto aparece no topo", espera("document.querySelector('.hd .upd')", 8) and "NOVA VERSÃO" in js("document.querySelector('.hd .upd').textContent").upper(), js("document.querySelector('.hd-r').textContent"))
     nav.foto("versao_preferencias")
     js("document.querySelector('.prefs .dt-x').click()")
     pausa(0.6)

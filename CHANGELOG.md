@@ -7,6 +7,12 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.9.1 - 2026-10-14
+- O aviso de começo de tarefa ganhou a cara do guardião, com o botão Iniciar.
+- Tarefa já concluída no ClickUp não é mais cobrada pelo aviso de tempo.
+- Tarefa nova no ClickUp: o guardião avisa e pergunta se você quer replanejar.
+- Compromisso fixo que passou do horário: ele pergunta uma vez se você fez.
+
 ## 0.9.0 - 2026-10-14
 - Na primeira abertura do dia, o guardião monta o plano, lê cada tarefa e pede o ok.
 - Aprovado o plano, entra em execução; a tarefa só conta a partir do Iniciar.

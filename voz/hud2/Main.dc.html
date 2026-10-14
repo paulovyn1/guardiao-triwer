@@ -1900,8 +1900,8 @@ class Component extends DCLogic {
     this.sealRaf = requestAnimationFrame(step);
   }
   falha(e) { this.toast('Não consegui falar com o guardião neste computador.', true); void e; }
-  avisarSistema(titulo, corpo) {
-    try { if (document.hidden && window.Notification && Notification.permission === 'granted') new Notification(titulo, { body: corpo, silent: true }); } catch (e) { /* sem aviso do sistema */ }
+  avisarSistema(titulo, corpo, tag, kicker) {  // painel escondido: o aviso aparece no canto da tela, no visual do guardião (popup.py), e não como notificação do navegador
+    if (document.hidden && this.M !== 'mini') API.post('/popup', { titulo, texto: corpo, kicker: kicker || 'Aviso de tempo', tag: tag || '' }).catch(() => {});
   }
 
   /* ---------- começo: dados, eventos ao vivo, abertura ---------- */
@@ -2282,7 +2282,7 @@ class Component extends DCLogic {
     const S = this.state;
     this.setState({ checkin: ev });
     const tag = ev.faltam > 0 ? 'Faltam ' + ev.faltam + ' min' : ev.faltam === 0 ? 'Tempo esgotado' : 'Passou ' + (-ev.faltam) + ' min';
-    this.avisarSistema(S.gname + ': ' + tag, ev.texto);
+    if (ev.passo === 'inicio') this.avisarSistema(ev.bloco === 'novas' ? 'Tarefas novas no ClickUp' : (ev.titulo || 'Tarefa de agora'), ev.texto, ev.bloco === 'novas' || ev.bloco === 'fixo' ? '' : tag, ev.bloco === 'novas' ? 'ClickUp' : ev.bloco === 'fixo' ? 'Compromisso' : 'Aviso de tempo');
     if (S.compact || this.M === 'mini' || S.introPhase !== 'done') { this.toast(ev.texto); return; }
     const t = this.findTask(ev.bloco), ops = ev.opcoes || [];
     const btns = ops.map((o, i) => ({ label: o.rotulo, cls: i === 0 ? 'btn-pri sm' : 'btn-gh', go: () => this.responderCheckin(o) }));
@@ -2441,7 +2441,6 @@ class Component extends DCLogic {
     if (S.sceneOn) this.closeScene(true);
     this.setState({ exec: true, detailOpen: false });
     this.sfx('engage');
-    try { if (window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (e) { /* sem aviso do sistema */ }
     API.post('/execucao', { acao: 'entrar' }).then((r) => { if (r && r.ok === false) this.toast(r.erro, true); }).catch((e) => { this.setState({ exec: false }); this.falha(e); });
     if (!quiet) { const p = this.curTask(); this.sayLocal(mode === 'between' ? 'Modo execução. A próxima começa às ' + hhmm(p.s) + '.' : mode === 'ready' ? 'Modo execução. Quando for começar, toque em Iniciar.' : 'Modo execução. Eu acompanho o tempo e aviso antes de acabar.'); }
   }
