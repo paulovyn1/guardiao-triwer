@@ -33,7 +33,7 @@ JANELA_LONGA = 10        # prazo além da semana: procura até 10 dias úteis an
 ESTENDER = {}             # {data: minutos} hora de parar estendida que ela autorizou (--estender AAAA-MM-DD=HH:MM)
 FRENTES_FLEXIVEIS = {"agencia", "agencias", "cliente", "clientes", "operacional", "operacao", "gestao", "administrativo", "admin"}
 
-PESADO = re.compile(r"copy|roteiro|manifesto|decid|decis|estrat|ideia|dopa|rascunho|substack|p[aá]gina|aula|material|pitch|branding|escrever|planej|briefing|texto|e-?mail", re.I)
+PESADO = re.compile(r"copy|roteiro|manifesto|decid|decis|estrat|ideia|dopa|rascunho|substack|p[aá]gina|aula|material|pitch|branding|escrever|planej|briefing|texto|e-?mail|destrinch|reestrutur|evento|lan[cç]amento|recalibr", re.I)
 DESIGN = re.compile(r"design|arte|edi[cç][aã]o|carrossel|thumb|capa", re.I)
 
 
@@ -387,6 +387,8 @@ def ocupacao(plano, dia, memoria, a_partir=None):
     parar = vs.hora_de_parar(dia, memoria)
     ini = max(vs.CHEGADA, a_partir or 0)
     janela = parar - ini
+    if janela <= 0:  # o expediente do dia já acabou: não há o que ocupar
+        return 0.0, 0
     livre = vs._livre_em((ini, parar), vs._intervalos(plano))
     return (janela - livre) / janela if janela > 0 else 1.0, livre
 
@@ -476,6 +478,8 @@ def marcos(oper, memoria, hoje, ate):
 
 def alertas(planos, hoje, cfg, memoria, oper, dias=10, pular_hoje=False, agora=None):
     """Antecipar: dia útil com mais de 90% da janela ocupada, tarefa sem hora em dia já cheio, marco perto sem horário no ClickUp."""
+    if agora is not None and agora >= vs.hora_de_parar(hoje, memoria):  # depois do expediente, hoje não entra nos alertas
+        pular_hoje = True
     out = []
     resumo = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []
     d = hoje + timedelta(days=1 if pular_hoje else 0)  # pular_hoje: no prompt fixo, hoje muda a cada turno e quebraria o cache

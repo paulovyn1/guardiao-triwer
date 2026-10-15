@@ -126,4 +126,8 @@ confere("zona morta: leve continua podendo", ra.janelas("leve", 19 * 60 + 20, fo
 ra.vs.aplicar_rotina({})
 p_hoje = {"blocos": [], "fixos": []}
 confere("ocupação de hoje conta só a partir de agora", ra.ocupacao(p_hoje, hoje, mem, 19 * 60)[1] == 20 and ra.ocupacao(p_hoje, hoje, mem)[1] > 600)
+pre = {"blocos": [{"id": "x1", "inicio": "08:55", "fim": "10:55", "titulo": "Branding"}, {"id": None, "inicio": "11:00", "fim": "12:00", "titulo": "Sem id"}], "fixos": []}
+confere("bloco sem id nunca é ignorado por engano ao testar uma troca", ra.vs._intervalos(pre, {None}) == [(535, 655), (660, 720)])
+confere("destrinchar e reestruturar são trabalho pesado", ra.tipo_de("Produtos da Pri: destrinchar a revisão e reestruturação") == "pesado")
+confere("depois do expediente, hoje não vira alerta", not any("14/10" in a for a in ra.alertas(ra.vs.planos_da_semana(oper, hoje), hoje, {}, mem, oper, agora=23 * 60)))
 sys.exit(1 if falhas else 0)

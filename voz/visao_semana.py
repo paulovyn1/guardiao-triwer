@@ -134,7 +134,7 @@ def pre_planos_do_clickup(oper, planos, hoje=None):
         if t.get("aprovar") or t.get("id") in em_plano or dia in planos or not (hoje.isoformat() <= dia <= limite):
             continue
         p = pre.setdefault(dia, {"data": dia, "status": "pré-planejado no ClickUp", "origem": "clickup", "blocos": [], "sem_hora": []})
-        bloco = {"titulo": t.get("nome"), "clickup_id": t.get("id"), "frente": t.get("lista") or "?"}
+        bloco = {"id": t.get("id"), "titulo": t.get("nome"), "clickup_id": t.get("id"), "frente": t.get("lista") or "?"}
         if t.get("inicio") and t.get("fim"):
             p["blocos"].append(dict(bloco, inicio=t["inicio"], fim=t["fim"]))
         else:
@@ -152,7 +152,7 @@ def planos_da_semana(oper, hoje=None):
 def _intervalos(plano, ignorar=()):
     lista = []
     for b in (plano.get("blocos") or []):
-        if b.get("id") in ignorar:
+        if b.get("id") is not None and b.get("id") in ignorar:  # bloco sem id (lido do ClickUp) nunca é ignorado por engano
             continue
         try:
             lista.append((hm(b["inicio"]), hm(b["fim"])))
