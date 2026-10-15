@@ -559,8 +559,16 @@ def _tique_fixos():
     return c
 
 
+def _data_curta(iso):
+    try:
+        return date.fromisoformat(str(iso)[:10]).strftime("%d/%m")
+    except ValueError:
+        return str(iso)
+
+
 def _avisar_tarefas_novas():
-    """Tarefa que apareceu no ClickUp desde a última leitura: avisa e pergunta se ela quer replanejar o dia. Não mexe no plano sozinho."""
+    """Tarefa que apareceu no ClickUp desde a última leitura. Só a que vence hoje (ou já venceu) abre a pergunta de replanejar o dia, e mesmo assim o guardião
+    confere se é urgente antes de mexer. Tarefa de data futura NUNCA mexe em hoje: a pergunta é só onde encaixar na semana ou no mês. Não mexe no plano sozinho."""
     global CHECKIN
     if not h.ULTIMAS_NOVAS or CHECKIN:
         return None  # com um aviso de tempo aberto, espera a vez
@@ -573,16 +581,33 @@ def _avisar_tarefas_novas():
             return None
         d["avisados"] += [f"nova|{t.get('id')}" for t in novas]
         _gravar(_arq_exec(), d)
+        hoje = _hoje()
+        de_hoje = [t for t in novas if not t.get("prazo") or str(t["prazo"])[:10] <= hoje]
+        futuras = [t for t in novas if t not in de_hoje]
         nomes = [_curto(t.get("nome"), 60) for t in novas]
-        lista = "; ".join(nomes[:3]) + (f" e mais {len(nomes) - 3}" if len(nomes) > 3 else "")
-        texto = (f"Apareceu {len(nomes)} tarefa nova no ClickUp: {lista}. Quer que eu replaneje o dia?" if len(nomes) == 1
-                 else f"Apareceram {len(nomes)} tarefas novas no ClickUp: {lista}. Quer que eu replaneje o dia?")
+        lista = lambda ts: "; ".join(f"{_curto(t.get('nome'), 60)} ({_data_curta(t.get('prazo'))})" for t in ts[:3]) + (f" e mais {len(ts) - 3}" if len(ts) > 3 else "")
+        if de_hoje:
+            n = len(de_hoje)
+            texto = (f"Apareceu {n} tarefa nova no ClickUp com data para hoje: {lista(de_hoje)}. Quer que eu veja se é urgente e replaneje o dia?" if n == 1
+                     else f"Apareceram {n} tarefas novas no ClickUp com data para hoje: {lista(de_hoje)}. Quer que eu veja se são urgentes e replaneje o dia?")
+            pedido = ("Sim, quero replanejar o dia. Apareceram tarefas novas no ClickUp com data para hoje: " + "; ".join(_curto(t.get("nome"), 60) for t in de_hoje)
+                      + ". Abra cada tarefa e confira se é mesmo urgente hoje. Se não for, NÃO mexa em hoje: proponha outra data no planejamento da semana ou do mês (rode onde_cabe.ps1) e me pergunte antes de gravar. "
+                      "Só puxe para hoje o que for urgente e só se couber; se hoje já passa da minha hora de parar, adiante o que está estourando em hoje antes de pôr tarefa de outro dia. Não aprove nada sem eu ver.")
+            if futuras:
+                pedido += " Tarefas com data futura (" + "; ".join(_curto(t.get("nome"), 60) for t in futuras) + "): não mexa em hoje, só proponha o dia de encaixe."
+            opcoes = [{"rotulo": "Replanejar", "resposta": "novas_replanejar"}, {"rotulo": "Depois", "resposta": "novas_depois"}]
+        else:
+            n = len(futuras)
+            texto = (f"Apareceu {n} tarefa nova no ClickUp para outra data: {lista(futuras)}. Não mexo em hoje. Quer que eu proponha onde encaixar?" if n == 1
+                     else f"Apareceram {n} tarefas novas no ClickUp para outras datas: {lista(futuras)}. Não mexo em hoje. Quer que eu proponha onde encaixar?")
+            pedido = ("Apareceram tarefas novas no ClickUp com data futura: " + "; ".join(f"{_curto(t.get('nome'), 60)} ({_data_curta(t.get('prazo'))})" for t in futuras)
+                      + ". NÃO altere o plano de hoje. Rode onde_cabe.ps1 e proponha o dia de encaixe no planejamento da semana ou do mês, respeitando o prazo e a folga. "
+                      "Me pergunte antes de gravar no ClickUp.")
+            opcoes = [{"rotulo": "Propor encaixe", "resposta": "novas_replanejar"}, {"rotulo": "Depois", "resposta": "novas_depois"}]
         CHECKIN = {"id": f"novas|{int(time.time())}", "bloco": "novas", "titulo": "Tarefas novas", "faltam": 0, "fim": None, "passo": "inicio", "quando": time.time(),
-                   "dados": {"pedido": ("Sim, quero replanejar o dia. Apareceram tarefas novas no ClickUp: " + "; ".join(nomes)
-                                        + ". Revise o plano de hoje encaixando essas tarefas, sem aprovar nada sem eu ver.")},
-                   "texto": texto, "opcoes": [{"rotulo": "Replanejar", "resposta": "novas_replanejar"}, {"rotulo": "Depois", "resposta": "novas_depois"}]}
+                   "dados": {"pedido": pedido}, "texto": texto, "opcoes": opcoes}
         c = dict(CHECKIN)
-    registrar_evento("checkin_novas", None, quantidade=len(nomes))
+    registrar_evento("checkin_novas", None, quantidade=len(nomes), de_hoje=len(de_hoje), futuras=len(futuras))
     h.bus.emitir("checkin", **_publico_checkin())
     h.bus.comandos.put(("checkin", {"texto": c["texto"], "id": c["id"]}))
     return c

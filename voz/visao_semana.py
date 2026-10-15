@@ -276,7 +276,11 @@ REGRAS_DA_SEMANA = (
     "5. Bloco que muda de dia mantém o \"prazo_final\" que já tinha.\n"
     "6. Antes de mostrar uma proposta, confira a semana inteira contra ela: cada post de seg, qua e sex tem copy e design antes do dia dele, "
     "cada prazo final é cumprido e nada pré-planejado sumiu. O servidor nega a gravação em que uma tarefa some da semana, passa do prazo final "
-    "ou toma o horário nobre de um dia cheio sendo tarefa com folga."
+    "ou toma o horário nobre de um dia cheio sendo tarefa com folga.\n"
+    "7. Tarefa de data futura (nova ou antiga) não entra em hoje e não vira pergunta de replanejar o dia: ela vai para o dia de encaixe, perguntando a ela. "
+    "Só entra em hoje o que vence hoje E é urgente depois de você abrir a tarefa e ler; se não for urgente, proponha outra data. Nunca pergunte se algo a mais de uma semana entra hoje.\n"
+    "8. Se hoje tem bloco passando da hora de parar, ou sobra horário livre antes dela, o horário vai primeiro para adiantar o que já está em hoje (termine o que estoura). "
+    "Nunca puxe tarefa de outro dia (cronograma de sexta, por exemplo) enquanto houver bloco de hoje fora da janela."
 )
 
 
