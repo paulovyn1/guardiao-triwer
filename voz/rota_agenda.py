@@ -178,6 +178,7 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
     agora_min = agora if agora is not None else datetime.now().hour * 60 + datetime.now().minute
     cfg = _config() if oper == OPER else (vs._json(os.path.join(oper, "config.json")) or {})
     memoria = memoria or ((cfg.get("pastas") or {}).get("memoria"))
+    vs.aplicar_rotina(cfg)
     fator, n_reg = margem(oper)
     precisa = int(math.ceil(minutos * fator / 5) * 5)
     contiguo = precisa if minutos <= 120 else PEDACO_MINIMO

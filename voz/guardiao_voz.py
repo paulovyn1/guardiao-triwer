@@ -35,6 +35,7 @@ import guardiao_sessao
 import guardiao_v2 as v2
 import janela_painel
 import latencia
+import checar_config
 import memoria_conversa
 import nativo
 import tocador
@@ -648,6 +649,9 @@ def contexto_do_turno(pergunta=""):
     if quer_pendencias(pergunta):
         partes.append(pendencias_texto())
     partes.append(f"TAREFAS CONHECIDAS (id | quando | titulo | estado ou lista):\n{refs_conhecidas()}")
+    pendentes = checar_config.texto(OPER)
+    if pendentes:
+        partes.append(pendentes)
     conversa = bloco_conversa()
     if conversa:
         partes.append(conversa)
@@ -1054,7 +1058,8 @@ def mensagem_da_sessao(pergunta, conversa):
             partes.append("CONVERSA ANTERIOR DE HOJE (continuação: considere o que já foi combinado; os planos gravados valem mais que isto):\n" + ponte)
     enviado = _ENVIADO.setdefault(conversa, {})
     for nome, bloco in (("plano", f"PLANO DE HOJE:\n{_plano_texto()}"), ("proximos", contexto_proximos_dias()),
-                        ("tarefas", f"TAREFAS CONHECIDAS (id | quando | titulo | estado ou lista):\n{refs_conhecidas()}")):
+                        ("tarefas", f"TAREFAS CONHECIDAS (id | quando | titulo | estado ou lista):\n{refs_conhecidas()}"),
+                        ("pendencias", checar_config.texto(OPER))):  # configuração que faltou depois de uma atualização: uma vez por conversa
         if bloco and enviado.get(nome) != bloco:
             enviado[nome] = bloco
             partes.append(bloco)
@@ -1618,7 +1623,9 @@ def prompt_completo(pedido, arquivo_plano):
         "Leia o que a skill manda carregar e, se o pedido tocar o plano de hoje, leia também o plano atual (plano_do_dia.json) e o registro de hoje "
         f"(registros\\registro_{hoje}.json, com os blocos já feitos ou adiados), os dois na pasta operacional.\n"
         "Não crie nem altere nada no ClickUp nem em outro lugar, e não edite os arquivos de memória. As únicas escritas permitidas são: "
-        f"o arquivo {arquivo_plano} (plano de hoje) e planos\\plano_AAAA-MM-DD.json na pasta operacional (plano de outro dia), e só se o pedido for montar ou mudar um plano.\n"
+        f"o arquivo {arquivo_plano} (plano de hoje) e planos\\plano_AAAA-MM-DD.json na pasta operacional (plano de outro dia), e só se o pedido for montar ou mudar um plano; "
+        "e o config.json da pasta operacional, só para completar a CONFIGURAÇÃO PENDENTE quando o pedido for esse.\n"
+        + (checar_config.texto(OPER) + "\n" if checar_config.texto(OPER) else "")
         + REGRAS_DO_PLANO + "\n"
         "No fim, responda SOMENTE com o que deve ser dito em voz alta: até 6 frases curtas, sem lista, sem markdown e sem travessão. "
         "Fale na primeira pessoa, como o mesmo guardião da conversa: não cite esta execução, o guardião completo, checagens técnicas nem o que você não tem permissão de fazer. "

@@ -47,7 +47,24 @@
       }
     ],
     "fixos_datas": [],
-    "cancelados": []
+    "cancelados": [],
+    "parar_por_dia": {
+      "seg": "18:00",
+      "ter": "18:00",
+      "qua": "18:00",
+      "qui": "18:00",
+      "sex": "18:00"
+    },
+    "horario_nobre": [
+      [
+        "09:00",
+        "12:00"
+      ],
+      [
+        "14:00",
+        "16:00"
+      ]
+    ]
   },
   "clickup": {
     "token_variavel": "CLICKUP_API_TOKEN",

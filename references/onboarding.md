@@ -82,7 +82,7 @@ Vai para: `perfil.md` (Papéis); `equipe.md` (Donos; Canais e agentes); `config.
 - O que repete toda semana ou todo mês e já tem horário (reunião, live, mentoria, aula)?
 - O que é inegociável na sua vida fora do trabalho (horário de parar, folgas, família, casa)?
 - Sábado e domingo: trabalha, e quanto?
-Vai para: `config.json` (rotina); `semana-base.md` (Agenda por dia, Compromissos fixos); `perfil.md` (Vida pessoal).
+Vai para: `config.json` (rotina, inclusive os campos estruturados que o roteador da agenda usa: `rotina.chegada`; `rotina.parar_por_dia` com a hora de parar de cada dia de trabalho, por exemplo `{"seg": "19:00", "ter": "19:20"}`; `rotina.fixos_semana` com cada compromisso que repete, `{"dias": [0, 2], "inicio": "16:00", "fim": "16:30", "titulo": "..."}`, sendo 0 segunda e 4 sexta, almoço incluído; `rotina.fixos_datas` para compromisso de data avulsa ou quinzenal, `{"data": "AAAA-MM-DD", "inicio", "fim", "titulo"}`); `semana-base.md` (Agenda por dia, Compromissos fixos); `perfil.md` (Vida pessoal). O texto vai para a memória e os horários para o `config.json`: os dois precisam dizer a mesma coisa.
 
 **Bloco 4: energia.**
 - O que drena sua energia e o que recarrega?
@@ -92,7 +92,7 @@ Vai para: `config.json` (rotina); `semana-base.md` (Agenda por dia, Compromissos
 - Me conta de um dia ruim recente: o que aconteceu, e o que você faria no mínimo para o dia não ser perdido?
 - Quando você troca de uma frente para outra (conteúdo para atendimento, por exemplo), o que custa? Quantas frentes diferentes cabem num dia sem você se esgotar?
 - Ideia e criatividade: nos dias em que as ideias vieram fácil, o que tinha acontecido antes (consumo de conteúdo, descanso, conversa)? E nos dias em que não vieram? Se você marca horário para ter ideia, o que acontece?
-Vai para: `perfil.md` (Energia, Relógio, Faixas do dia por tipo de trabalho, Sobra do dia, Troca de frente e limite por dia, Ideias e criação, Regras de decisão: dia ruim).
+Vai para: `perfil.md` (Energia, Relógio, Faixas do dia por tipo de trabalho, Sobra do dia, Troca de frente e limite por dia, Ideias e criação, Regras de decisão: dia ruim); `config.json` (`rotina.horario_nobre`: as faixas do trabalho pesado, por exemplo `[["08:40", "13:00"], ["18:00", "fim"]]`, onde "fim" é a hora de parar do dia).
 
 **Bloco 5: cobrança.**
 - Notificação funciona com você, ou você ignora? Já desligou alguma?

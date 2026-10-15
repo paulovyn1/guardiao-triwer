@@ -33,6 +33,7 @@ def _memoria(cfg):
 def montar(dia, oper=OPER, cfg=None):
     """(plano, motivos): o plano base do dia e por que ele ainda precisa do Claude (lista vazia = pronto)."""
     cfg = cfg if cfg is not None else _cfg()
+    vs.aplicar_rotina(cfg)
     memoria = _memoria(cfg)
     nome = ((cfg.get("pessoa") or {}).get("nome")) or "Eu"
     resumo = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []

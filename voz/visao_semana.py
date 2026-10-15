@@ -10,12 +10,45 @@ import os
 import re
 from datetime import date, datetime, timedelta
 
+# Padrões (a rotina da Milena, que estreou o roteador). Cada pessoa tem a sua em config.json, rotina: chegada, horario_nobre e
+# parar_por_dia. aplicar_rotina() troca estes valores ao importar; o que faltar no config fica no padrão e vira pendência (checar_config.py).
 CHEGADA = 8 * 60 + 40
 NOBRE_MANHA = (8 * 60 + 40, 13 * 60)
 NOBRE_NOITE_INICIO = 18 * 60
 PARAR_PADRAO = {0: 19 * 60, 1: 19 * 60 + 20, 2: 19 * 60 + 20, 3: 19 * 60 + 20, 4: 19 * 60 + 20}
+_PADRAO = (CHEGADA, NOBRE_MANHA, NOBRE_NOITE_INICIO)
+PARAR_CONFIG = {}  # rotina.parar_por_dia da pessoa: vale acima do perfil e do padrão
 DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+DIA_POR_NOME = {"seg": 0, "ter": 1, "qua": 2, "qui": 3, "sex": 4, "sab": 5, "sáb": 5, "dom": 6}
 HORIZONTE_DIAS = 7
+
+
+def aplicar_rotina(cfg):
+    """Lê do config.json a rotina da pessoa (chegada, horário nobre, hora de parar por dia). Campo ausente ou inválido: fica o padrão."""
+    global CHEGADA, NOBRE_MANHA, NOBRE_NOITE_INICIO
+    CHEGADA, NOBRE_MANHA, NOBRE_NOITE_INICIO = _PADRAO
+    rotina = (cfg or {}).get("rotina") or {}
+    try:
+        if rotina.get("chegada"):
+            CHEGADA = hm(rotina["chegada"])
+    except (ValueError, TypeError):
+        pass
+    faixas = rotina.get("horario_nobre")
+    if isinstance(faixas, list) and faixas:
+        try:
+            primeira = faixas[0]
+            NOBRE_MANHA = (hm(primeira[0]), hm(primeira[1]) if str(primeira[1]).lower() != "fim" else 24 * 60)
+            NOBRE_NOITE_INICIO = hm(faixas[1][0]) if len(faixas) > 1 else 24 * 60
+        except (ValueError, TypeError, IndexError):
+            pass
+    PARAR_CONFIG.clear()
+    for chave, valor in (rotina.get("parar_por_dia") or {}).items():
+        d = DIA_POR_NOME.get(str(chave).strip().lower()[:3])
+        try:
+            if d is not None:
+                PARAR_CONFIG[d] = hm(valor)
+        except (ValueError, TypeError):
+            pass
 
 
 def hm(texto):
@@ -40,8 +73,10 @@ def _json(caminho):
 
 
 def hora_de_parar(dia, memoria=None):
-    """Hora de parar do dia (minutos). Lê "Segunda: ... para às 19h" e "Terça a sexta: ... 19h20" do perfil; sem perfil, os padrões da Milena.
-    Quinta de Zoom vai até o fim da aula (19h30)."""
+    """Hora de parar do dia (minutos). Vale rotina.parar_por_dia do config.json; sem ele, "Segunda: ... para às 19h" e "Terça a sexta: ... 19h20"
+    do perfil; sem os dois, o padrão."""
+    if dia.weekday() in PARAR_CONFIG:
+        return PARAR_CONFIG[dia.weekday()]
     parar = PARAR_PADRAO.get(dia.weekday(), 19 * 60 + 20)
     try:
         with open(os.path.join(memoria, "perfil.md"), encoding="utf-8-sig") as f:
@@ -159,6 +194,7 @@ def _chave(bloco):
 def texto(oper, memoria=None, hoje=None, agora_min=None, feitos_hoje=(), incluir_hoje=True):
     """A semana em texto compacto, para o contexto da sessão. Sem incluir_hoje, começa amanhã (o plano de hoje vai à parte e muda a cada turno)."""
     hoje = hoje or date.today()
+    aplicar_rotina(_json(os.path.join(oper, "config.json")))  # relida a cada vez: a pessoa pode ter acabado de completar a rotina
     planos = carregar_planos(oper, hoje)
     pre = pre_planos_do_clickup(oper, planos, hoje)
     resumo = _json(os.path.join(oper, "resumo_clickup.json")) or {}
@@ -230,3 +266,6 @@ REGRAS_DA_SEMANA = (
     "cada prazo final é cumprido e nada pré-planejado sumiu. O servidor nega a gravação em que uma tarefa some da semana, passa do prazo final "
     "ou toma o horário nobre de um dia cheio sendo tarefa com folga."
 )
+
+
+aplicar_rotina(_json(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")))
