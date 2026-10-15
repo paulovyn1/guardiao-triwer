@@ -1,10 +1,17 @@
-# A janela do painel. No Windows ela abre sempre no Microsoft Edge, como janela de aplicativo (sem abas nem barra de endereço), no perfil
-# que a pessoa já usa no Edge: o guardião não cria perfil, não entra em conta, não liga sincronização e não mexe em extensão.
+# A janela do painel. No Windows ela abre sempre no Microsoft Edge, como janela de aplicativo (sem abas nem barra de endereço), numa pasta
+# de Edge só do painel: o navegador da pessoa (perfis, conta, extensões, sincronização, configurações) não é tocado nem lido.
 #
-# Por que o Edge e não o navegador padrão: o painel precisa parecer um aplicativo. Só Chrome e Edge abrem uma janela de aplicativo com --app;
-# o Opera (e o Opera GX) ignora a opção e abre como aba comum, com a interface do navegador em volta (medido no Opera GX de verdade). O Edge
-# vem com todo Windows 10 e 11, então é o mesmo para todo mundo.
-# Sem o Edge (raro), vale o Chrome em janela de aplicativo; sem os dois, uma aba nova no navegador padrão.
+# Por que uma pasta só do painel (decisão do Paulo em 15/10/2026, voltando atrás na 0.8.0, que abria no perfil da pessoa):
+# - a animação depende da placa de vídeo. No perfil da pessoa o painel herda a configuração dela; com a aceleração de hardware desligada
+#   (caso real do Paulo) caiu de 88 para 15 quadros por segundo, medido no mesmo computador;
+# - o som da abertura precisa de --autoplay-policy. O Edge que já está aberto (e no Windows ele fica aberto em segundo plano desde o logon)
+#   ignora qualquer opção da linha de comando, então no perfil da pessoa o som só saía depois de um clique;
+# - extensões da pessoa rodam em toda página, inclusive no painel.
+# A pasta fica em %LOCALAPPDATA%\GuardiaoDoDia\painel (sempre NTFS, mesmo quando a pasta do guardião está num disco FAT32), nasce sem conta
+# e sem sincronização (--disable-sync, msImplicitSignin, medido na 0.7.0) e não aparece na lista de perfis do Edge da pessoa.
+#
+# Por que o Edge e não o navegador padrão: só Chrome e Edge abrem janela de aplicativo com --app (o Opera ignora a opção e abre como aba).
+# O Edge vem com todo Windows 10 e 11. Sem o Edge (raro), vale o Chrome, também com pasta própria; sem os dois, uma aba no navegador padrão.
 # No Mac (quando houver versão para Mac) o painel abre no Safari.
 #
 # Uso: python janela_painel.py <endereço> [largura,altura]
@@ -20,8 +27,22 @@ except ImportError:  # fora do Windows
     winreg = None
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-PERFIL_ANTIGO = os.path.join(BASE, "perfil_edge")  # as versões 0.6 e 0.7 abriam o Edge num perfil só do guardião: hoje não se usa mais
+PERFIL_ANTIGO = os.path.join(BASE, "perfil_edge")  # as versões 0.6 e 0.7 guardavam a pasta do painel aqui, dentro da pasta do guardião
 ACEITAM_APP = ("chrome", "msedge")  # parte do nome do programa: os que abrem uma janela de aplicativo com --app
+# Uma opção --disable-features só: o Chromium fica só com a última que aparecer na linha de comando.
+OPCOES = [
+    "--no-first-run", "--no-default-browser-check",
+    "--autoplay-policy=no-user-gesture-required",  # o som da abertura toca sem esperar um clique
+    "--disable-sync", "--disable-features=msImplicitSignin",  # sem conta e sem sincronização
+    "--disable-extensions",
+    "--hide-crash-restore-bubble",  # desligar o computador com o painel aberto não deixa o aviso de "restaurar páginas"
+]
+
+
+def pasta_do_painel():
+    """A pasta de navegador só do painel. Em %LOCALAPPDATA% (NTFS); sem essa variável (raro), ao lado do programa."""
+    base = os.environ.get("LOCALAPPDATA")
+    return os.path.join(base, "GuardiaoDoDia", "painel") if base else os.path.join(BASE, "painel_navegador")
 
 
 def exe_do_comando(comando):
@@ -106,9 +127,9 @@ def navegador_do_painel():
     return achar_edge() or achar_chrome()
 
 
-def argumentos(url, tamanho="1456,939"):
-    """Os argumentos da janela de aplicativo (sem o caminho do programa). De propósito, nada de --user-data-dir: é o perfil da pessoa."""
-    return [f"--app={url}", f"--window-size={tamanho}"]
+def argumentos(url, tamanho="1456,939", pasta=None):
+    """Os argumentos da janela de aplicativo (sem o caminho do programa), sempre com a pasta só do painel."""
+    return [f"--user-data-dir={pasta or pasta_do_painel()}", f"--app={url}", f"--window-size={tamanho}", *OPCOES]
 
 
 def em_uso(perfil=PERFIL_ANTIGO):
@@ -124,8 +145,8 @@ def em_uso(perfil=PERFIL_ANTIGO):
 
 
 def limpar_perfil_antigo(perfil=PERFIL_ANTIGO):
-    """Apaga a pasta do perfil que as versões antigas criaram para o painel (é só do guardião: o navegador da pessoa e os dados dela na
-    nuvem não são tocados). Devolve True se apagou. Com ela em uso não mexe: tenta na próxima abertura."""
+    """Apaga a pasta que as versões 0.6 e 0.7 criaram dentro da pasta do guardião (hoje ela fica em %LOCALAPPDATA%). Devolve True se apagou.
+    Com ela em uso não mexe: tenta na próxima abertura."""
     if not os.path.isdir(perfil) or em_uso(perfil):
         return False
     try:
@@ -148,7 +169,9 @@ def abrir(url, tamanho="1456,939"):
     exe = navegador_do_painel()
     if exe:
         try:
-            subprocess.Popen([exe, *argumentos(url, tamanho)])
+            pasta = pasta_do_painel()
+            os.makedirs(pasta, exist_ok=True)
+            subprocess.Popen([exe, *argumentos(url, tamanho, pasta)])
             return "app"
         except OSError:
             pass

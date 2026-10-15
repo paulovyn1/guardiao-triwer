@@ -6,7 +6,9 @@ import json
 import os
 import queue
 import re
+import socket
 import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -1451,15 +1453,32 @@ class Pedido(BaseHTTPRequestHandler):
             bus.sair(q)
 
 
+class ServidorExclusivo(ThreadingHTTPServer):
+    """O servidor do painel, dono único da porta. O padrão do Python liga SO_REUSEADDR, e no Windows isso deixa um segundo programa ocupar a
+    mesma porta sem erro nenhum (caso real de 15/10/2026: dois guardiões ligados juntos no logon, o painel ouvindo um e o Esc e o texto
+    digitado indo para o outro). Com SO_EXCLUSIVEADDRUSE o segundo recebe erro ao ligar e desiste."""
+    allow_reuse_address = False
+    daemon_threads = True
+
+    def server_bind(self):
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+            return  # o painel fechou ou recarregou no meio de uma resposta: é normal, e o registro só serviria para esconder os erros de verdade
+        super().handle_error(request, client_address)
+
+
 def iniciar_servidor(porta=PORTA):
     """Sobe a tela numa thread. Devolve o servidor (ou None se a porta já estiver em uso)."""
     global PORTA
     PORTA = porta
     try:
-        servidor = ThreadingHTTPServer(("127.0.0.1", porta), Pedido)
+        servidor = ServidorExclusivo(("127.0.0.1", porta), Pedido)
     except OSError:
         return None
-    servidor.daemon_threads = True
     threading.Thread(target=servidor.serve_forever, daemon=True).start()
     try:
         _v2().ligar_vigia()  # avisos de tempo do modo execução

@@ -1,7 +1,8 @@
-"""A janela do painel (janela_painel.py), sem abrir navegador nenhum: desde a 0.9 o painel abre sempre no Edge, como janela de aplicativo
-(no Opera ele virava uma aba comum), sem criar perfil, sem entrar em conta e sem opção que mexa no navegador da pessoa. Sem Edge, o Chrome; sem os
-dois, uma aba no navegador padrão. O navegador padrão ainda é lido do registro, só para o diagnóstico.
-Também a limpeza do perfil antigo que as versões 0.6 e 0.7 criaram, que nunca mexe num perfil em uso."""
+"""A janela do painel (janela_painel.py), sem abrir navegador nenhum: o painel abre sempre no Edge, como janela de aplicativo (no Opera ele
+virava uma aba comum), numa pasta de navegador só dele (desde a 0.9.8): a placa de vídeo e o som da abertura funcionam seja qual for a
+configuração do Edge da pessoa, sem conta, sem sincronização e sem extensões. Sem Edge, o Chrome; sem os dois, uma aba no navegador padrão.
+O navegador padrão ainda é lido do registro, só para o diagnóstico.
+Também a limpeza da pasta antiga que as versões 0.6 e 0.7 criaram dentro da pasta do guardião, que nunca mexe numa pasta em uso."""
 import os
 import sys
 import tempfile
@@ -35,12 +36,19 @@ for progid, exe in (("OperaStable", "opera.exe"), ("Opera GXStable", "opera.exe"
     confere(f"{progid} abre numa aba (o --app não foi conferido ou é ignorado)", not jp.aceita_app(progid, exe))
 
 # ---------------- os argumentos: janela de aplicativo e mais nada ----------------
-args = jp.argumentos("http://localhost:8767/v2/", "1456,939")
-confere("é uma janela de aplicativo no tamanho pedido", args == ["--app=http://localhost:8767/v2/", "--window-size=1456,939"], args)
-confere("nenhum perfil novo: sem --user-data-dir", not any(a.startswith("--user-data-dir") for a in args), args)
-confere("nenhuma opção que mexa no navegador da pessoa (sincronização, extensões, primeira execução)",
-        not any(a.startswith(("--disable", "--no-first-run", "--no-default-browser-check", "--autoplay")) for a in args), args)
-confere("o módulo não carrega mais opção de perfil, de sincronização nem de extensão", not hasattr(jp, "OPCOES_SEGURAS") and not hasattr(jp, "PERFIL"))
+args = jp.argumentos("http://localhost:8767/v2/", "1456,939", "C:\\Pasta")
+confere("é uma janela de aplicativo no tamanho pedido", "--app=http://localhost:8767/v2/" in args and "--window-size=1456,939" in args, args)
+confere("sempre numa pasta de navegador só do painel (o Edge da pessoa não é tocado: as configurações dela não valem para o painel)",
+        args[0] == "--user-data-dir=C:\\Pasta" and sum(a.startswith("--user-data-dir") for a in args) == 1, args)
+confere("o som da abertura toca sem esperar um clique", "--autoplay-policy=no-user-gesture-required" in args, args)
+confere("sem conta, sem sincronização e sem extensões na pasta do painel",
+        "--disable-sync" in args and "--disable-extensions" in args and any(a.startswith("--disable-features=") and "msImplicitSignin" in a for a in args), args)
+confere("uma opção --disable-features só (o Chromium fica só com a última)", sum(a.startswith("--disable-features") for a in args) == 1, args)
+confere("sem primeira execução nem pergunta de navegador padrão", "--no-first-run" in args and "--no-default-browser-check" in args, args)
+pasta_real = jp.pasta_do_painel()
+confere("a pasta fica em %LOCALAPPDATA%\\GuardiaoDoDia\\painel (NTFS mesmo quando o guardião está num disco FAT32), fora da pasta do guardião",
+        pasta_real == os.path.join(os.environ["LOCALAPPDATA"], "GuardiaoDoDia", "painel") and not pasta_real.startswith(jp.BASE), pasta_real)
+confere("argumentos sem pasta usam a pasta do painel", jp.argumentos("u")[0] == "--user-data-dir=" + pasta_real)
 # quem usa o resultado de navegador_padrao() lê a chave certa (o roteiro de aluno pegou um KeyError no diagnostico.py, que ninguém executa nos testes)
 voz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 usos = {}
@@ -79,8 +87,8 @@ try:
     for padrao in ({"progid": "Opera GXStable", "exe": "C:\\Opera GX\\opera.exe", "app": False}, {"progid": "ChromeHTML", "exe": "C:\\Chrome\\chrome.exe", "app": True}, None):
         jp.navegador_padrao = lambda padrao=padrao: padrao
         modo = jp.abrir("http://localhost:8767/v2/", "1500,940")
-        confere(f"com o navegador padrão {(padrao or {}).get('progid')}: abre no Edge, como janela de aplicativo, só com --app e o tamanho",
-                modo == "app" and chamadas["popen"] == [["C:\\Edge\\msedge.exe", "--app=http://localhost:8767/v2/", "--window-size=1500,940"]] and not chamadas["web"], (modo, chamadas))
+        confere(f"com o navegador padrão {(padrao or {}).get('progid')}: abre no Edge, como janela de aplicativo, na pasta do painel",
+                modo == "app" and chamadas["popen"] == [["C:\\Edge\\msedge.exe", *jp.argumentos("http://localhost:8767/v2/", "1500,940")]] and not chamadas["web"], (modo, chamadas))
         zerar()
     jp.achar_edge = lambda: ""
     modo = jp.abrir("http://localhost:8767/v2/")

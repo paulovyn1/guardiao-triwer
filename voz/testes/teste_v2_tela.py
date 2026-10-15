@@ -89,6 +89,15 @@ try:
     h.bus.emitir("nivel", mic=0.7)
     h.bus.emitir("previa", texto="quanto tempo falta")
     confere("ouvindo: estado e prévia do que a pessoa fala", espera("document.querySelector('.gl-u').innerText.toLowerCase().includes('quanto tempo falta')", 3) and js("document.querySelector('.st.cur .mic').classList.contains('on')"), texto(".gl-u"))
+    # digitar com a escuta ligada (0.9.8): o texto aparece no campo (antes sumia, o campo mostrava só a fala) e a escuta é encerrada
+    h.bus.cancelar_escuta.clear()
+    digitar(".st.cur .cmd .fld", "vou escrever")
+    confere("digitando durante a escuta: o texto digitado aparece no campo e a escuta é encerrada",
+            pausa(0.5) and js("document.querySelector('.st.cur .cmd .fld').value") == "vou escrever" and h.bus.cancelar_escuta.is_set(),
+            (js("document.querySelector('.st.cur .cmd .fld').value"), h.bus.cancelar_escuta.is_set()))
+    digitar(".st.cur .cmd .fld", "")
+    pausa(0.3)
+    h.bus.cancelar_escuta.clear()
     h.bus.emitir("voce", texto="Quanto tempo falta para essa tarefa?")
     h.bus.emitir("estado", v="pensando")
     time.sleep(0.4)

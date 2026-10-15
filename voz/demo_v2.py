@@ -79,5 +79,5 @@ def atender():
 if not h.iniciar_servidor(PORTA):
     raise SystemExit(f"A porta {PORTA} está ocupada. Feche a outra demonstração e tente de novo.")
 threading.Thread(target=atender, daemon=True).start()
-janela_painel.abrir(f"http://localhost:{PORTA}/v2/?abertura=1")  # o mesmo jeito de abrir do painel de verdade: Edge em janela de aplicativo, perfil da pessoa
+janela_painel.abrir(f"http://localhost:{PORTA}/v2/?abertura=1")  # o mesmo jeito de abrir do painel de verdade: Edge em janela de aplicativo, pasta só do painel
 time.sleep(1800)  # fecha sozinha em 30 minutos
