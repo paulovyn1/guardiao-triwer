@@ -170,7 +170,8 @@ def conferir_arquivo(caminho, oper=OPER, cfg=None):
     resumo = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas")
     pendentes = {t.get("id") for t in resumo} if resumo is not None else None
     base, _ = montar(dia, oper, cfg)  # o que a semana combinada punha neste dia: nada dela pode sumir sem ir para outro dia
-    return cp.conferir(plano) + cp.conferir_semana(plano, dia, base, outros, pendentes, (), _memoria(cfg))
+    return (cp.conferir(plano) + cp.conferir_semana(plano, dia, base, outros, pendentes, (), _memoria(cfg))
+            + cp.conferir_regras_da_pasta(plano, dia, outros, oper))
 
 
 def main(argv=None):

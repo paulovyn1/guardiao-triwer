@@ -10,9 +10,9 @@ import conferencia_plano as cp
 falhas = 0
 
 
-def confere(nome, ok):
+def confere(nome, ok, extra=""):
     global falhas
-    print(("ok   " if ok else "FALHA"), nome)
+    print(("ok   " if ok else "FALHA"), nome, "" if ok else extra)
     falhas += 0 if ok else 1
 
 
@@ -86,4 +86,29 @@ confere("visão: tarefa do dia fora do plano aparece para decidir", "Esquecida" 
 confere("visão: livre e nobre calculados", "Qui 15/10" in t and "horário nobre" in t)
 com_c9 = dict(base, blocos=base["blocos"] + [{"id": "b9", "titulo": "Design do post de segunda", "clickup_id": "c9", "inicio": "15:00", "fim": "16:00"}])
 confere("semana: tarefa que já está no pré-plano de outro dia pode sair", cp.conferir_semana(base, qui, com_c9, vs.planos_da_semana(oper, qui), {"c1", "c9"}) == [])
+
+# regras que viraram conta (2026-10-14)
+qua = date(2026, 10, 14)
+maes = [{"id": "m15", "nome": "Post de quinta sobre vendas", "prazo": "2026-10-15", "etapas": [{"id": "c15"}, {"id": "d15"}]},
+        {"id": "m16", "nome": "Post de sexta sobre desejo", "prazo": "2026-10-16", "etapas": [{"id": "d16"}]},
+        {"id": "m19", "nome": "Post de segunda sobre marketing", "prazo": "2026-10-19", "etapas": [{"id": "d19"}]}]
+def pl(*blocos):
+    return {"blocos": list(blocos), "fixos": [{"inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}]}
+def bl(i, ini, titulo, cid=None, **x):
+    return dict(id=i, inicio=ini, fim=ini[:3] + "59", titulo=titulo, clickup_id=cid, **x)
+almoco = [{"dias": [0, 1, 2, 3, 4], "inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}]
+confere("regras: plano certo passa", cp.conferir_regras(pl(bl("a", "09:00", "Copy | Post de quinta sobre vendas", "c15"), bl("b", "14:00", "Design | Post de quinta sobre vendas", "d15")), qua, {}, maes, almoco) == [])
+confere("regras: design antes da copy do mesmo post é barrado", any("A copy vem antes" in x for x in cp.conferir_regras(
+    pl(bl("a", "09:00", "Design | Post de quinta sobre vendas", "d15"), bl("b", "11:00", "Copy | Post de quinta sobre vendas", "c15")), qua, {}, maes, almoco)))
+erro_de_ontem = cp.conferir_regras(pl(bl("a", "14:00", "Design | Post de segunda sobre marketing", "d19")), qua,
+                                   {"2026-10-15": pl(bl("b", "16:00", "Design | Post de sexta sobre desejo", "d16"))}, maes, almoco)
+confere("regras: design do post de segunda antes do de sexta é barrado (erro de 14/10)", any("ordem das datas de postagem" in x for x in erro_de_ontem), erro_de_ontem)
+confere("regras: na ordem certa entre dias, passa", cp.conferir_regras(pl(bl("a", "14:00", "Design | Post de sexta sobre desejo", "d16")), qua,
+        {"2026-10-15": pl(bl("b", "16:00", "Design | Post de segunda sobre marketing", "d19"))}, maes, almoco) == [])
+confere("regras: almoço que some é barrado, e só para quem tem almoço na rotina",
+        any("almoço" in x for x in cp.conferir_regras({"blocos": [], "fixos": []}, qua, {}, [], almoco)) and cp.conferir_regras({"blocos": [], "fixos": []}, qua, {}, [], []) == [])
+confere("regras: post chamado por letra é barrado", any("por letra" in x for x in cp.conferir_regras(pl(bl("a", "09:00", "Copy do carrossel B")), qua, {}, [], almoco)))
+alternado = pl(bl("a", "09:00", "Copy | Post de quinta sobre vendas", "c15"), bl("b", "10:00", "Design | Post de sexta sobre desejo", "d16"), bl("c", "11:00", "Copy | outra coisa qualquer"))
+confere("regras: copy, design, copy só é barrado com a regra pessoal ligada",
+        cp.conferir_regras(alternado, qua, {}, maes, almoco) == [] and any("Agrupe" in x for x in cp.conferir_regras(alternado, qua, {}, maes, almoco, lote=True)))
 sys.exit(1 if falhas else 0)

@@ -190,6 +190,85 @@ def conferir_semana(plano, dia, anterior=None, outros=None, pendentes=None, feit
     return problemas
 
 
+ETAPA_COPY = re.compile(r"^\s*(\[?copy\]?\b|roteiro\b|legenda\b)", re.I)
+ETAPA_DESIGN = re.compile(r"^\s*(\[?design\]?\b|arte\b)", re.I)
+LETRA_NO_NOME = re.compile(r"\b(carrossel|post|reels?|story|stories)\s+[A-Z]\b(?!\w)")
+
+
+def _etapa(bloco):
+    """'copy', 'design' ou None, pelo campo etapa ou pelo começo do título ("Copy | ...", "[DESIGN] ...", "Design: ...")."""
+    e = _norm(bloco.get("etapa"))
+    if e in ("copy", "design"):
+        return e
+    t = str(bloco.get("titulo") or "")
+    if ETAPA_COPY.match(t):
+        return "copy"
+    if ETAPA_DESIGN.match(t):
+        return "design"
+    return None
+
+
+def _post_do_bloco(bloco, maes):
+    """(chave do post, data de postagem) do bloco de etapa, ou (None, None). Vem de reserva_post, da tarefa mãe (posts_maes.json, pelo id da
+    etapa) ou do título depois do "|" comparado ao nome da mãe."""
+    if bloco.get("reserva_post"):
+        return "reserva:" + str(bloco["reserva_post"]), str(bloco["reserva_post"])
+    cid = bloco.get("clickup_id")
+    for m in maes:
+        if cid and any(e.get("id") == cid for e in m.get("etapas") or []):
+            return m.get("id"), str(m.get("prazo") or "")
+    titulo = str(bloco.get("titulo") or "")
+    resto = _norm(titulo.split("|", 1)[1] if "|" in titulo else re.sub(r"^\s*\[?\w+\]?\s*[:|-]?\s*", "", titulo))[:25]
+    if len(resto) >= 12:
+        for m in maes:
+            if _norm(m.get("nome"))[:25] == resto:
+                return m.get("id"), str(m.get("prazo") or "")
+    return None, None
+
+
+def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=False):
+    """Regras de conteúdo e rotina que viraram conta (2026-10-14). Gerais: a copy de um post antes do design dele; etapas do mesmo tipo na ordem
+    das datas de postagem; o almoço da rotina não some; post não se chama por letra. Pessoal (só com rotina.regras.etapas_em_lote no config):
+    copies juntas e designs juntos, nunca copy, design, copy no mesmo dia."""
+    problemas = []
+    iso = dia.isoformat()
+    for b in plano.get("blocos") or []:
+        if LETRA_NO_NOME.search(str(b.get("titulo") or "")):
+            problemas.append(f"\"{b.get('titulo')}\": post se chama pelo título, não por letra. Use o título do post (e a data, se ajudar).")
+    tem_almoco = any("almo" in _norm(f.get("titulo")) and dia.weekday() in (f.get("dias") or []) for f in fixos_semana or [])
+    if tem_almoco and not any("almo" in _norm(f.get("titulo")) for f in (plano.get("fixos") or []) + (plano.get("blocos") or [])):
+        problemas.append("O almoço sumiu do plano. Ele nunca some: mova o horário se precisar, mas mantenha.")
+    etapas = []  # (dia, início, etapa, chave do post, data do post, título)
+    for d, p in list((outros or {}).items()) + [(iso, plano)]:
+        if d != iso and p is plano:
+            continue
+        if d == iso and p is not plano:
+            continue
+        for b in p.get("blocos") or []:
+            e = _etapa(b)
+            if not e:
+                continue
+            chave, data_post = _post_do_bloco(b, maes)
+            etapas.append((d, str(b.get("inicio") or ""), e, chave, data_post, b.get("titulo")))
+    etapas.sort()
+    for i, (d1, h1, e1, k1, p1, t1) in enumerate(etapas):
+        for d2, h2, e2, k2, p2, t2 in etapas[i + 1:]:
+            if iso not in (d1, d2):
+                continue  # só acusa o que envolve o dia que está sendo gravado
+            if k1 and k1 == k2 and e1 == "design" and e2 == "copy":
+                problemas.append(f"\"{t1}\" ({d1} {h1}) vem antes da copy do mesmo post (\"{t2}\", {d2} {h2}). A copy vem antes do design.")
+            if e1 == e2 and p1 and p2 and k1 != k2 and p1 > p2 and d2 <= p2:
+                problemas.append(f"\"{t1}\" (post de {p1}) está antes de \"{t2}\" (post de {p2}, que sai primeiro). "
+                                 f"Etapas do mesmo tipo vão na ordem das datas de postagem.")
+    if lote:
+        do_dia = [e for d, _h, e, _k, _p, _t in etapas if d == iso]
+        for a, b, c in zip(do_dia, do_dia[1:], do_dia[2:]):
+            if a == c != b:
+                problemas.append("Neste dia há copy, design e copy alternados. Agrupe: copies juntas, depois designs juntos.")
+                break
+    return problemas
+
+
 def texto_do_plano(entrada):
     """O JSON que o Write vai gravar, ou None se não dá para saber (Edit parcial)."""
     c = (entrada or {}).get("content")
@@ -199,3 +278,18 @@ def texto_do_plano(entrada):
         return json.loads(c.lstrip("﻿"))
     except ValueError:
         return None
+
+
+def conferir_regras_da_pasta(plano, dia, outros, oper):
+    """conferir_regras com o que está na pasta operacional: mães dos posts, fixos da rotina e as regras pessoais ligadas no config.json."""
+    try:
+        with open(os.path.join(oper, "posts_maes.json"), encoding="utf-8-sig") as f:
+            maes = json.load(f).get("maes") or []
+    except (OSError, ValueError):
+        maes = []
+    try:
+        with open(os.path.join(oper, "config.json"), encoding="utf-8-sig") as f:
+            rotina = json.load(f).get("rotina") or {}
+    except (OSError, ValueError):
+        rotina = {}
+    return conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool((rotina.get("regras") or {}).get("etapas_em_lote")))

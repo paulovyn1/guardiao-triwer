@@ -40,7 +40,7 @@ import memoria_conversa
 import nativo
 import tocador
 from fala import normalizar_para_fala
-from hud_servidor import (_config, _norm, _plano_de_hoje, _registro_de_hoje, agir, bus, conflitos_do_plano, editar_plano, iniciar_servidor,
+from hud_servidor import (_config, _ler_json, _norm, _plano_de_hoje, _registro_de_hoje, agir, bus, conflitos_do_plano, editar_plano, iniciar_servidor,
                           pendencias_texto, pessoa, preferencias, refs_conhecidas, resolver_lista, resumo_aprovacao, salvar_preferencias)
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -918,6 +918,8 @@ def texto_acoes(sessao=False):
         "Se ele ainda não tiver dito a palavra aprovar, pergunte \"Posso aprovar o plano?\" com {{aprovar}} na mesma frase: "
         "a aprovação só acontece depois do sim dele. Ao usar {{aprovar}}, fale no presente, como estou aprovando ou posso aprovar, "
         "e nunca diga que o plano já foi aprovado: o resultado aparece na tela e você confirma na próxima fala.\n"
+        "- Plano de outro dia (planos\\plano_AAAA-MM-DD.json) também é aprovado agora, com {{aprovar:AAAA-MM-DD}}, pelas mesmas regras: "
+        "o ClickUp recebe os horários na hora e o plano entra aprovado quando o dia chegar. Nunca diga que só dá para aprovar quando o dia chega.\n"
         "- Quando a revisão acabar (aprovada, recusada ou se ele quiser parar), escreva {{revisao:fim}}.\n"
         "- Depois de aprovado, os ajustes continuam valendo: mover, adicionar e remover mudam o plano e o ClickUp na hora, sem nova aprovação. "
         "Imprevisto (reunião de emergência, tarefa de última hora): encaixe o imprevisto no horário que ele disser, mova o que bate com ele e diga o que saiu "
@@ -1576,6 +1578,18 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
                 bus.emitir("aviso", texto=r.get("erro") or "Não consegui ajustar o plano.", erro=True)
             avisar_modelo(nota)
             tocar_revisao()
+        elif nome == "aprovar" and re.fullmatch(r"\s*\d{4}-\d{2}-\d{2}\s*", arg or "") and (arg or "").strip() != time.strftime("%Y-%m-%d"):
+            # plano de outro dia: aprova já e o ClickUp recebe os horários agora (antes só dava quando o dia chegava)
+            dia = arg.strip()
+            outro = _ler_json(os.path.join(OPER, "planos", f"plano_{dia}.json")) or {}
+            if not outro:
+                avisar_modelo(f"aprovar {dia} FALHOU: não há plano gravado para esse dia")
+            elif outro.get("status") == "aprovado":
+                avisar_modelo(f"aprovar {dia}: esse plano já estava aprovado")
+            elif EXPLICITO_APROVAR.search(_norm(texto_usuario)) and not NAO.search(_norm(texto_usuario)):
+                threading.Thread(target=agir_e_contar, args=("aprovar", dia), daemon=True).start()
+            else:
+                avisar_modelo(f"aprovar {dia} não foi feito: ela ainda não disse que aprova. Pergunte \"Posso aprovar o plano de {dia}?\" com a marca na mesma frase.")
         elif nome == "aprovar":
             plano = _plano_de_hoje() or {}
             if plano.get("status") != "sugerido":

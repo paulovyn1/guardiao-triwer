@@ -718,6 +718,8 @@ class Processo:
             problemas = cp.conferir(plano, anterior, feitos)
             problemas += self._conferir_semana(plano, caminho, anterior, feitos)
             problemas += self._exigir_rota(plano, caminho, anterior)
+            if plano.get("status") == "aprovado" and plano != anterior and not caminho.replace("\\", "/").lower().endswith("plano_do_dia.json"):  # aprovar é dela: quem grava deixa sugerido e pergunta (marca aprovar com a data)
+                problemas.append("O plano mudou, então grave com \"status\": \"sugerido\" e pergunte se ela aprova (marca aprovar com a data do dia).")
             if problemas:
                 return "O plano não pode ser gravado assim. Corrija e grave de novo:\n- " + "\n- ".join(problemas)
         self.gravou_plano = True
@@ -774,7 +776,8 @@ class Processo:
             outros = vs.planos_da_semana(h.OPER)  # inclui o pré-plano do ClickUp nos dias sem plano gravado
             resumo = _ler_json(os.path.join(h.OPER, "resumo_clickup.json")) or {}
             pendentes = {t.get("id") for t in resumo.get("tarefas") or []} if resumo.get("tarefas") is not None else None
-            return cp.conferir_semana(plano, dia, anterior, outros, pendentes, feitos, _pasta_memoria())
+            return (cp.conferir_semana(plano, dia, anterior, outros, pendentes, feitos, _pasta_memoria())
+                    + cp.conferir_regras_da_pasta(plano, dia, outros, h.OPER))
         except Exception as erro:  # a conferência nunca pode impedir o guardião de gravar por um defeito dela
             print("  Conferência de semana falhou:", erro)
             return []

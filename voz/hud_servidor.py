@@ -679,6 +679,29 @@ def aprovar_plano():
     return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros}
 
 
+def aprovar_plano_de_outro_dia(data_iso):
+    """Aprova o plano de outro dia (planos/plano_AAAA-MM-DD.json) já agora: o ClickUp recebe os horários na hora, em vez de ficar com a agenda
+    antiga até o dia chegar (o plano dizia uma coisa e o ClickUp outra). Não entra em execução: isso acontece quando o dia chega."""
+    if data_iso == date.today().isoformat():
+        return aprovar_plano()
+    caminho = os.path.join(OPER, "planos", f"plano_{data_iso}.json")
+    plano = _ler_json(caminho)
+    if not plano:
+        return {"ok": False, "erro": f"Não há plano gravado para {data_iso}."}
+    if data_iso < date.today().isoformat():
+        return {"ok": False, "erro": "Esse dia já passou."}
+    if plano.get("status") == "aprovado":
+        return {"ok": True, "criadas": 0, "reagendadas": 0, "erros": []}
+    plano["data"] = data_iso
+    criadas, reagendadas, erros = _levar_ao_clickup(plano)
+    plano["status"] = "aprovado"
+    plano["aprovado_em"] = time.strftime("%Y-%m-%d %H:%M")
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(plano, f, ensure_ascii=False, indent=2)
+    bus.emitir("plano")
+    return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros, "data": data_iso}
+
+
 # ---------------- revisão do plano do dia (o guardião ajusta o plano junto com a pessoa) ----------------
 
 HISTORICO_PLANO = []  # fotos do plano antes de cada ajuste, para "desfazer"
@@ -1165,15 +1188,16 @@ def agir(tipo, ref=None, texto=None, dados=None):
     if tipo not in ("criar", "aprovar") and not info:
         return {"ok": False, "erro": "Não achei essa tarefa."}
     titulo = (info or {}).get("titulo") or dados.get("titulo")
+    outro_dia = tipo == "aprovar" and bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(ref or ""))) and ref != date.today().isoformat()
     if tipo == "aprovar":
-        titulo, dados = "Plano de hoje", resumo_aprovacao()
+        titulo, dados = (f"Plano de {ref}", {}) if outro_dia else ("Plano de hoje", resumo_aprovacao())
     bus.emitir("acao", tipo=tipo, ref=ref, titulo=titulo, texto=texto, dados=dados if tipo in ("criar", "aprovar") else None)
     if bus.assinantes:  # a animação digita o texto antes de enviar; sem tela aberta não há o que esperar
         # criar: o rascunho já foi "digitado" quando foi proposto; falta só o clique de enviar
         time.sleep(1.2 if tipo == "aprovar" else 1.0 if tipo == "criar" else _digitando(texto, 1.1 if tipo != "reabrir" else 0.9))
     try:
         if tipo == "aprovar":
-            r = aprovar_plano()
+            r = aprovar_plano_de_outro_dia(ref) if outro_dia else aprovar_plano()
         elif tipo == "criar":
             r = criar_tarefa(dados)
         elif tipo in ("concluir", "reabrir"):

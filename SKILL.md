@@ -152,7 +152,7 @@ Todo POP vive em `pops\` na pasta da memória, um arquivo por processo, criado a
 
 ## 6. Entrega: plano, ClickUp e painel
 
-Terminar sempre com o plano para aprovação. Depois do ok, gravar `plano_do_dia.json` na pasta operacional (formato de `plano_exemplo.json`). O painel lê esse arquivo e mostra o plano na hora. Plano de outro dia vai em `planos\plano_AAAA-MM-DD.json` e entra sozinho quando o dia chega.
+Terminar sempre com o plano para aprovação. Depois do ok, gravar `plano_do_dia.json` na pasta operacional (formato de `plano_exemplo.json`). O painel lê esse arquivo e mostra o plano na hora. Plano de outro dia vai em `planos\plano_AAAA-MM-DD.json` e entra sozinho quando o dia chega; ele pode ser aprovado antes, com a marca de aprovar com a data, e o ClickUp recebe os horários na hora.
 
 **Formato do bloco:**
 - `id` (sempre a primeira chave), `inicio`, `fim` (HH:mm), `titulo`, `dono` (nome de quem executa, como no config.json), `frente`.
