@@ -118,4 +118,12 @@ partes = r["candidatos"]
 confere("tarefa longa que não cabe num dia: dividida em partes de 1 h ou mais até a data segura, somando o tempo todo",
         r["nivel"] in (2, 3) and len(partes) >= 2 and all(c["fim"] - c["inicio"] >= 60 for c in partes) and sum(c["fim"] - c["inicio"] for c in partes) >= r["precisa"]
         and all(c["dia"] <= r["data_segura"] for c in partes) and "parte 1 de" in partes[0]["como"], r)
+# correções de 14/10 à noite: zona morta, hoje a partir de agora, fim de semana
+ra.vs.aplicar_rotina({"rotina": {"zona_morta": [["16:00", "18:00"]]}})
+fora = ra.janelas("pesado", 19 * 60 + 20, fora=True)
+confere("zona morta: pesado fora do nobre nunca cai entre 16h e 18h", all(b <= 16 * 60 or a >= 18 * 60 for a, b in fora), fora)
+confere("zona morta: leve continua podendo", ra.janelas("leve", 19 * 60 + 20, fora=True) == [(ra.vs.CHEGADA, 19 * 60 + 20)])
+ra.vs.aplicar_rotina({})
+p_hoje = {"blocos": [], "fixos": []}
+confere("ocupação de hoje conta só a partir de agora", ra.ocupacao(p_hoje, hoje, mem, 19 * 60)[1] == 20 and ra.ocupacao(p_hoje, hoje, mem)[1] > 600)
 sys.exit(1 if falhas else 0)

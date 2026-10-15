@@ -17,6 +17,7 @@ NOBRE_MANHA = (8 * 60 + 40, 13 * 60)
 NOBRE_NOITE_INICIO = 18 * 60
 PARAR_PADRAO = {0: 19 * 60, 1: 19 * 60 + 20, 2: 19 * 60 + 20, 3: 19 * 60 + 20, 4: 19 * 60 + 20}
 _PADRAO = (CHEGADA, NOBRE_MANHA, NOBRE_NOITE_INICIO)
+ZONA_MORTA = []  # rotina.zona_morta: faixas em que só cabe tarefa leve (o roteador nunca põe pesado ou design ali)
 PARAR_CONFIG = {}  # rotina.parar_por_dia da pessoa: vale acima do perfil e do padrão
 DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 DIA_POR_NOME = {"seg": 0, "ter": 1, "qua": 2, "qui": 3, "sex": 4, "sab": 5, "sáb": 5, "dom": 6}
@@ -39,6 +40,12 @@ def aplicar_rotina(cfg):
             primeira = faixas[0]
             NOBRE_MANHA = (hm(primeira[0]), hm(primeira[1]) if str(primeira[1]).lower() != "fim" else 24 * 60)
             NOBRE_NOITE_INICIO = hm(faixas[1][0]) if len(faixas) > 1 else 24 * 60
+        except (ValueError, TypeError, IndexError):
+            pass
+    ZONA_MORTA.clear()
+    for faixa in rotina.get("zona_morta") or []:
+        try:
+            ZONA_MORTA.append((hm(faixa[0]), hm(faixa[1])))
         except (ValueError, TypeError, IndexError):
             pass
     PARAR_CONFIG.clear()
@@ -211,14 +218,17 @@ def texto(oper, memoria=None, hoje=None, agora_min=None, feitos_hoje=(), incluir
         if dia.weekday() >= 5 and not plano:
             continue
         parar = hora_de_parar(dia, memoria)
-        cab = f"{DIAS[dia.weekday()]} {dia:%d/%m} (para às {fmt(parar)})"
+        cab = f"{DIAS[dia.weekday()]} {dia:%d/%m} (para às {fmt(parar)})" if dia.weekday() < 5 else f"{DIAS[dia.weekday()]} {dia:%d/%m} (fim de semana: só o combinado, sem horário para encaixar)"
         if not plano:
             linhas.append(f"{cab}: nada gravado nem agendado no ClickUp. Dia livre para planejar.")
             continue
         if plano.get("origem") == "clickup":
             ids_em_plano.update(b["clickup_id"] for b in plano["blocos"] + plano["sem_hora"])
         total, nobre = livre_do_dia(plano, dia, memoria, agora_min if i == 0 else None, feitos_hoje if i == 0 else ())
-        linhas.append(f"{cab} [{plano.get('status') or '?'}]: livre {duracao(total)}, dos quais {duracao(nobre)} em horário nobre")
+        if dia.weekday() >= 5:
+            linhas.append(cab)
+        else:
+            linhas.append(f"{cab} [{plano.get('status') or '?'}]: livre {duracao(total)}, dos quais {duracao(nobre)} em horário nobre")
         for b in sorted(plano.get("blocos") or [], key=lambda x: x.get("inicio") or ""):
             if b.get("clickup_id"):
                 ids_em_plano.add(b["clickup_id"])
