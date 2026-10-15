@@ -111,4 +111,20 @@ confere("regras: post chamado por letra é barrado", any("por letra" in x for x 
 alternado = pl(bl("a", "09:00", "Copy | Post de quinta sobre vendas", "c15"), bl("b", "10:00", "Design | Post de sexta sobre desejo", "d16"), bl("c", "11:00", "Copy | outra coisa qualquer"))
 confere("regras: copy, design, copy só é barrado com a regra pessoal ligada",
         cp.conferir_regras(alternado, qua, {}, maes, almoco) == [] and any("Agrupe" in x for x in cp.conferir_regras(alternado, qua, {}, maes, almoco, lote=True)))
+# tarefa movida no ClickUp de um dia planejado para um dia pré-planejado não é "tarefa que some" (14/10)
+oper2 = tempfile.mkdtemp()
+os.makedirs(os.path.join(oper2, "planos"))
+with open(os.path.join(oper2, "planos", "plano_2026-10-15.json"), "w", encoding="utf-8") as f:
+    json.dump({"blocos": [{"id": "b1", "inicio": "11:00", "fim": "11:30", "titulo": "Encaixar ideias", "clickup_id": "e1"}]}, f)
+with open(os.path.join(oper2, "resumo_clickup.json"), "w", encoding="utf-8") as f:
+    json.dump({"tarefas": [{"id": "e1", "nome": "Encaixar ideias", "prazo": "2026-10-16", "inicio": "09:00", "fim": "09:40"}]}, f)
+semana = vs.planos_da_semana(oper2, date(2026, 10, 14))
+antes15 = semana["2026-10-15"]
+confere("tarefa que o ClickUp já pôs na sexta aparece no pré-plano da sexta", any(b.get("clickup_id") == "e1" for b in semana.get("2026-10-16", {}).get("blocos", [])), semana.get("2026-10-16"))
+confere("e sair da quinta não é barrado", cp.conferir_semana({"blocos": []}, date(2026, 10, 15), antes15, semana, {"e1"}) == [])
+sem_consumo = pl(bl("a", "09:00", "Pensar ideias e DOPA da semana"), bl("b", "10:00", "Rascunho do Substack (só a ideia)"))
+com_consumo = pl(bl("c", "08:30", "Consumo com a pergunta"), bl("a", "09:00", "Pensar ideias e DOPA da semana"))
+confere("regra pessoal: ideia sem consumo antes é barrada só com a regra ligada",
+        cp.conferir_regras(sem_consumo, qua, {}, [], almoco) == [] and len(cp.conferir_regras(sem_consumo, qua, {}, [], almoco, consumo_antes_de_ideia=True)) == 2
+        and cp.conferir_regras(com_consumo, qua, {}, [], almoco, consumo_antes_de_ideia=True) == [])
 sys.exit(1 if falhas else 0)

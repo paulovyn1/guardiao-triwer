@@ -127,11 +127,13 @@ def pre_planos_do_clickup(oper, planos, hoje=None):
     hoje = hoje or date.today()
     limite = (hoje + timedelta(days=HORIZONTE_DIAS)).isoformat()
     resumo = _json(os.path.join(oper, "resumo_clickup.json")) or {}
-    em_plano = {b.get("clickup_id") for p in planos.values() for b in (p.get("blocos") or []) if b.get("clickup_id")}
+    # Só fica de fora a tarefa que já está no plano gravado DO MESMO dia. Se ela está no plano de outro dia mas o ClickUp diz este dia, vale o
+    # ClickUp (ela acabou de ser movida): antes ela sumia dos dois lados e a conferência barrava a mudança como "tarefa que some".
+    em_plano = {(d, b.get("clickup_id")) for d, p in planos.items() for b in (p.get("blocos") or []) if b.get("clickup_id")}
     pre = {}
     for t in resumo.get("tarefas") or []:
         dia = str(t.get("prazo") or "")
-        if t.get("aprovar") or t.get("id") in em_plano or dia in planos or not (hoje.isoformat() <= dia <= limite):
+        if t.get("aprovar") or (dia, t.get("id")) in em_plano or dia in planos or not (hoje.isoformat() <= dia <= limite):
             continue
         p = pre.setdefault(dia, {"data": dia, "status": "pré-planejado no ClickUp", "origem": "clickup", "blocos": [], "sem_hora": []})
         bloco = {"id": t.get("id"), "titulo": t.get("nome"), "clickup_id": t.get("id"), "frente": t.get("lista") or "?"}

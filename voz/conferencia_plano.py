@@ -226,7 +226,7 @@ def _post_do_bloco(bloco, maes):
     return None, None
 
 
-def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=False):
+def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=False, consumo_antes_de_ideia=False):
     """Regras de conteúdo e rotina que viraram conta (2026-10-14). Gerais: a copy de um post antes do design dele; etapas do mesmo tipo na ordem
     das datas de postagem; o almoço da rotina não some; post não se chama por letra. Pessoal (só com rotina.regras.etapas_em_lote no config):
     copies juntas e designs juntos, nunca copy, design, copy no mesmo dia."""
@@ -260,6 +260,12 @@ def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=Fals
             if e1 == e2 and p1 and p2 and k1 != k2 and p1 > p2 and d2 <= p2:
                 problemas.append(f"\"{t1}\" (post de {p1}) está antes de \"{t2}\" (post de {p2}, que sai primeiro). "
                                  f"Etapas do mesmo tipo vão na ordem das datas de postagem.")
+    if consumo_antes_de_ideia:  # pessoal (rotina.regras.ideia_depois_de_consumo): a ideia nasce do consumo com a pergunta, nunca solta
+        ordem = sorted(plano.get("blocos") or [], key=lambda x: str(x.get("inicio") or ""))
+        for i, b in enumerate(ordem):
+            t = _norm(b.get("titulo"))
+            if re.search(r"\bideia|\bdopa\b", t) and not re.search(r"encaix|calendario", t) and not any("consumo" in _norm(x.get("titulo")) for x in ordem[:i]):
+                problemas.append(f"\"{b.get('titulo')}\" é bloco de ideia sem um bloco de consumo antes no mesmo dia. A ideia nasce do consumo: ponha o consumo com a pergunta antes.")
     if lote:
         do_dia = [e for d, _h, e, _k, _p, _t in etapas if d == iso]
         for a, b, c in zip(do_dia, do_dia[1:], do_dia[2:]):
@@ -292,4 +298,6 @@ def conferir_regras_da_pasta(plano, dia, outros, oper):
             rotina = json.load(f).get("rotina") or {}
     except (OSError, ValueError):
         rotina = {}
-    return conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool((rotina.get("regras") or {}).get("etapas_em_lote")))
+    regras = rotina.get("regras") or {}
+    return conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool(regras.get("etapas_em_lote")),
+                           bool(regras.get("ideia_depois_de_consumo")))
