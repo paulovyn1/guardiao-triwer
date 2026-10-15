@@ -502,10 +502,37 @@ def atualizar_resumo_clickup():
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if r.returncode != 0:
             print("  (a leitura ao vivo do ClickUp falhou, uso o resumo antigo:", r.stderr.decode("utf-8", "replace")[:200], ")")
+        else:
+            _renovar_posts_se_velho()
         return r.returncode == 0
     except (OSError, subprocess.SubprocessError) as erro:
         print("  (não consegui rodar a leitura ao vivo do ClickUp, uso o resumo antigo:", erro, ")")
         return False
+
+
+POSTS_VELHO_HORAS = 3
+
+
+def _renovar_posts_se_velho():
+    """Carona na leitura do ClickUp: o posts_maes.json (mães dos posts e datas) só era refeito ao aprovar o plano e chegou a ficar 2 dias velho,
+    e é por ele que o guardião acha "o post de quinta". Se tem mais de 3 h, é refeito em segundo plano, sem segurar quem pediu a leitura."""
+    arq = os.path.join(OPER, "posts_maes.json")
+    try:
+        if os.path.exists(arq) and time.time() - os.path.getmtime(arq) < POSTS_VELHO_HORAS * 3600:
+            return
+    except OSError:
+        return
+    token = _token_clickup()
+    if not token:
+        return
+
+    def renovar():
+        try:
+            import posts_maes
+            posts_maes.atualizar(_config(), token, OPER)
+        except Exception as erro:
+            print("  (não consegui renovar as mães dos posts:", erro, ")")
+    threading.Thread(target=renovar, daemon=True).start()
 
 
 def _palavras_do_titulo(titulo):
@@ -548,13 +575,9 @@ def lista_conteudos_id():
     return next((str(l["id"]) for l in c.get("listas", []) if l.get("nome") == nome), "")
 
 
-def aprovar_plano():
-    """Aprova o plano de hoje. Cada bloco novo (com lista_id e sem clickup_id) vira tarefa no ClickUp, com dono, hora e estimativa."""
-    plano, caminho = _plano_e_caminho()
-    if not plano:
-        return {"ok": False, "erro": "Não há plano para hoje."}
-    if plano.get("status") == "aprovado":
-        return {"ok": True, "criadas": 0, "erros": []}
+def _levar_ao_clickup(plano):
+    """Leva o plano ao ClickUp: bloco movido (reagendado) muda de hora na tarefa existente; bloco novo (lista_id sem clickup_id) vira tarefa.
+    Usado ao aprovar e ao ajustar um plano já aprovado (imprevisto no meio do dia): os dois caminhos fazem a mesma coisa."""
     cfg = _config()
     agente = (cfg.get("agente") or {}).get("nome") or "Guardião"
     criadas, reagendadas, erros = 0, 0, []
@@ -632,6 +655,17 @@ def aprovar_plano():
                 criadas += 1
             except Exception as erro:  # um bloco com problema não impede os outros
                 erros.append(f"{b.get('titulo')}: {erro}")
+    return criadas, reagendadas, erros
+
+
+def aprovar_plano():
+    """Aprova o plano de hoje. Cada bloco novo (com lista_id e sem clickup_id) vira tarefa no ClickUp, com dono, hora e estimativa."""
+    plano, caminho = _plano_e_caminho()
+    if not plano:
+        return {"ok": False, "erro": "Não há plano para hoje."}
+    if plano.get("status") == "aprovado":
+        return {"ok": True, "criadas": 0, "erros": []}
+    criadas, reagendadas, erros = _levar_ao_clickup(plano)
     plano["status"] = "aprovado"
     plano["aprovado_em"] = time.strftime("%Y-%m-%d %H:%M")
     with open(caminho, "w", encoding="utf-8") as f:
@@ -643,6 +677,29 @@ def aprovar_plano():
     except Exception as erro:
         print("  (não consegui entrar em execução depois de aprovar:", erro, ")")
     return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros}
+
+
+def aprovar_plano_de_outro_dia(data_iso):
+    """Aprova o plano de outro dia (planos/plano_AAAA-MM-DD.json) já agora: o ClickUp recebe os horários na hora, em vez de ficar com a agenda
+    antiga até o dia chegar (o plano dizia uma coisa e o ClickUp outra). Não entra em execução: isso acontece quando o dia chega."""
+    if data_iso == date.today().isoformat():
+        return aprovar_plano()
+    caminho = os.path.join(OPER, "planos", f"plano_{data_iso}.json")
+    plano = _ler_json(caminho)
+    if not plano:
+        return {"ok": False, "erro": f"Não há plano gravado para {data_iso}."}
+    if data_iso < date.today().isoformat():
+        return {"ok": False, "erro": "Esse dia já passou."}
+    if plano.get("status") == "aprovado":
+        return {"ok": True, "criadas": 0, "reagendadas": 0, "erros": []}
+    plano["data"] = data_iso
+    criadas, reagendadas, erros = _levar_ao_clickup(plano)
+    plano["status"] = "aprovado"
+    plano["aprovado_em"] = time.strftime("%Y-%m-%d %H:%M")
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(plano, f, ensure_ascii=False, indent=2)
+    bus.emitir("plano")
+    return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros, "data": data_iso}
 
 
 # ---------------- revisão do plano do dia (o guardião ajusta o plano junto com a pessoa) ----------------
@@ -697,13 +754,14 @@ def resumo_aprovacao():
 
 
 def editar_plano(op, ref=None, dados=None):
-    """Ajusta o plano de hoje enquanto ele está 'sugerido': mover, editar, remover, adicionar ou desfazer o último ajuste."""
+    """Ajusta o plano de hoje: mover, editar, remover, adicionar ou desfazer o último ajuste.
+    Plano já aprovado também aceita ajuste (imprevisto no meio do dia: reunião de emergência, tarefa de última hora). Ele continua aprovado,
+    a execução segue, e o que mudou vai ao ClickUp na hora (_levar_ao_clickup). Antes isso era recusado e o guardião se negava a replanejar."""
     dados = dados or {}
     plano, caminho = _plano_e_caminho()
     if not plano:
         return {"ok": False, "erro": "Não há plano para hoje."}
-    if plano.get("status") == "aprovado":
-        return {"ok": False, "erro": "O plano de hoje já foi aprovado. Para mudar agora, peça para refazer o plano."}
+    aprovado = plano.get("status") == "aprovado"
     blocos = plano.setdefault("blocos", [])
 
     def achar():
@@ -800,13 +858,16 @@ def editar_plano(op, ref=None, dados=None):
     if antes:
         HISTORICO_PLANO.append(antes)
         del HISTORICO_PLANO[:-12]
+    erros_clickup = []
+    if aprovado and plano.get("status") == "aprovado":
+        _, _, erros_clickup = _levar_ao_clickup(plano)
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(plano, f, ensure_ascii=False, indent=2)
     conflitos = [c["texto"] for c in conflitos_do_plano(plano) if ref in (c["a"], c["b"])] if op in ("mover", "adicionar") else []
     bus.emitir("plano_editado", op=op, ref=ref, titulo=titulo, depois=depois, conflitos=conflitos)
     bus.emitir("plano")
     _log_acao("plano:" + op, ref, titulo, depois, dados, True)
-    return {"ok": True, "ref": ref, "titulo": titulo, "depois": depois, "conflitos": conflitos}
+    return {"ok": True, "ref": ref, "titulo": titulo, "depois": depois, "conflitos": conflitos, **({"erros_clickup": erros_clickup} if erros_clickup else {})}
 
 
 # ---------------- ações pedidas pelo guardião (com animação na tela) ----------------
@@ -1127,15 +1188,16 @@ def agir(tipo, ref=None, texto=None, dados=None):
     if tipo not in ("criar", "aprovar") and not info:
         return {"ok": False, "erro": "Não achei essa tarefa."}
     titulo = (info or {}).get("titulo") or dados.get("titulo")
+    outro_dia = tipo == "aprovar" and bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(ref or ""))) and ref != date.today().isoformat()
     if tipo == "aprovar":
-        titulo, dados = "Plano de hoje", resumo_aprovacao()
+        titulo, dados = (f"Plano de {ref}", {}) if outro_dia else ("Plano de hoje", resumo_aprovacao())
     bus.emitir("acao", tipo=tipo, ref=ref, titulo=titulo, texto=texto, dados=dados if tipo in ("criar", "aprovar") else None)
     if bus.assinantes:  # a animação digita o texto antes de enviar; sem tela aberta não há o que esperar
         # criar: o rascunho já foi "digitado" quando foi proposto; falta só o clique de enviar
         time.sleep(1.2 if tipo == "aprovar" else 1.0 if tipo == "criar" else _digitando(texto, 1.1 if tipo != "reabrir" else 0.9))
     try:
         if tipo == "aprovar":
-            r = aprovar_plano()
+            r = aprovar_plano_de_outro_dia(ref) if outro_dia else aprovar_plano()
         elif tipo == "criar":
             r = criar_tarefa(dados)
         elif tipo in ("concluir", "reabrir"):

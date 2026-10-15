@@ -164,8 +164,11 @@ confere("aprovar: plano fica aprovado e o 'reagendado' some", p["status"] == "ap
 ev = eventos()
 tipos = [(e["t"], e.get("tipo")) for e in ev]
 confere("aprovar: eventos acao -> acao_fim -> plano, com contagens", tipos[0] == ("acao", "aprovar") and ("acao_fim", "aprovar") in tipos and ev[tipos.index(("acao_fim", "aprovar"))]["criadas"] == 2, tipos)
+antes_puts = len([c for c in chamadas if c[0] == "put"])
 r = h.editar_plano("mover", "b2", {"horario": "10:00-10:30"})
-confere("depois de aprovado, ajustar é recusado com explicação", not r["ok"] and "aprovado" in r["erro"], r)
+confere("depois de aprovado, imprevisto é aceito: o plano continua aprovado (a execução não para)", r["ok"] and plano()["status"] == "aprovado", r)
+novos_puts = [c for c in chamadas if c[0] == "put"][antes_puts:]
+confere("depois de aprovado, o bloco movido muda de hora no ClickUp na mesma hora", any("/task/" in c[1] for c in novos_puts) and "reagendado" not in next(b for b in plano()["blocos"] if b["id"] == "b2"), novos_puts)
 r = h.agir("aprovar")
 confere("aprovar de novo não cria nada", r["ok"] and r["criadas"] == 0)
 
@@ -180,6 +183,30 @@ b7 = next(b for b in reg["blocos"] if b["id"] == "b7")
 confere("meia-noite: bloco de 23:00 concluído às 00:10 vale e conta 70 minutos", r["ok"] and b7["real"]["minutos"] == 70 and b7["desvio_minutos"] == 40, (r, b7))
 r = h.concluir_bloco({"id": "b8", "concluido": True})
 confere("concluir às 00:10 um bloco que só começa às 09:00 continua recusado", not r["ok"] and "fim" in r["erro"], r)
+
+# plano de outro dia aprovado agora: o ClickUp recebe os horários na hora (antes só quando o dia chegava)
+from datetime import timedelta as _td
+amanha = (date.today() + _td(days=1)).isoformat()
+os.makedirs(os.path.join(tmp, "planos"), exist_ok=True)
+arq_amanha = os.path.join(tmp, "planos", f"plano_{amanha}.json")
+with open(arq_amanha, "w", encoding="utf-8") as f:
+    _json.dump({"data": amanha, "status": "sugerido", "fixos": [], "blocos": [bloco(1, "09:00", "10:00", "Copy movida", clickup_id="cid9", reagendado=True),
+                                                                              bloco(2, "10:00", "10:30", "Tarefa nova de amanhã", lista_id="L1"),
+                                                                              bloco(3, "11:00", "11:30", "Já no lugar", clickup_id="cid8")]}, f, ensure_ascii=False)
+hoje_antes = open(caminho, encoding="utf-8").read()
+chamadas.clear()
+r = h.agir("aprovar", amanha)
+p_amanha = _json.load(open(arq_amanha, encoding="utf-8"))
+puts = [c for c in chamadas if c[0] == "put"]
+confere("plano de amanhã: aprovado agora, com a tarefa movida e a nova levadas ao ClickUp", r["ok"] and r["reagendadas"] == 1 and r["criadas"] == 1
+        and p_amanha["status"] == "aprovado" and any("/task/cid9" in c[1] for c in puts), (r, chamadas))
+from datetime import datetime as _dt
+confere("plano de amanhã: o horário que vai ao ClickUp é o de amanhã", puts and _dt.fromtimestamp(puts[0][2]["start_date"] / 1000).date().isoformat() == amanha, puts)
+confere("plano de amanhã: a tarefa que já estava no lugar não é mexida e o plano de hoje fica como estava",
+        not any("/task/cid8" in c[1] for c in chamadas) and open(caminho, encoding="utf-8").read() == hoje_antes)
+chamadas.clear()
+confere("aprovar de novo o plano de amanhã não manda nada", h.agir("aprovar", amanha)["ok"] and not chamadas)
+confere("dia sem plano gravado: avisa", not h.aprovar_plano_de_outro_dia((date.today() + _td(days=9)).isoformat())["ok"])
 
 print(f"\n{sum(resultados)}/{len(resultados)} verificações passaram")
 sys.exit(0 if all(resultados) else 1)

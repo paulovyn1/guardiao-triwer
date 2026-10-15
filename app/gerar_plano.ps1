@@ -49,14 +49,42 @@ $log = Join-Path $pastaLogs ("gerar_plano_" + $alvo + ".log")
 # Resumo do ClickUp fresco (sem Claude).
 try { & (Join-Path $pasta 'ler_clickup.ps1') | Out-Null } catch { "ler_clickup falhou: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
 
+# Plano base por código (voz\plano_base.py): a semana combinada (ClickUp com hora) mais os fixos. Se nada pede decisão, o plano está pronto
+# e o Claude NÃO é chamado. Se pede, o Claude parte de um dossiê curto (motivos, plano base, semana, alertas) em vez de reler tudo.
+$py = Join-Path $pasta 'voz\.venv\Scripts\python.exe'
+if (-not (Test-Path $py)) { $py = 'python' }
+$env:PYTHONIOENCODING = 'utf-8'
+$dossie = Join-Path $pastaLogs ("dossie_" + $alvo + ".txt")
+$copiaBase = Join-Path $pastaLogs ("plano_base_" + $alvo + ".json")
+$codBase = -1
+try {
+    $saidaBase = & $py (Join-Path $pasta 'voz\plano_base.py') --data $alvo --saida $planoCaminho --dossie $dossie 2>&1
+    $codBase = $LASTEXITCODE
+    "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano base de $alvo (código $codBase) ===`r`n$($saidaBase | Out-String)" | Out-File $log -Append -Encoding utf8
+} catch { "plano_base falhou: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
+if ($codBase -eq 0) { exit }   # o dia já estava resolvido na semana combinada
+if ($codBase -eq 2) { Copy-Item $planoCaminho $copiaBase -Force }
+$temDossie = ($codBase -eq 2) -and (Test-Path $dossie)
+
 # Listas e donos vêm de config.json, para o Claude escolher onde cada bloco novo nasce.
 $linhasListas = (@($cfg.clickup.listas) | ForEach-Object { "- ""lista_id"": $($_.id) para $($_.quando_usar) (lista '$($_.nome)')." }) -join "`n"
 $linhasDonos  = "- ${nome} (a propria pessoa): executa tudo que nao for delegado."
 foreach ($m in @($cfg.clickup.membros)) { $linhasDonos += "`n- $($m.nome): $($m.papel)" }
 
+$leitura = if ($temDossie) {
+@"
+Leia PRIMEIRO o dossie ${dossie}. Ele ja traz o plano base (a semana combinada, que voce mantem), os motivos pelos quais o plano precisa de voce (resolva so eles), a semana dos proximos dias e os alertas. NAO leia resumo_clickup.json nem planos de outros dias: o que precisa deles ja esta no dossie. Da pasta de memoria $memoria leia so perfil.md, estado.md e aprendizados.md; nota de campanha em campanhas\ so se um motivo tocar nela. Pasta operacional: $pasta.
+Se tirar do dia algo que estava agendado no plano base, ponha o titulo em "removidos" e diga no campo aviso para onde sugere levar.
+"@
+} else {
+@"
+Leia, na pasta de memoria $memoria, perfil.md, semana-base.md, equipe.md, estado.md, o indice campanhas.md (abra com Read a nota de uma campanha em campanhas\ SOMENTE se o plano do dia tocar nela), o indice decisoes.md, resumo_clickup.json (na pasta operacional), o registro de ontem em registros\ (se existir). Pasta operacional (scripts, plano, registros, resumo): $pasta.
+"@
+}
+
 $prompt = @"
 Use a skill guardiao-triwer no modo planejar e monte o plano do dia $alvo de $nome.
-Leia, na pasta de memoria $memoria, perfil.md, semana-base.md, equipe.md, estado.md, o indice campanhas.md (abra com Read a nota de uma campanha em campanhas\ SOMENTE se o plano do dia tocar nela), o indice decisoes.md, resumo_clickup.json (na pasta operacional), o registro de ontem em registros\ (se existir). Pasta operacional (scripts, plano, registros, resumo): $pasta.
+$leitura
 Siga a conta de horario da skill. Horarios de reunioes vem de inicio/fim do resumo. Nao pergunte nada: se faltar informacao, deixe o bloco de fora e diga em uma frase no campo aviso.
 Grave o arquivo $planoCaminho, em JSON valido no formato de plano_exemplo.json, com "status": "sugerido" e sem o campo "exemplo". Unica outra escrita permitida: o rascunho de um trabalho do guardiao vencido (veja abaixo).
 Regras do formato: em cada bloco "id" e a PRIMEIRA chave; todo bloco leva titulo, inicio, fim (HH:mm), dono, frente, descricao, primeiro_passo e por_que_agora.
@@ -68,7 +96,8 @@ $linhasListas
 - "dono" e o nome de quem executa, entre:
 $linhasDonos
   Briefing de tarefa de outra pessoa e escrito por voce na descricao, completo, sem deixar decisao em aberto.
-Reunioes e compromissos fixos do ClickUp vao em "fixos" (inicio, fim, titulo), nao em blocos.
+Reuniao ou compromisso que existe como tarefa no ClickUp vai em "blocos" com "clickup_id" (para poder ser marcado como feito). "fixos" (inicio, fim, titulo) e so para o que nao tem tarefa, como almoco.
+Ponha no plano "agenda_impoe": uma frase do que as campanhas impoem a este dia. Bloco de tarefa com prazo final leva "prazo_final": "AAAA-MM-DD".
 Trabalhos do guardiao: se estado.md tiver uma secao "Do guardiao" com um item cuja data de inicio ja chegou e cuja condicao esta cumprida (confira nos arquivos que o item cita, por exemplo decisoes.md), faca esse trabalho agora: grave o RASCUNHO no arquivo de memoria que o item indica, sem criar nada no ClickUp, e troque no item "a fazer" por "rascunho pronto em <arquivo>". Se a condicao nao estiver cumprida, diga em uma frase no campo aviso o que falta. Coloque no plano um aviso de que o rascunho esta pronto para a pessoa aprovar.
 Fora isso, nao crie nem altere nada no ClickUp ou em outro lugar. Nao decida estrategia nem sugira temas, ganchos ou briefing de conteudo: o guardiao so reserva e protege tempo.
 No fim, responda em ate 6 linhas: o que colocou, o que deixou de fora e por que.
@@ -88,3 +117,20 @@ $modelo = if ($env:GUARDIAO_MODELO) { $env:GUARDIAO_MODELO } else { 'claude-sonn
 $saidaClaude = & $exeClaude @preClaude -p $prompt --model $modelo --add-dir $memoria --allowedTools "Read,Write,Glob,Skill" --max-turns 25 --output-format text 2>&1
 "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===" | Out-File $log -Append -Encoding utf8
 $saidaClaude | Out-String | Out-File $log -Append -Encoding utf8
+
+# A mesma conferência da conversa (sobreposição, removidos, semana, prazo final): antes, o plano automático era gravado sem trava nenhuma.
+# Reprovado: uma correção com os problemas apontados. Reprovado de novo: volta o plano base, com aviso.
+$conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
+if ($LASTEXITCODE -ne 0) {
+    "--- conferência reprovou ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
+    $correcao = "O plano que voce gravou em $planoCaminho foi reprovado na conferencia. Corrija so isto e grave de novo, sem mexer no resto:`n$($conf | Out-String)"
+    $saida2 = & $exeClaude @preClaude -p $correcao --model $modelo --add-dir $memoria --allowedTools "Read,Write" --max-turns 10 --output-format text 2>&1
+    $saida2 | Out-String | Out-File $log -Append -Encoding utf8
+    $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
+    if ($LASTEXITCODE -ne 0 -and (Test-Path $copiaBase)) {
+        "--- reprovou de novo: volta o plano base ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
+        $base = [System.IO.File]::ReadAllText($copiaBase, $utf8) | ConvertFrom-Json
+        $base | Add-Member -NotePropertyName aviso -NotePropertyValue "O plano automático não passou na conferência e voltei para a semana combinada. Ainda falta decidir: $((Get-Content $dossie -Encoding UTF8 | Select-Object -First 6) -join ' ')" -Force
+        [System.IO.File]::WriteAllText($planoCaminho, ($base | ConvertTo-Json -Depth 6), $utf8)
+    }
+}

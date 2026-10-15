@@ -35,11 +35,12 @@ import guardiao_sessao
 import guardiao_v2 as v2
 import janela_painel
 import latencia
+import checar_config
 import memoria_conversa
 import nativo
 import tocador
 from fala import normalizar_para_fala
-from hud_servidor import (_config, _norm, _plano_de_hoje, _registro_de_hoje, agir, bus, conflitos_do_plano, editar_plano, iniciar_servidor,
+from hud_servidor import (_config, _ler_json, _norm, _plano_de_hoje, _registro_de_hoje, agir, bus, conflitos_do_plano, editar_plano, iniciar_servidor,
                           pendencias_texto, pessoa, preferencias, refs_conhecidas, resolver_lista, resumo_aprovacao, salvar_preferencias)
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -378,6 +379,29 @@ class PreviaGroq:
 
 
 def contexto_proximos_dias():
+    """A semana inteira (visao_semana): plano de cada dia, tempo livre, prazos finais e tarefas sem lugar. Sem o módulo, cai nos 3 próximos dias."""
+    try:
+        import visao_semana
+        texto = visao_semana.texto(OPER, pasta_memoria(), incluir_hoje=False)  # hoje vai no PLANO DE HOJE; aqui ele mudaria o prompt a cada turno e perderia o cache
+        try:  # antecipar: dia cheio demais e marco sem horário, calculados sem Claude
+            import rota_agenda
+            from datetime import date as _date
+            alertas = rota_agenda.alertas(visao_semana.planos_da_semana(OPER), _date.today(), _config(), pasta_memoria(), OPER, pular_hoje=True)
+            if alertas:
+                texto += ("\nALERTAS DA AGENDA (antecipe: na primeira conversa do dia, ou quando mexer num desses dias, diga o que pede ação):\n"
+                          + "\n".join(f"- {a}" for a in alertas))
+            imprevistos = rota_agenda.imprevistos_recentes(OPER)
+            if imprevistos:
+                texto += "\n" + imprevistos
+        except Exception as erro:
+            print("  Alertas da agenda falharam:", erro)
+        return texto
+    except Exception as erro:
+        print("  Visão da semana falhou, usando os 3 próximos dias:", erro)
+        return _proximos_3_dias()
+
+
+def _proximos_3_dias():
     """Planos já montados para os próximos 3 dias e tarefas do ClickUp com prazo nesse período."""
     hoje = time.strftime("%Y-%m-%d")
     limite = time.strftime("%Y-%m-%d", time.localtime(time.time() + 3 * 86400))
@@ -543,7 +567,9 @@ def situacao_plano():
     sugerido = plano.get("status") == "sugerido"
     linhas = ["STATUS DO PLANO DE HOJE: " + (str(plano.get("status") or "sem status")) +
               (_p(" (aguardando a aprovação <do Fulano>; ajustes pela voz são permitidos)") if sugerido
-               else " (já aprovado; ajustes pela voz não valem mais, só refazendo o plano com o guardião completo)")]
+               else " (aprovado e em execução. Imprevisto ou pedido de mudança: ajuste na hora com as marcas de ajuste; o plano continua aprovado "
+                    "e o ClickUp acompanha. Se o resto do dia precisar ser refeito, só refazendo o plano com o guardião completo. "
+                    "Nunca diga que não dá para mudar porque o plano foi aprovado)")]
     conflitos = conflitos_do_plano(plano)
     if conflitos:
         linhas.append("CONFLITOS ATUAIS NO PLANO: " + "; ".join(c["texto"] for c in conflitos))
@@ -576,7 +602,7 @@ INTRO_VOZ = (
     "Comece pela informacao mais importante, em uma primeira frase curta. "
     "Evite siglas e abreviacoes quando houver um jeito natural de dizer. "
     "As excecoes ao limite de frases sao a revisao do plano e a leitura das pendencias (veja abaixo). "
-    "Se o pedido exigir refazer o plano inteiro, mexer num plano ja aprovado, planejar outro dia ou a semana, ou destrinchar um projeto, "
+    "Se o pedido exigir refazer o plano inteiro, planejar outro dia ou a semana, ou destrinchar um projeto, "
     "passe o pedido ao guardiao completo com a marca completo (veja GUARDIAO COMPLETO abaixo). "
 )
 COMO_LER_O_CONTEXTO = (
@@ -623,6 +649,9 @@ def contexto_do_turno(pergunta=""):
     if quer_pendencias(pergunta):
         partes.append(pendencias_texto())
     partes.append(f"TAREFAS CONHECIDAS (id | quando | titulo | estado ou lista):\n{refs_conhecidas()}")
+    pendentes = checar_config.texto(OPER)
+    if pendentes:
+        partes.append(pendentes)
     conversa = bloco_conversa()
     if conversa:
         partes.append(conversa)
@@ -662,7 +691,7 @@ def _prompt_sistema_antigo():
         "Comece pela informacao mais importante, em uma primeira frase curta. "
         "Evite siglas e abreviacoes quando houver um jeito natural de dizer. "
         "A unica excecao ao limite de frases e a revisao do plano (veja abaixo): ali pode ser uma frase por bloco. "
-        "Se o pedido exigir refazer o plano inteiro ou mexer num plano ja aprovado, passe o pedido ao guardiao completo com a marca completo. "
+        "Se o pedido exigir refazer o plano inteiro, passe o pedido ao guardiao completo com a marca completo. "
         f"Agora sao {agora}.{texto_acoes()}\n\nPERFIL:\n{perfil}\n\nPLANO DE HOJE:\n{plano}\n\n{contexto_proximos_dias()}"
         f"\n\n{situacao_plano()}"
         f"\n\nTAREFAS CONHECIDAS (id | quando | titulo | estado ou lista):\n{refs_conhecidas()}\n\n{bloco_conversa()}"
@@ -889,21 +918,28 @@ def texto_acoes(sessao=False):
         "Se ele ainda não tiver dito a palavra aprovar, pergunte \"Posso aprovar o plano?\" com {{aprovar}} na mesma frase: "
         "a aprovação só acontece depois do sim dele. Ao usar {{aprovar}}, fale no presente, como estou aprovando ou posso aprovar, "
         "e nunca diga que o plano já foi aprovado: o resultado aparece na tela e você confirma na próxima fala.\n"
+        "- Plano de outro dia (planos\\plano_AAAA-MM-DD.json) também é aprovado agora, com {{aprovar:AAAA-MM-DD}}, pelas mesmas regras: "
+        "o ClickUp recebe os horários na hora e o plano entra aprovado quando o dia chegar. Nunca diga que só dá para aprovar quando o dia chega.\n"
         "- Quando a revisão acabar (aprovada, recusada ou se ele quiser parar), escreva {{revisao:fim}}.\n"
-        "- Depois de aprovado, os ajustes pela voz não valem mais: para mudar, só refazendo o plano com o guardião completo.\n\n"
+        "- Depois de aprovado, os ajustes continuam valendo: mover, adicionar e remover mudam o plano e o ClickUp na hora, sem nova aprovação. "
+        "Imprevisto (reunião de emergência, tarefa de última hora): encaixe o imprevisto no horário que ele disser, mova o que bate com ele e diga o que saiu "
+        "do dia e para onde vai. Nunca recuse um imprevisto. Se o resto do dia precisar ser refeito, só refazendo o plano com o guardião completo.\n"
+        "- Se o imprevisto tira do lugar uma tarefa que traz resultado (post fixo, etapa de campanha com data, prazo final, o foco da semana) ou força hora extra, "
+        "antes de encaixar faça UMA pergunta que provoca, nomeando o custo: \"Isso realmente não pode ir para outro dia? Vai tirar X e Y, que são o que te traz resultado.\" "
+        "Se ele confirmar, encaixe sem discutir. Se só desloca tarefa leve, encaixe direto, sem pergunta.\n\n"
         "PENDÊNCIAS (só quando o contexto trouxer TAREFAS ATRASADAS OU NÃO CONCLUÍDAS). <O Fulano> quer saber o que ficou para trás e o que é urgente.\n"
         "- Diga quantas são e cite as mais urgentes, no máximo 5 por resposta, uma frase curta por tarefa, com {{foco:ID}} logo antes de cada uma, "
         "e diga o porquê em poucas palavras. É urgente: conta a pagar ou a receber, entrega com outra pessoa esperando, o que trava outra tarefa "
         "e o que venceu há mais tempo. Nesta leitura você pode falar até 8 frases curtas. Se ele pedir, leia as seguintes.\n"
-        "- Depois pergunte quais ele quer resolver hoje. Com o plano ainda sugerido, traga uma por vez com {{adicionar:id=ID|inicio=HH:MM|fim=HH:MM}}, "
+        "- Depois pergunte quais ele quer resolver hoje. Traga uma por vez com {{adicionar:id=ID|inicio=HH:MM|fim=HH:MM}}, "
         "num horário livre (confira os CONFLITOS ATUAIS e os compromissos fixos) e depois de agora, confirmando em voz alta. "
-        "A tarefa não é duplicada: ela muda de data no ClickUp quando o plano for aprovado.\n"
+        "A tarefa não é duplicada: ela muda de data no ClickUp quando o plano for aprovado, ou na hora se ele já estiver aprovado.\n"
         "- Não decida sozinho o que entra no dia: proponha e só aplique quando ele concordar. Tarefa marcada JÁ ESTÁ NO PLANO DE HOJE não precisa entrar de novo. "
-        "Se forem muitas para encaixar, ou se o plano já estiver aprovado, passe o pedido ao guardião completo.\n\n"
+        "Se forem muitas para encaixar, passe o pedido ao guardião completo.\n\n"
         "GUARDIÃO COMPLETO. Você é a versão rápida, feita para conversar. O guardião completo é a skill inteira, que lê a memória toda e monta planos com calma, "
         "em segundo plano, e costuma levar de dois a cinco minutos.\n"
         "- Use {{completo:o pedido dele, inteiro, em uma ou duas frases, com os detalhes que ele deu}} quando o pedido passar do que as marcas acima fazem: "
-        "montar ou refazer o plano de hoje, mexer num plano já aprovado, encaixar várias tarefas de uma vez, planejar amanhã ou a semana, destrinchar um projeto.\n"
+        "montar ou refazer o plano de hoje (inclusive aprovado), encaixar várias tarefas de uma vez, planejar amanhã ou a semana, destrinchar um projeto.\n"
         "- Ao usar, diga em uma frase que vai montar isso com calma e que avisa quando terminar. Não prometa o resultado: ele chega depois, na sua próxima fala. "
         "Para <o Fulano> você é um só: nunca diga guardião completo em voz alta.\n"
         "- Para consulta e ajuste simples, responda você mesmo. Nunca use a marca sem ele ter pedido algo assim.\n\n"
@@ -944,7 +980,9 @@ INTRO_SESSAO = (
     "- Não use AskUserQuestion nem modo de planejamento: pergunte em voz alta, uma pergunta por vez, e espere a resposta.\n"
     "- Para consulta simples sobre o dia (o que tenho agora, a que horas é tal tarefa), responda direto pelo CONTEXTO DESTE MOMENTO que chega junto de cada pedido. "
     "Acione a skill guardiao-triwer quando o pedido for planejar o dia ou a semana, destrinchar uma tarefa, decidir algo ou mexer na memória, e siga as regras dela, "
-    "inclusive as extensões locais que ela mandar ler.\n"
+    "inclusive as extensões locais que ela mandar ler. As extensões (extensoes-*.md), o aprendizados.md e o perfil.md já estão abaixo, em REGRAS LOCAIS e PERFIL: "
+    "não releia esses arquivos quando a skill mandar. A agenda da semana, os prazos e os alertas chegam calculados na VISÃO DA SEMANA: não abra resumo_clickup.json "
+    "nem planos de outros dias para saber o que já está lá.\n"
     "- Você tem os conectores, as skills e os agentes desta pasta. Use quando o pedido precisar, sem listar o que existe.\n"
     "- Nunca mande <o Fulano> fazer num conector o que você mesmo pode fazer por ele (concluir, apagar, mover ou comentar uma tarefa, criar um evento, e parecidos): "
     "diga o que vai fazer e faça pelo conector. Ao concluir uma tarefa no ClickUp, siga a regra de registro da skill e das extensões locais.\n"
@@ -978,7 +1016,7 @@ def arquivo_prompt_sessao():
 
 
 def _pastas_da_skill():
-    """Onde a skill pode estar instalada: na pasta do usuário, na pasta operacional ou na pasta da sessão (o projeto da pessoa, como o Paulo-geral)."""
+    """Onde a skill pode estar instalada: na pasta do usuário, na pasta operacional ou na pasta da sessão (a pasta de projeto da pessoa)."""
     import hud_servidor
     pastas = [os.path.join(os.path.expanduser("~"), ".claude", "skills", "guardiao-triwer"), os.path.join(hud_servidor.OPER, ".claude", "skills", "guardiao-triwer")]
     sessao_pasta = str((_config().get("sessao") or {}).get("pasta") or "").strip()
@@ -1014,9 +1052,16 @@ def _regras_locais():
 def mensagem_da_sessao(pergunta, conversa):
     """O que entra na sessão a cada fala: a hora, o estado do plano, o que mudou desde a última fala e o pedido."""
     partes = [f"Agora sao {time.strftime('%d/%m/%Y %H:%M')}."]
+    if conversa not in _ENVIADO:  # primeira fala desta conversa: o que veio antes (conversa que ficou grande ou parou) entra resumido
+        anteriores = memoria_conversa.recentes(6)
+        resumo_dia = memoria_conversa.resumo()
+        if anteriores or resumo_dia:
+            ponte = (f"Resumo do dia: {resumo_dia}\n" if resumo_dia else "") + "\n".join(f"{pessoa()['primeiro']}: {u}\nGuardiao: {g}" for _, u, g in anteriores)
+            partes.append("CONVERSA ANTERIOR DE HOJE (continuação: considere o que já foi combinado; os planos gravados valem mais que isto):\n" + ponte)
     enviado = _ENVIADO.setdefault(conversa, {})
     for nome, bloco in (("plano", f"PLANO DE HOJE:\n{_plano_texto()}"), ("proximos", contexto_proximos_dias()),
-                        ("tarefas", f"TAREFAS CONHECIDAS (id | quando | titulo | estado ou lista):\n{refs_conhecidas()}")):
+                        ("tarefas", f"TAREFAS CONHECIDAS (id | quando | titulo | estado ou lista):\n{refs_conhecidas()}"),
+                        ("pendencias", checar_config.texto(OPER))):  # configuração que faltou depois de uma atualização: uma vez por conversa
         if bloco and enviado.get(nome) != bloco:
             enviado[nome] = bloco
             partes.append(bloco)
@@ -1526,11 +1571,25 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
                 nota = f"{nome} '{r.get('titulo')}' ok" + (f" ({r.get('depois')})" if r.get("depois") else "")
                 if r.get("conflitos"):
                     nota += ". ATENÇÃO, bate com: " + "; ".join(r["conflitos"])
+                if r.get("erros_clickup"):
+                    nota += ". O plano mudou, mas o ClickUp não acompanhou: " + "; ".join(r["erros_clickup"]) + " (diga isso a ela)"
             else:
                 nota = f"{nome} FALHOU: {r.get('erro')}"
                 bus.emitir("aviso", texto=r.get("erro") or "Não consegui ajustar o plano.", erro=True)
             avisar_modelo(nota)
             tocar_revisao()
+        elif nome == "aprovar" and re.fullmatch(r"\s*\d{4}-\d{2}-\d{2}\s*", arg or "") and (arg or "").strip() != time.strftime("%Y-%m-%d"):
+            # plano de outro dia: aprova já e o ClickUp recebe os horários agora (antes só dava quando o dia chegava)
+            dia = arg.strip()
+            outro = _ler_json(os.path.join(OPER, "planos", f"plano_{dia}.json")) or {}
+            if not outro:
+                avisar_modelo(f"aprovar {dia} FALHOU: não há plano gravado para esse dia")
+            elif outro.get("status") == "aprovado":
+                avisar_modelo(f"aprovar {dia}: esse plano já estava aprovado")
+            elif EXPLICITO_APROVAR.search(_norm(texto_usuario)) and not NAO.search(_norm(texto_usuario)):
+                threading.Thread(target=agir_e_contar, args=("aprovar", dia), daemon=True).start()
+            else:
+                avisar_modelo(f"aprovar {dia} não foi feito: ela ainda não disse que aprova. Pergunte \"Posso aprovar o plano de {dia}?\" com a marca na mesma frase.")
         elif nome == "aprovar":
             plano = _plano_de_hoje() or {}
             if plano.get("status") != "sugerido":
@@ -1556,7 +1615,8 @@ REGRAS_DO_PLANO = (
     "Ao gravar o plano de hoje: grave o plano inteiro, em JSON válido, no formato de plano_exemplo.json, com \"status\": \"sugerido\" "
     "(a pessoa aprova na tela e o servidor cria ou move as tarefas no ClickUp). Mantenha os blocos já feitos, mantenha o id e o clickup_id dos blocos que continuam, "
     "dê aos blocos novos um id ainda não usado (b seguido de número), use clickup_id para tarefa que já existe no resumo e lista_id só para bloco realmente novo, "
-    "e ponha \"reagendado\": true em todo bloco com clickup_id que mudou de horário ou que entrou no dia agora. Nenhum bloco pendente pode começar antes de agora."
+    "e ponha \"reagendado\": true em todo bloco com clickup_id que mudou de horário ou que entrou no dia agora. Nenhum bloco pendente pode começar antes de agora. "
+    "Antes de gravar, leia as campanhas ativas (o servidor nega a gravação sem isso) e ponha no plano \"agenda_impoe\": uma frase do que a agenda delas impõe a este dia, com prazo e dependência de outra pessoa tirados da nota da campanha, nunca perguntados. Quando a pessoa mandar tirar um bloco, ponha o título dele em \"removidos\" e mantenha essa lista nas próximas gravações. Se algo não cabe, não diga só que não cabe: grave o reencaixe pela prioridade da campanha e diga o que saiu. Bloco de tarefa com prazo final leva \"prazo_final\": \"AAAA-MM-DD\" e o mantém quando muda de dia. Use a VISÃO DA SEMANA: mexer num dia é mexer na semana, e tarefa que sai de um dia entra em outro na mesma resposta. Tarefa nova ou que muda de dia passa antes pelo roteador onde_cabe.ps1 (o servidor nega a gravação sem ele). Imprevisto que a pessoa comunicou (reunião de emergência, compromisso que surgiu) entra no horário que ela disse, com \"imprevisto\": true, sem roteador e sem recusa: o que ele desloca é que passa pelo roteador e vai para outro horário ou dia na mesma resposta. Se ele tira do lugar tarefa que traz resultado (post fixo, etapa de campanha com data, prazo final, foco da semana) ou força hora extra, antes de gravar faça UMA pergunta que provoca, nomeando o custo (Isso realmente não pode ir para outro dia? Vai tirar X e Y, que são o que te traz resultado). Se ela confirmar, grave com \"provocado\": true; se ela adiar, não encaixe e ponha o imprevisto em \"imprevistos_adiados\" (titulo e para), para a calibragem medir. Se só desloca tarefa leve, encaixe direto."
 )
 COMPLETO = None  # pedido em andamento: {"pedido": texto, "inicio": time}
 COMANDO_COMPLETO = None  # os testes trocam por uma função (pedido, arquivo do plano) -> texto da resposta
@@ -1577,7 +1637,9 @@ def prompt_completo(pedido, arquivo_plano):
         "Leia o que a skill manda carregar e, se o pedido tocar o plano de hoje, leia também o plano atual (plano_do_dia.json) e o registro de hoje "
         f"(registros\\registro_{hoje}.json, com os blocos já feitos ou adiados), os dois na pasta operacional.\n"
         "Não crie nem altere nada no ClickUp nem em outro lugar, e não edite os arquivos de memória. As únicas escritas permitidas são: "
-        f"o arquivo {arquivo_plano} (plano de hoje) e planos\\plano_AAAA-MM-DD.json na pasta operacional (plano de outro dia), e só se o pedido for montar ou mudar um plano.\n"
+        f"o arquivo {arquivo_plano} (plano de hoje) e planos\\plano_AAAA-MM-DD.json na pasta operacional (plano de outro dia), e só se o pedido for montar ou mudar um plano; "
+        "e o config.json da pasta operacional, só para completar a CONFIGURAÇÃO PENDENTE quando o pedido for esse.\n"
+        + (checar_config.texto(OPER) + "\n" if checar_config.texto(OPER) else "")
         + REGRAS_DO_PLANO + "\n"
         "No fim, responda SOMENTE com o que deve ser dito em voz alta: até 6 frases curtas, sem lista, sem markdown e sem travessão. "
         "Fale na primeira pessoa, como o mesmo guardião da conversa: não cite esta execução, o guardião completo, checagens técnicas nem o que você não tem permissão de fazer. "
