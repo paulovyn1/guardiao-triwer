@@ -79,4 +79,9 @@ with open(arq, "w", encoding="utf-8") as f:
 confere("conferência: tirada com motivo (removidos) passa", pb.conferir_arquivo(arq, oper, cfg) == [], pb.conferir_arquivo(arq, oper, cfg))
 d = pb.dossie(dia, *pb.montar(dia, oper, cfg), oper, cfg)
 confere("dossiê traz motivos, plano base e semana", "POR QUE" in d and "PLANO BASE" in d and "VISÃO DA SEMANA" in d)
+# buraco: primeiro alivia um dia cheio
+resumo(cheio[:2] + [t("q1", "Copy de quinta", "2026-10-22", "08:40", "10:00"), t("q2", "Roteiro de quinta", "2026-10-22", "10:00", "13:00"),
+                    t("q3", "Design de quinta", "2026-10-22", "14:00", "18:00"), t("q4", "Aula de quinta", "2026-10-22", "18:00", "19:20")])
+m = pb.montar(dia, oper, cfg)[1]
+confere("buraco: sugere adiantar tarefa do dia cheio que cabe hoje", any("Preencha" in x and "de quinta" in x for x in m), m)
 sys.exit(1 if falhas else 0)

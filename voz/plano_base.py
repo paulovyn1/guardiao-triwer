@@ -73,12 +73,38 @@ def montar(dia, oper=OPER, cfg=None):
         motivos.append("Conflitos no que está agendado: " + " ".join(problemas))
     livre, nobre = vs.livre_do_dia(plano, dia, memoria)
     if livre > BURACO_MAX:
-        motivos.append(f"Sobram {vs.duracao(livre)} livres no expediente ({vs.duracao(nobre)} no nobre): decidir o que entra até a hora de parar.")
+        adiantar = candidatas_a_adiantar(dia, plano, oper, cfg)
+        motivos.append(f"Sobram {vs.duracao(livre)} livres no expediente ({vs.duracao(nobre)} no nobre). Preencha até a hora de parar: primeiro adiantando "
+                       "tarefa de um dia cheio" + (" (" + "; ".join(adiantar) + ")" if adiantar else " (nenhum dia cheio nos próximos dias)")
+                       + "; sem isso, consumo com a pergunta, curso ou descanso programado. Não deixe um dia com hora extra e outro vazio, salvo pedido dela.")
     if not blocos:
         motivos.append("Nada agendado para hoje no ClickUp: o dia precisa ser montado.")
     for item in trabalhos_do_guardiao(memoria, dia):
         motivos.append(f"Trabalho do guardião com data chegada (estado.md, seção \"Do guardião\"): {item}")
     return plano, motivos
+
+
+def candidatas_a_adiantar(dia, plano, oper=OPER, cfg=None, dias_uteis=5, cheio_min=60):
+    """Tarefas agendadas nos próximos dias úteis que estão apertados (menos de 1 h livre) e que cabem num espaço livre de hoje, no tipo certo."""
+    cfg = cfg if cfg is not None else _cfg()
+    memoria = _memoria(cfg)
+    planos = vs.planos_da_semana(oper, dia)
+    saida, d, vistos = [], dia + timedelta(days=1), 0
+    while vistos < dias_uteis:
+        if d.weekday() < 5:
+            vistos += 1
+            outro = ra.plano_efetivo(d, planos, cfg)
+            if vs.livre_do_dia(outro, d, memoria)[0] < cheio_min:
+                for b in outro.get("blocos") or []:
+                    try:
+                        dur = vs.hm(b["fim"]) - vs.hm(b["inicio"])
+                    except (KeyError, ValueError, TypeError):
+                        continue
+                    tipo = ra.tipo_de(b.get("titulo"), b.get("frente"))
+                    if any(y - x >= dur for x, y in ra.espacos(plano, dia, tipo, memoria=memoria)):
+                        saida.append(f"{b.get('titulo')} de {vs.DIAS[d.weekday()]} {d:%d/%m}, {dur} min" + (f", id {b['clickup_id']}" if b.get("clickup_id") else ""))
+        d += timedelta(days=1)
+    return saida[:5]
 
 
 def trabalhos_do_guardiao(memoria, dia):

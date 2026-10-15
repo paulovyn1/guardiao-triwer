@@ -103,4 +103,19 @@ r = rota(40, "leve")
 confere("leve prefere a tarde mesmo com a noite nobre livre", r["candidatos"][0]["inicio"] == 15 * 60, r)
 r = rota(70, "leve", agora=19 * 60)
 confere("leve sem espaço fora do nobre na semana só entra no nobre marcado", all(("NO NOBRE" in c["como"]) == ra._no_nobre(c["inicio"]) for c in r["candidatos"]), r)
+# não cabe: dizer e oferecer saídas com números (Milena, 2026-10-14)
+r = rota(300, "pesado", date(2026, 10, 16), "Agência", agora=19 * 60)
+t = ra.texto(r)
+confere("não cabe: o texto manda dizer e oferece negociar prazo, eliminar, simplificar, delegar, tirar outra coisa",
+        "NÃO CABE BEM" in t and "negociar novo prazo" in t and "eliminar" in t and "versão mais simples" in t and "delegar" in t, t)
+confere("não cabe: a data para negociar é depois do prazo", r.get("cabe_em") and r["cabe_em"]["dia"] > date(2026, 10, 16), r.get("cabe_em"))
+confere("cabe bem: sem a lista de saídas", "NÃO CABE BEM" not in ra.texto(rota(40, "leve")))
+grava("planos/plano_2026-10-19.json", {"data": "2026-10-19", "blocos": [b("s1", "08:40", "13:00", "Manhã cheia"), b("s2", "14:00", "19:00", "Tarde cheia")], "fixos": [{"inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}]})
+al = ra.alertas(ra.vs.planos_da_semana(oper, hoje), hoje, {}, mem, oper)
+confere("desequilíbrio: dia no limite com outro folgado vira alerta", any("Desequilíbrio" in a for a in al), al)
+r = rota(400, "pesado", date(2026, 10, 23), "Conteúdo", agora=19 * 60)
+partes = r["candidatos"]
+confere("tarefa longa que não cabe num dia: dividida em partes de 1 h ou mais até a data segura, somando o tempo todo",
+        r["nivel"] in (2, 3) and len(partes) >= 2 and all(c["fim"] - c["inicio"] >= 60 for c in partes) and sum(c["fim"] - c["inicio"] for c in partes) >= r["precisa"]
+        and all(c["dia"] <= r["data_segura"] for c in partes) and "parte 1 de" in partes[0]["como"], r)
 sys.exit(1 if falhas else 0)

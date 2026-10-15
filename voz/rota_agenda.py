@@ -27,6 +27,8 @@ FOLGA_DIAS_UTEIS = 1
 PEDACO_MINIMO = 60        # trabalho longo (mais de 2h) pode ir em pedaços de pelo menos 1h; até 2h vai inteiro
 OCUPACAO_ALERTA = 0.9     # dia com mais de 90% da janela ocupada entra no alerta
 NOBRE_ALERTA = 15         # minutos de nobre livre abaixo dos quais o dia entra no alerta
+DESEQUILIBRIO_CHEIO = 30   # minutos livres: abaixo disso o dia está no limite
+DESEQUILIBRIO_FOLGA = 180  # minutos livres: acima disso o dia está folgado
 JANELA_LONGA = 10        # prazo além da semana: procura até 10 dias úteis antes da data segura
 ESTENDER = {}             # {data: minutos} hora de parar estendida que ela autorizou (--estender AAAA-MM-DD=HH:MM)
 FRENTES_FLEXIVEIS = {"agencia", "agencias", "cliente", "clientes", "operacional", "operacao", "gestao", "administrativo", "admin"}
@@ -178,7 +180,7 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
     memoria = memoria or ((cfg.get("pastas") or {}).get("memoria"))
     fator, n_reg = margem(oper)
     precisa = int(math.ceil(minutos * fator / 5) * 5)
-    contiguo = precisa if precisa <= 120 else PEDACO_MINIMO
+    contiguo = precisa if minutos <= 120 else PEDACO_MINIMO
     segura = data_segura(prazo, hoje, depende_dias)
     flexivel = _norm(frente) in FRENTES_FLEXIVEIS
     planos = vs.planos_da_semana(oper, hoje)
@@ -213,6 +215,25 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
                     break
         return cands, maior, plano
 
+    def em_partes(de, ate_dia, fora=False, evitar=()):
+        """Tarefa longa (mais de 2 h) que não cabe num dia só: pedaços de 1 h ou mais, em dias seguidos, até somar o tempo. [] se não soma."""
+        if minutos <= 120:
+            return []
+        partes, soma, d = [], 0, de
+        while d <= ate_dia and soma < precisa:
+            if (d.weekday() < 5 or d in ESTENDER) and d not in evitar:
+                for x, y in espacos(plano_efetivo(d, planos, cfg), d, tipo, agora_min + COLCHAO_AGORA if d == hoje else None, memoria, fora=fora):
+                    if y - x >= PEDACO_MINIMO and soma < precisa:
+                        fim = min(y, x + precisa - soma)
+                        partes.append({"dia": d, "inicio": x, "fim": fim, "como": "espaço livre"})
+                        soma += fim - x
+            d += timedelta(days=1)
+        if soma < precisa:
+            return []
+        for i, c in enumerate(partes, 1):
+            c["como"] += f", parte {i} de {len(partes)} (tarefa longa dividida em blocos de 1 h ou mais)"
+        return partes
+
     def varrer(de, ate_dia, fora=False):
         cands, d = [], de
         while d <= ate_dia:
@@ -236,18 +257,34 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
         # 1º janela preferida (ou trocando um leve do nobre) até a data segura; 2º fora dela, se há prazo ou se é leve;
         # 3º o próprio dia do prazo, sem folga. Prioridade manda: não se atrasa um post por falta de horário nobre.
         cands = list(c_hoje) + varrer(hoje + timedelta(days=1), ate)
-        if not cands and (prazo or tipo == "leve"):
+        partes = []
+        if not cands:
+            partes = em_partes(hoje, ate)
+        if not cands and not partes and (prazo or tipo == "leve"):
             cands = varrer(hoje, ate, fora=True)
+            if not cands:
+                partes = em_partes(hoje, ate, fora=True)
         if not cands and prazo and segura and segura < prazo <= fim_semana:
             for fora in (False, True):
                 cands = [dict(c, como=c["como"] + ", SEM FOLGA (no limite do prazo; diga isso a ela)") for c in varrer(segura + timedelta(days=1), prazo, fora)]
                 if cands:
                     break
         if prazo and prazo > fim_semana:
+            partes = []
             r["nivel"] = 3
             r["motivos"].append(f"O prazo final ({prazo:%d/%m}) passa da semana: o encaixe sai do horizonte, de trás para frente a partir da data segura ({segura:%d/%m}).")
             criticos = {q for q, _s, _n, _d, _st, imp in marcos(oper, memoria, hoje, segura) if imp == "critica"}
-            cands, d, vistos = [], segura, 0
+            if minutos > 120:  # longa: em partes, começando o mais tarde possível que ainda soma o tempo até a data segura
+                for k in range(1, JANELA_LONGA + 1):
+                    inicio = max(hoje + timedelta(days=1), dias_uteis_antes(segura, k))
+                    partes = em_partes(inicio, segura, evitar=criticos) or em_partes(inicio, segura)
+                    if partes or inicio <= hoje + timedelta(days=1):
+                        break
+
+            if partes:
+                r["motivos"].append(f"Não cabe num dia só: vai em {len(partes)} partes, terminando na data segura (todas, não uma ou outra).")
+            # tarefa longa sem partes possíveis não ganha pedaço solto como se fosse inteira
+            cands, d, vistos = list(partes), segura, (JANELA_LONGA if partes or minutos > 120 else 0)
             while d > hoje and vistos < JANELA_LONGA:  # os dias úteis até a data segura, de trás para frente
                 if d.weekday() < 5:
                     vistos += 1
@@ -261,21 +298,80 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
                 d -= timedelta(days=1)
             # 1º dia sem marco crítico; 2º perto da data segura (até 5 dias úteis antes vale igual) com mais nobre livre; 3º o mais tarde
             perto = dias_uteis_antes(segura, 5)
-            cands.sort(key=lambda c: (c["critico"], "FORA DO NOBRE" in c["como"] or "NO NOBRE" in c["como"], c["dia"] < perto, -c["nobre_livre"], -c["dia"].toordinal()))
+            if not partes:
+                cands.sort(key=lambda c: (c["critico"], "FORA DO NOBRE" in c["como"] or "NO NOBRE" in c["como"], c["dia"] < perto, -c["nobre_livre"], -c["dia"].toordinal()))
+        elif partes:
+            r["nivel"] = 2
+            cands = partes
+            r["motivos"].append(f"Não cabe num dia só: vai em {len(partes)} partes até a data segura, na ordem abaixo (todas, não uma ou outra).")
         elif cands:
             r["nivel"] = 2
         else:
             r["nivel"] = 3
             r["motivos"].append("A semana não tem espaço até a data segura, nem trocando um leve do nobre: precisa decidir o que sai, olhando o horizonte inteiro.")
         importante = not flexivel
-        if r["nivel"] != 3 or not (prazo and prazo > fim_semana):
+        if not partes and (r["nivel"] != 3 or not (prazo and prazo > fim_semana)):
             cands.sort(key=lambda c: (not c["como"].startswith("espaço livre") or "NO NOBRE" in c["como"] or "FORA DO NOBRE" in c["como"],
                                       c["dia"] if importante else -c["dia"].toordinal(), c["inicio"]))
-        r["candidatos"] = cands[:4]
+        r["candidatos"] = cands if partes else cands[:4]
+    # Não cabe bem (nenhum lugar, ou só no limite do prazo): as saídas que ela escolhe, já com números. Parte-se do princípio de que ela quer
+    # fazer tudo; o guardião protege o foco e diz o que não cabe, em vez de espremer.
+    r["sem_saida_boa"] = not r["candidatos"] or all("SEM FOLGA" in c["como"] for c in r["candidatos"])
+    if r["sem_saida_boa"]:
+        limite_busca = segura or hoje + timedelta(days=HORIZONTE_SEMANA)
+        maiores, d = [], hoje
+        while d <= limite_busca:
+            if d.weekday() < 5:
+                livres = espacos(plano_efetivo(d, planos, cfg), d, tipo, agora_min + COLCHAO_AGORA if d == hoje else None, memoria)
+                maiores.append(max((y - x for x, y in livres), default=0))
+            d += timedelta(days=1)
+        r["maior_ate_segura"] = max(maiores, default=0)
+        d, vistos, soma = (prazo or hoje) + timedelta(days=1), 0, 0
+        while vistos < 15:
+            if d.weekday() < 5:
+                vistos += 1
+                c = candidatos_no_dia(d)[0]
+                if c and minutos <= 120:
+                    r["cabe_em"] = c[0]
+                    break
+                for x, y in espacos(plano_efetivo(d, planos, cfg), d, tipo, memoria=memoria):
+                    if y - x >= PEDACO_MINIMO:
+                        soma += y - x
+                if minutos > 120 and soma >= precisa:
+                    r["cabe_em"] = {"dia": d, "inicio": vs.CHEGADA, "fim": vs.CHEGADA, "como": "termina neste dia, somando as partes"}
+                    break
+            d += timedelta(days=1)
     r["alertas"] = alertas(planos, hoje, cfg, memoria, oper)
     if r["nivel"] == 3:
         r["horizonte"] = horizonte(hoje, max(filter(None, [prazo, hoje + timedelta(days=14)])), planos, cfg, memoria, oper)
     return r
+
+
+def imprevistos_recentes(oper=OPER, dias=7, hoje=None):
+    """Resumo dos imprevistos dos últimos dias (calibragem/eventos.jsonl): encaixados, quantos tiraram algo do lugar e quantos foram adiados."""
+    hoje = hoje or date.today()
+    desde = (hoje - timedelta(days=dias)).isoformat()
+    encaixados, deslocaram, adiados = 0, 0, 0
+    try:
+        with open(os.path.join(oper, "calibragem", "eventos.jsonl"), encoding="utf-8") as f:
+            for linha in f:
+                try:
+                    ev = json.loads(linha)
+                except ValueError:
+                    continue
+                if str(ev.get("data") or "") < desde:
+                    continue
+                if ev.get("tipo") == "imprevisto_encaixado":
+                    encaixados += 1
+                    deslocaram += bool(ev.get("deslocou"))
+                elif ev.get("tipo") == "imprevisto_adiado":
+                    adiados += 1
+    except OSError:
+        return ""
+    if not encaixados and not adiados:
+        return ""
+    return (f"IMPREVISTOS DOS ÚLTIMOS {dias} DIAS: {encaixados} encaixados ({deslocaram} tiraram tarefa do lugar), {adiados} adiados depois da pergunta. "
+            "Use no fechamento da semana e quando um imprevisto novo chegar: se eles se repetem, diga o número a ela.")
 
 
 def ocupacao(plano, dia, memoria):
@@ -385,6 +481,18 @@ def alertas(planos, hoje, cfg, memoria, oper, dias=10, pular_hoje=False):
                 out.append(f"{vs.DIAS[d.weekday()]} {d:%d/%m} está {round(oc * 100)}% ocupado (livre {vs.duracao(livre)})"
                            + (f" e ainda tem {len(sem_hora)} tarefa(s) sem hora" if sem_hora else "") + ": qualquer atraso ali empurra outro dia.")
         d += timedelta(days=1)
+    # Equilíbrio: um dia no limite e outro folgado nos próximos 5 dias úteis é sinal de mover, não de hora extra (salvo pedido dela)
+    uteis, d = [], hoje + timedelta(days=1 if pular_hoje else 0)
+    while len(uteis) < 5:
+        if d.weekday() < 5:
+            uteis.append((d, ocupacao(plano_efetivo(d, planos, cfg), d, memoria)[1]))
+        d += timedelta(days=1)
+    cheios = [(d, l) for d, l in uteis if l < DESEQUILIBRIO_CHEIO]
+    folgados = [(d, l) for d, l in uteis if l >= DESEQUILIBRIO_FOLGA]
+    if cheios and folgados:
+        (dc, lc), (df, lf) = cheios[0], max(folgados, key=lambda x: x[1])
+        out.append(f"Desequilíbrio: {vs.DIAS[dc.weekday()]} {dc:%d/%m} tem só {vs.duracao(lc)} livres e {vs.DIAS[df.weekday()]} {df:%d/%m} tem {vs.duracao(lf)}. "
+                   "Adiante ou mova o que o prazo permitir, para nenhum dia pedir hora extra.")
     limite = hoje + timedelta(days=7)
     for quando, slug, nome, dono, situacao, _imp in marcos(oper, memoria, hoje, limite):
         if situacao in ("sem horário", "a criar") and (not dono or "milena" in _norm(dono)):
@@ -440,6 +548,16 @@ def texto(r, titulo=""):
             linhas.append(f"  {i}) {vs.DIAS[c['dia'].weekday()]} {c['dia']:%d/%m} {vs.fmt(c['inicio'])}-{vs.fmt(c['fim'])}, {c['como']}")
     else:
         linhas.append("Nenhum espaço encontrado: decida o que sai pela prioridade das campanhas e diga a ela, com a conta.")
+    if r.get("sem_saida_boa"):
+        linhas.append("NÃO CABE BEM DENTRO DAS METAS DELA. Diga isso na primeira frase, com a conta, e ofereça estas saídas (ela escolhe; o foco da semana não pode ser atrapalhado):")
+        if r.get("cabe_em"):
+            c = r["cabe_em"]
+            quando = f"{vs.DIAS[c['dia'].weekday()]} {c['dia']:%d/%m}" + ("" if "somando" in c["como"] else f" {vs.fmt(c['inicio'])}")
+            linhas.append(f"  a) negociar novo prazo: sem tirar nada do lugar, ela termina {'até' if 'somando' in c['como'] else 'em'} {quando}")
+        linhas.append("  b) eliminar, se não serve ao foco da semana nem a uma campanha com data")
+        linhas.append(f"  c) substituir por uma versão mais simples que caiba em {vs.duracao(r.get('maior_ate_segura', 0))} (o maior espaço livre até a data segura)")
+        linhas.append("  d) delegar, se não precisa ser ela")
+        linhas.append("  e) tirar do lugar algo menos prioritário (diga qual e para onde vai)")
     if r["alertas"]:
         linhas.append("ALERTAS (antecipe e diga a ela em uma frase, se mexerem com esta decisão):")
         linhas += [f"  - {a}" for a in r["alertas"]]

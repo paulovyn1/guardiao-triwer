@@ -560,6 +560,7 @@ class Processo:
         self.usado_em = time.time()
         self.lidas = {}  # campanha -> data de modificação da nota quando foi lida nesta conversa (nota que não mudou não precisa ser relida)
         self.rota = False  # o roteador da agenda (onde_cabe.ps1) rodou desde a última gravação do plano
+        self.imprevistos = set()  # imprevistos já registrados na calibragem nesta conversa
         self.gravou_plano = False
         self.escrita = threading.Lock()
         threading.Thread(target=self._ler, daemon=True).start()
@@ -720,7 +721,30 @@ class Processo:
             if problemas:
                 return "O plano não pode ser gravado assim. Corrija e grave de novo:\n- " + "\n- ".join(problemas)
         self.gravou_plano = True
+        if plano is not None:
+            self._registrar_imprevistos(plano, _ler_json(caminho) or {})
         return ""
+
+    def _registrar_imprevistos(self, plano, anterior):
+        """Calibragem dos imprevistos (Milena, 2026-10-14): quantos entram, o que deslocam e quantos ela adia depois da provocação.
+        Só fatos, um evento por imprevisto: "imprevisto_encaixado" (com o que saiu do lugar) e "imprevisto_adiado" (lista imprevistos_adiados)."""
+        try:
+            antes = {cp._chave_bloco(b): b for b in anterior.get("blocos") or []}
+            agora = {cp._chave_bloco(b): b for b in plano.get("blocos") or []}
+            for chave, b in agora.items():
+                if not b.get("imprevisto") or chave in antes or chave in self.imprevistos:
+                    continue
+                self.imprevistos.add(chave)
+                deslocou = [a.get("titulo") for k, a in antes.items()
+                            if k not in agora or (agora[k].get("inicio"), agora[k].get("fim")) != (a.get("inicio"), a.get("fim"))]
+                h._v2().registrar_evento("imprevisto_encaixado", b, deslocou=deslocou, provocado=bool(b.get("provocado")), data_plano=plano.get("data"))
+            for item in plano.get("imprevistos_adiados") or []:
+                titulo = item.get("titulo") if isinstance(item, dict) else str(item)
+                if titulo and ("adiado:" + titulo) not in self.imprevistos:
+                    self.imprevistos.add("adiado:" + titulo)
+                    h._v2().registrar_evento("imprevisto_adiado", None, titulo=titulo, para=(item.get("para") if isinstance(item, dict) else None))
+        except Exception as erro:
+            print("  (não consegui registrar o imprevisto na calibragem:", erro, ")")
 
     def _exigir_rota(self, plano, caminho, anterior):
         """Editar um plano já gravado pondo nele uma tarefa que não estava naquele dia (nova ou vinda de outro dia) exige o roteador antes:
@@ -732,7 +756,7 @@ class Processo:
             dia = cp.data_do_plano(caminho, plano)
             pre = vs.pre_planos_do_clickup(h.OPER, vs.carregar_planos(h.OPER)).get(dia.isoformat()) or {}
             ja = {cp._chave_bloco(b) for b in (anterior.get("blocos") or []) + (pre.get("blocos") or []) + (pre.get("sem_hora") or [])}
-            novas = [b.get("titulo") for b in plano.get("blocos") or [] if cp._chave_bloco(b) not in ja]
+            novas = [b.get("titulo") for b in plano.get("blocos") or [] if cp._chave_bloco(b) not in ja and not b.get("imprevisto")]  # imprevisto entra na hora dita
         except Exception as erro:
             print("  Exigência do roteador falhou:", erro)
             return []

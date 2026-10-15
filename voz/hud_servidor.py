@@ -575,13 +575,9 @@ def lista_conteudos_id():
     return next((str(l["id"]) for l in c.get("listas", []) if l.get("nome") == nome), "")
 
 
-def aprovar_plano():
-    """Aprova o plano de hoje. Cada bloco novo (com lista_id e sem clickup_id) vira tarefa no ClickUp, com dono, hora e estimativa."""
-    plano, caminho = _plano_e_caminho()
-    if not plano:
-        return {"ok": False, "erro": "Não há plano para hoje."}
-    if plano.get("status") == "aprovado":
-        return {"ok": True, "criadas": 0, "erros": []}
+def _levar_ao_clickup(plano):
+    """Leva o plano ao ClickUp: bloco movido (reagendado) muda de hora na tarefa existente; bloco novo (lista_id sem clickup_id) vira tarefa.
+    Usado ao aprovar e ao ajustar um plano já aprovado (imprevisto no meio do dia): os dois caminhos fazem a mesma coisa."""
     cfg = _config()
     agente = (cfg.get("agente") or {}).get("nome") or "Guardião"
     criadas, reagendadas, erros = 0, 0, []
@@ -659,6 +655,17 @@ def aprovar_plano():
                 criadas += 1
             except Exception as erro:  # um bloco com problema não impede os outros
                 erros.append(f"{b.get('titulo')}: {erro}")
+    return criadas, reagendadas, erros
+
+
+def aprovar_plano():
+    """Aprova o plano de hoje. Cada bloco novo (com lista_id e sem clickup_id) vira tarefa no ClickUp, com dono, hora e estimativa."""
+    plano, caminho = _plano_e_caminho()
+    if not plano:
+        return {"ok": False, "erro": "Não há plano para hoje."}
+    if plano.get("status") == "aprovado":
+        return {"ok": True, "criadas": 0, "erros": []}
+    criadas, reagendadas, erros = _levar_ao_clickup(plano)
     plano["status"] = "aprovado"
     plano["aprovado_em"] = time.strftime("%Y-%m-%d %H:%M")
     with open(caminho, "w", encoding="utf-8") as f:
@@ -724,13 +731,14 @@ def resumo_aprovacao():
 
 
 def editar_plano(op, ref=None, dados=None):
-    """Ajusta o plano de hoje enquanto ele está 'sugerido': mover, editar, remover, adicionar ou desfazer o último ajuste."""
+    """Ajusta o plano de hoje: mover, editar, remover, adicionar ou desfazer o último ajuste.
+    Plano já aprovado também aceita ajuste (imprevisto no meio do dia: reunião de emergência, tarefa de última hora). Ele continua aprovado,
+    a execução segue, e o que mudou vai ao ClickUp na hora (_levar_ao_clickup). Antes isso era recusado e o guardião se negava a replanejar."""
     dados = dados or {}
     plano, caminho = _plano_e_caminho()
     if not plano:
         return {"ok": False, "erro": "Não há plano para hoje."}
-    if plano.get("status") == "aprovado":
-        return {"ok": False, "erro": "O plano de hoje já foi aprovado. Para mudar agora, peça para refazer o plano."}
+    aprovado = plano.get("status") == "aprovado"
     blocos = plano.setdefault("blocos", [])
 
     def achar():
@@ -827,13 +835,16 @@ def editar_plano(op, ref=None, dados=None):
     if antes:
         HISTORICO_PLANO.append(antes)
         del HISTORICO_PLANO[:-12]
+    erros_clickup = []
+    if aprovado and plano.get("status") == "aprovado":
+        _, _, erros_clickup = _levar_ao_clickup(plano)
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(plano, f, ensure_ascii=False, indent=2)
     conflitos = [c["texto"] for c in conflitos_do_plano(plano) if ref in (c["a"], c["b"])] if op in ("mover", "adicionar") else []
     bus.emitir("plano_editado", op=op, ref=ref, titulo=titulo, depois=depois, conflitos=conflitos)
     bus.emitir("plano")
     _log_acao("plano:" + op, ref, titulo, depois, dados, True)
-    return {"ok": True, "ref": ref, "titulo": titulo, "depois": depois, "conflitos": conflitos}
+    return {"ok": True, "ref": ref, "titulo": titulo, "depois": depois, "conflitos": conflitos, **({"erros_clickup": erros_clickup} if erros_clickup else {})}
 
 
 # ---------------- ações pedidas pelo guardião (com animação na tela) ----------------

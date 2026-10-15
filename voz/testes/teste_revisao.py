@@ -99,6 +99,8 @@ confere("revisão parada há mais de 20 min se encerra sozinha", not g.revisao_a
 
 # ---- aprovar: explícito executa, vago propõe e espera o sim
 chamadas = []
+import hud_servidor as _hs
+_hs._token_clickup = lambda: None  # ajuste em plano aprovado vai ao ClickUp: no teste, sem token, nada sai para a rede
 g.agir = lambda tipo, *a, **k: chamadas.append((tipo, a, k)) or {"ok": True, "criadas": 1}
 eventos()
 g.executar_diretivas([("aprovar", "")], "pode aprovar o plano")
@@ -120,7 +122,8 @@ g.executar_diretivas([("aprovar", "")], "aprova")
 time.sleep(0.1)
 confere("com o plano já aprovado, {{aprovar}} não faz nada e avisa", not chamadas and any(e["t"] == "aviso" for e in eventos()))
 g.executar_diretivas([("mover", "b2|12:00-13:00")], "move a segunda")
-confere("depois de aprovado, mover pela voz é recusado", plano()["blocos"][1]["inicio"] == "10:00" and any("FALHOU" in x for x in g.AVISOS_AO_MODELO))
+confere("depois de aprovado, mover pela voz vale (imprevisto) e o plano continua aprovado", plano()["blocos"][1]["inicio"] == "12:00" and plano()["status"] == "aprovado"
+        and not any("FALHOU" in x for x in g.AVISOS_AO_MODELO), (plano()["blocos"][1], g.AVISOS_AO_MODELO))
 g.AVISOS_AO_MODELO.clear()
 gravar_plano()
 

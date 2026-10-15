@@ -164,8 +164,11 @@ confere("aprovar: plano fica aprovado e o 'reagendado' some", p["status"] == "ap
 ev = eventos()
 tipos = [(e["t"], e.get("tipo")) for e in ev]
 confere("aprovar: eventos acao -> acao_fim -> plano, com contagens", tipos[0] == ("acao", "aprovar") and ("acao_fim", "aprovar") in tipos and ev[tipos.index(("acao_fim", "aprovar"))]["criadas"] == 2, tipos)
+antes_puts = len([c for c in chamadas if c[0] == "put"])
 r = h.editar_plano("mover", "b2", {"horario": "10:00-10:30"})
-confere("depois de aprovado, ajustar é recusado com explicação", not r["ok"] and "aprovado" in r["erro"], r)
+confere("depois de aprovado, imprevisto é aceito: o plano continua aprovado (a execução não para)", r["ok"] and plano()["status"] == "aprovado", r)
+novos_puts = [c for c in chamadas if c[0] == "put"][antes_puts:]
+confere("depois de aprovado, o bloco movido muda de hora no ClickUp na mesma hora", any("/task/" in c[1] for c in novos_puts) and "reagendado" not in next(b for b in plano()["blocos"] if b["id"] == "b2"), novos_puts)
 r = h.agir("aprovar")
 confere("aprovar de novo não cria nada", r["ok"] and r["criadas"] == 0)
 
