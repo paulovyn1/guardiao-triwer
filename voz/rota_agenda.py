@@ -508,8 +508,10 @@ def alertas(planos, hoje, cfg, memoria, oper, dias=10, pular_hoje=False, agora=N
         out.append(f"Desequilíbrio: {vs.DIAS[dc.weekday()]} {dc:%d/%m} tem só {vs.duracao(lc)} livres e {vs.DIAS[df.weekday()]} {df:%d/%m} tem {vs.duracao(lf)}. "
                    "Adiante ou mova o que o prazo permitir, para nenhum dia pedir hora extra.")
     limite = hoje + timedelta(days=7)
+    eu = _norm(((cfg or {}).get("pessoa") or {}).get("nome") or "").split()
+    eu = eu[0] if eu else ""
     for quando, slug, nome, dono, situacao, _imp in marcos(oper, memoria, hoje, limite):
-        if situacao in ("sem horário", "a criar") and (not dono or "milena" in _norm(dono)):
+        if situacao in ("sem horário", "a criar") and (not dono or (eu and eu in _norm(dono))):
             out.append(f"Marco de {slug} em {quando:%d/%m} {situacao}: \"{nome}\".")
     vistos = []
     for a in out:

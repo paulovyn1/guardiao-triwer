@@ -1722,6 +1722,18 @@ const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sáb
 const DIAS3 = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const MESES3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+// Renderização por software (sem placa de vídeo, ou com ela desligada no navegador): o desfoque dos painéis de vidro custa caro demais.
+// Medido em 15/10/2026 no mesmo computador: 88 quadros por segundo com a placa de vídeo, 15 sem ela.
+const SEM_PLACA_DE_VIDEO = (() => {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    if (!gl) return true;
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const nome = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+    const perder = gl.getExtension('WEBGL_lose_context'); if (perder) perder.loseContext();  // só servia para perguntar: devolve a memória de vídeo
+    return /swiftshader|basic render|llvmpipe|software/i.test(nome);
+  } catch (e) { return false; }
+})();
 const ESTADOS = { aguardando: 'idle', ouvindo: 'listening', transcrevendo: 'transcribing', pensando: 'thinking', falando: 'speaking' };
 /* preferências: nome na tela -> chave no servidor (voz\preferencias.json) */
 const PF_MAP = { sound: 'sons', typing: 'som_digitacao', motion: 'som_movimento', touch: 'som_toques', confirm: 'som_avisos', stateSnd: 'som_estados', track: 'som_abertura', alwaysMic: 'mic_sempre_ligado', openMic: 'escuta_aberta', openExec: 'execucao_ao_abrir', session: 'sessao', voice: 'voz_guardiao', light: 'modo_leve' };
@@ -2668,10 +2680,11 @@ class Component extends DCLogic {
     this.setState({ cmdText: '', plText: '' });
     API.post('/perguntar', { texto: text }).catch((e) => this.falha(e));
   }
-  onCmdInput(e) { this.setState({ cmdText: e.target.value }); }
+  onCmdInput(e) { this.pararDeOuvirParaEscrever(); this.setState({ cmdText: e.target.value }); }
+  pararDeOuvirParaEscrever() { if (this.state.listening) API.post('/escuta', {}).catch(() => {}); }
   onCmdKey(e) { if (e.key === 'Enter') { e.preventDefault(); this.enviar(e.target && e.target.value != null ? e.target.value : this.state.cmdText); } }
   onSend() { this.enviar(this.state.cmdText); }
-  onPlInput(e) { this.setState({ plText: e.target.value }); }
+  onPlInput(e) { this.pararDeOuvirParaEscrever(); this.setState({ plText: e.target.value }); }
   onPlKey(e) { if (e.key === 'Enter') { e.preventDefault(); this.enviar(e.target && e.target.value != null ? e.target.value : this.state.plText); } }
   onPlSend() { this.enviar(this.state.plText); }
   onMic() {
@@ -3292,7 +3305,7 @@ class Component extends DCLogic {
       logs: ['servidor local · porta ' + (location.port || '80'), 'versão · ' + (V.instalada || '...'), 'idioma · pt-BR', 'clickup · ' + S.dues.length + ' prazos nos próximos 3 dias', 'agenda · ' + S.tasks.length + ' blocos para hoje', 'calibragem · dia ' + K.dia + ' de 30', 'pops · ' + PP.meus.length + ' na sua biblioteca', 'plano · ' + (S.planState === 'approved' ? 'aprovado' : S.planState === 'suggested' ? 'aguardando aprovação' : 'ainda não montado'), 'tudo pronto, ' + String(S.pessoa || '').toLowerCase()]
     };
 
-    const rootCls = ['m-' + M, pf.light ? 'is-light' : '', !pf.light ? 'has-blur' : '', prep ? 'is-prep' : '', introRun || introHome ? 'is-intro' : '', S.introPhase === 'skip' ? 'is-introskip' : '', S.sceneOn ? 'scene-on' : '', banner.on && showB && S.screen === 'dia' ? 'has-banner' : '', doneRow.on || ask.on ? 'has-after' : '', S.detailOpen ? 'has-detail' : '', compact ? 'is-compact' : '', S.hdPin || S.hdPeek || S.introPhase !== 'done' ? 'hd-on' : '', colOn ? 'col-on' : '', dockOn ? 'dock-on' : '', execOn ? 'is-exec' : '', 'scr-' + S.screen].filter(Boolean).join(' ');
+    const rootCls = ['m-' + M, pf.light ? 'is-light' : '', !pf.light && !SEM_PLACA_DE_VIDEO ? 'has-blur' : '', prep ? 'is-prep' : '', introRun || introHome ? 'is-intro' : '', S.introPhase === 'skip' ? 'is-introskip' : '', S.sceneOn ? 'scene-on' : '', banner.on && showB && S.screen === 'dia' ? 'has-banner' : '', doneRow.on || ask.on ? 'has-after' : '', S.detailOpen ? 'has-detail' : '', compact ? 'is-compact' : '', S.hdPin || S.hdPeek || S.introPhase !== 'done' ? 'hd-on' : '', colOn ? 'col-on' : '', dockOn ? 'dock-on' : '', execOn ? 'is-exec' : '', 'scr-' + S.screen].filter(Boolean).join(' ');
     const brandName = String(S.gname || 'Guardião').toUpperCase();
     if (S.sessao && S.sessao !== this.sesRef) { this.sesRef = S.sessao; this.sesT = now; }
 
@@ -3305,13 +3318,13 @@ class Component extends DCLogic {
       conv: { on: !!pf.session && !mini && !compact, label: S.conv && S.conv.atual && S.conv.atual.turnos ? S.conv.atual.titulo : 'Conversa nova', open: C('openChats'), nova: C('novaConversa') },
       focus, primary, stageCls, fwrapHidden: execOn ? 'false' : 'true', openCurDetail: C('openCurDetail'), dtCU: C('dtCU'), hasCU: !!(p && p.url && !(mode === 'between' && this.proxFixo())), exitExecBtn: C('exitExecBtn'), onPrimary: C('onPrimary'), onPostpone: C('onPostpone'), setSealBtn: this.setSealBtn, setSealScene: this.setSealScene, setSealAch: this.setSealAch,
       done: doneRow, ask, adj: { cls: S.adjOn ? 'show' : '', a: S.adjA, b: S.adjB }, onNote: E('onNote'), onNoteKey: E('onNoteKey'), toggleAdj: C('toggleAdj'), undo: C('undo'), onAdjA: E('onAdjA'), onAdjB: E('onAdjB'), saveAdj: C('saveAdj'),
-      doneCount, totalCount, cmdPh: S.net === 'offline' ? 'Guardião desligado' : execOn ? 'Fale ou escreva. Ex.: concluí, preciso de mais tempo' : voiceOn ? 'Fale ou escreva. Ex.: vou executar' : 'Escreva. Ex.: vou executar', cmdText: listenHome ? S.userLine : S.cmdText, cmdDis: S.net === 'offline', onCmdInput: E('onCmdInput'), onCmdKey: E('onCmdKey'),
+      doneCount, totalCount, cmdPh: S.net === 'offline' ? 'Guardião desligado' : execOn ? 'Fale ou escreva. Ex.: concluí, preciso de mais tempo' : voiceOn ? 'Fale ou escreva. Ex.: vou executar' : 'Escreva. Ex.: vou executar', cmdText: listenHome && !S.cmdText ? S.userLine : S.cmdText, cmdDis: S.net === 'offline', onCmdInput: E('onCmdInput'), onCmdKey: E('onCmdKey'),
       micCls: S.listening ? 'on' : '', micOn: S.listening, micAria: S.listening ? 'Ouvindo' : 'Falar com o Guardião', micDis: S.net === 'offline', micLabel: S.listening ? 'Ouvindo' : 'Falar', onMic: C('onMic'), onSend: C('onSend'),
       spd: { on: voiceOn && orbEff === 'speaking' && !mini, label: String(pf.speed).replace('.', ',') + 'x', aria: 'Velocidade da voz: ' + String(pf.speed).replace('.', ',') + ' vezes. Toque para trocar.', go: C('trocarVelocidade') },
       voiceCls: voiceOn ? '' : 'muted', voiceMuted: !voiceOn, voiceLabel: voiceOn ? 'Silenciar a voz do Guardião' : 'Ligar a voz do Guardião', toggleVoice: C('toggleVoice'),
       dia, toggleNotice: C('toggleNotice'), askPlan: C('askPlan'),
       plan, plRailSt, col, colMsgs, dock, dockOpen: S.dockOpen, toggleSheet: C('toggleSheet'), setMsgsC: this.setMsgsC, setMsgsS: this.setMsgsS, review: { on: S.review }, approvePlan: C('approvePlan'), endReview: C('endReview'), setMsgs: this.setMsgs, chatMsgs, flows: FLOWS.map((f) => ({ label: f.label, go: () => this.startFlow(f) })),
-      plPh: 'Escreva ou fale para o Guardião', plText: S.listening && S.screen === 'plan' ? S.userLine : S.plText, onPlInput: E('onPlInput'), onPlKey: E('onPlKey'), onPlSend: C('onPlSend'),
+      plPh: 'Escreva ou fale para o Guardião', plText: S.listening && S.screen === 'plan' && !S.plText ? S.userLine : S.plText, onPlInput: E('onPlInput'), onPlKey: E('onPlKey'), onPlSend: C('onPlSend'),
       cal, openCalForm: C('openCalForm'), calDictate: C('calDictate'), calSend: C('calSend'), calRestart: C('calRestart'),
       pops, popQ: S.popQ, onPopQ: E('onPopQ'), popFromTask: C('popFromTask'), popSuggNo: C('popSuggNo'), popNovo: C('popNovo'), onDraftName: E('onDraftName'), draftAddStep: C('draftAddStep'), draftDiscard: C('draftDiscard'), draftSave: C('draftSave'), popRetry: C('popRetry'), popGoMine: C('popGoMine'), popGoSchool: C('popGoSchool'), popAskDraft: C('popAskDraft'), popClear: C('popClear'),
       upd: { on: !!(V.nova || V.atualizando) && !mini, cls: V.atualizando ? 'busy' : '', label: V.atualizando ? 'Atualizando' : 'Nova versão', aria: V.atualizando ? 'Atualizando o Guardião' : 'Há uma versão nova do Guardião: ' + (V.remota || ''), go: C('abrirVersao') },

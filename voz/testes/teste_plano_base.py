@@ -22,7 +22,7 @@ oper, mem = tempfile.mkdtemp(), tempfile.mkdtemp()
 os.makedirs(os.path.join(oper, "planos"))
 os.makedirs(os.path.join(mem, "campanhas"))
 dia = date(2026, 10, 21)  # quarta
-cfg = {"pessoa": {"nome": "Milena"}, "pastas": {"memoria": mem},
+cfg = {"pessoa": {"nome": "Ana"}, "pastas": {"memoria": mem},
        "rotina": {"fixos_semana": [{"dias": [0, 1, 2, 3, 4], "inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}]}}
 
 
@@ -59,10 +59,10 @@ almoco = next(f for f in plano["fixos"] if f["titulo"] == "Almoço")
 confere("compromisso que cobre o almoço empurra o almoço para depois dele", almoco["inicio"] == "14:00" and almoco["fim"] == "15:00", almoco)
 
 with open(os.path.join(mem, "estado.md"), "w", encoding="utf-8") as f:
-    f.write("# Estado\n## Do guardião (x)\n- **Lista do Halloween** | status: a fazer | início: seg 19/10 | condição: x\n- **Outro** | status: a fazer | início: sex 30/10 | x\n## Outra\n")
+    f.write("# Estado\n## Do guardião (x)\n- **Lista do evento** | status: a fazer | início: seg 19/10 | condição: x\n- **Outro** | status: a fazer | início: sex 30/10 | x\n## Outra\n")
 resumo(cheio)
 m = pb.montar(dia, oper, cfg)[1]
-confere("trabalho do guardião com data chegada chama o Claude (só o vencido)", any("Lista do Halloween" in x for x in m) and not any("Outro" in x for x in m), m)
+confere("trabalho do guardião com data chegada chama o Claude (só o vencido)", any("Lista do evento" in x for x in m) and not any("Outro" in x for x in m), m)
 os.remove(os.path.join(mem, "estado.md"))
 
 resumo(cheio)

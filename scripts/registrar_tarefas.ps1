@@ -45,7 +45,14 @@ if (-not $SomenteMostrar -and -not (Test-Path $pythonw)) {
 $usuario = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $dias = @($cfg.rotina.dias_trabalho | ForEach-Object { [System.DayOfWeek]$_ })
 function Acao([string]$script, [string]$extra = '') {
-    New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$(Join-Path $Pasta $script)`" $extra".Trim()
+    # pythonw + sem_janela.py: o powershell chamado direto, mesmo com -WindowStyle Hidden, pisca uma janela preta (no logon ela fica segundos na tela)
+    New-ScheduledTaskAction -Execute "`"$pythonw`"" -Argument "`"$(Join-Path $voz 'sem_janela.py')`" `"$(Join-Path $Pasta $script)`" $extra".Trim() -WorkingDirectory $voz
+}
+function Logon([string]$atraso) {
+    # o atraso deixa o Windows terminar de ligar (o som de alguns aparelhos demora a ficar pronto) antes de o guardião começar a disputar o computador
+    $t = New-ScheduledTaskTrigger -AtLogOn -User $usuario
+    $t.Delay = $atraso
+    $t
 }
 function Ajustes([bool]$semLimite) {
     $a = @{ AllowStartIfOnBatteries = $true; DontStopIfGoingOnBatteries = $true; StartWhenAvailable = $true }
@@ -56,28 +63,32 @@ function Ajustes([bool]$semLimite) {
 $definicoes = @(
     @{
         nome = $nomes[0]; acao = (Acao 'gerar_plano.ps1'); ajustes = (Ajustes $false)
-        gatilhos = @((New-ScheduledTaskTrigger -AtLogOn -User $usuario), (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $dias -At $cfg.rotina.gerar_plano_as))
+        gatilhos = @((Logon 'PT2M'), (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $dias -At $cfg.rotina.gerar_plano_as))
         resumo = "ao ligar o PC e as $($cfg.rotina.gerar_plano_as) nos dias de trabalho (so gera 1 plano por dia)"
     },
     @{
         nome = $nomes[1]; acao = (Acao 'ler_clickup.ps1'); ajustes = (Ajustes $false)
-        gatilhos = @((New-ScheduledTaskTrigger -AtLogOn -User $usuario)) + @($cfg.rotina.leituras_clickup | ForEach-Object { New-ScheduledTaskTrigger -Daily -At $_ })
+        gatilhos = @((Logon 'PT1M')) + @($cfg.rotina.leituras_clickup | ForEach-Object { New-ScheduledTaskTrigger -Daily -At $_ })
         resumo = "ao ligar o PC e as $(@($cfg.rotina.leituras_clickup) -join ', ')"
     },
     @{
-        # O programa (escuta, voz e painel) fica ligado em segundo plano. Com --vigia, se ele já estiver ligado a tarefa sai em silêncio.
+        # O programa (escuta, voz e painel) fica ligado em segundo plano. Com --vigia, se ele já estiver ligado (ou ligando) a tarefa sai em
+        # silêncio: a trava de instância única (voz\instancia.py) garante um guardião só, mesmo quando esta tarefa e a "tela" disparam juntas.
         nome = $nomes[2]; ajustes = (Ajustes $true)
         acao = (New-ScheduledTaskAction -Execute "`"$pythonw`"" -Argument 'guardiao_voz.py --cerebro --sem-janela --vigia' -WorkingDirectory $voz)
-        gatilhos = @((New-ScheduledTaskTrigger -AtLogOn -User $usuario), (New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 15)))
+        gatilhos = @((Logon 'PT1M'), (New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 15)))
         resumo = "ao ligar o PC e a cada 15 minutos confere se o guardiao esta ligado (escuta, voz e painel, sem janela)"
     },
     @{
         nome = $nomes[3]; acao = (Acao 'voz\abrir_guardiao_v2.ps1'); ajustes = (Ajustes $false)
-        gatilhos = @((New-ScheduledTaskTrigger -AtLogOn -User $usuario)) + @($(if ($cfg.rotina.abrir_tela_as) { New-ScheduledTaskTrigger -Weekly -DaysOfWeek $dias -At $cfg.rotina.abrir_tela_as }))
+        gatilhos = @((Logon 'PT30S')) + @($(if ($cfg.rotina.abrir_tela_as) { New-ScheduledTaskTrigger -Weekly -DaysOfWeek $dias -At $cfg.rotina.abrir_tela_as }))
         resumo = "ao ligar o PC$(if ($cfg.rotina.abrir_tela_as) { " e as $($cfg.rotina.abrir_tela_as) nos dias de trabalho" }) (abre a janela do painel)"
     }
 )
 
+foreach ($n in $antigas) {  # o aviso por pop-up é mantido pelo próprio programa: a tarefa antiga só ligaria uma segunda cópia
+    if (-not $SomenteMostrar -and (Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue)) { Unregister-ScheduledTask -TaskName $n -Confirm:$false }
+}
 foreach ($d in $definicoes) {
     if ($SomenteMostrar) { Write-Output "Criaria: $($d.nome) -> $($d.resumo)"; continue }
     if (Get-ScheduledTask -TaskName $d.nome -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName $d.nome -Confirm:$false }

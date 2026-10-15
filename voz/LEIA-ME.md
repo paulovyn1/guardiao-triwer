@@ -19,7 +19,14 @@ Roda na pasta `voz\` dentro da pasta operacional do guardião. Só Windows.
 | `definir_chave_groq.bat` | guarda a chave gratuita do Groq, com o passo a passo na tela |
 | `ouvir_vozes.bat` | toca as três vozes do guardião para escolher (a escolhida vai em `agente.voz` do `config.json`) |
 | `diagnostico.bat` | confere cada peça (Claude, voz, escuta, microfone, Groq, janela), mede onde o tempo vai e escreve `logs\diagnostico.txt` |
-| `janela_painel.py` | abre o painel no Edge, como janela de aplicativo, no perfil da pessoa (sem Edge, o Chrome; sem os dois, uma aba), e apaga a pasta do perfil que as versões antigas criaram |
+| `janela_painel.py` | abre o painel no Edge, como janela de aplicativo, numa pasta de navegador só dele (placa de vídeo e som da abertura sem depender do Edge da pessoa; sem Edge, o Chrome; sem os dois, uma aba) |
+| `instancia.py` | um guardião por painel: a trava que impede o segundo de ligar (a tarefa "voz" e a "tela" disparam juntas no logon) |
+| `registro.py` | o `logs\voz.log` com data, hora e número do processo em cada linha; o arquivo grande vira `voz.log.1` |
+| `sem_janela.py` | roda um `.ps1` sem janela de terminal: é o que as tarefas agendadas e o atalho chamam pelo pythonw |
+| `tarefas.py` | ao ligar, ajusta tarefas e atalho de instalações antigas (sem janela, com atraso no logon) e reinicia o aviso por pop-up depois de uma atualização |
+| `visao_semana.py`, `rota_agenda.py` | a semana inteira no contexto; onde uma tarefa cabe (hoje, na semana ou mais para frente), por conta, chamado pelo `onde_cabe.ps1` |
+| `plano_base.py`, `conferencia_plano.py` | o plano da manhã montado por código; a conferência de qualquer plano antes de gravar |
+| `checar_config.py` | depois de uma atualização, confere se o `config.json` tem os campos que as versões novas usam |
 | `popup.py` | o aviso do guardião na tela (preto e dourado, no canto, sem roubar o foco), usado pelo `avisos.ps1` e pelo painel escondido |
 | `tocador.py` | toca a resposta inteira numa saída só (sem picotar) e muda a velocidade no meio da fala sem mudar o tom (1x, 1,5x, 2x) |
 | `controle_fala.py`, `latencia.py` | parar a fala quando a janela fecha; os tempos de cada resposta em `logs\latencia.jsonl` |

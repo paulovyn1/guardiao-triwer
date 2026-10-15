@@ -33,11 +33,14 @@ from vosk import KaldiRecognizer, SetLogLevel
 import controle_fala
 import guardiao_sessao
 import guardiao_v2 as v2
+import instancia
 import janela_painel
 import latencia
 import checar_config
 import memoria_conversa
 import nativo
+import registro
+import tarefas
 import tocador
 from fala import normalizar_para_fala
 from hud_servidor import (_config, _ler_json, _norm, _plano_de_hoje, _registro_de_hoje, agir, bus, conflitos_do_plano, editar_plano, iniciar_servidor,
@@ -46,13 +49,8 @@ from hud_servidor import (_config, _ler_json, _norm, _plano_de_hoje, _registro_d
 BASE = os.path.dirname(os.path.abspath(__file__))
 OPER = os.path.dirname(BASE)  # pasta operacional do guardião
 
-if sys.stdout is None or sys.stderr is None:  # rodando em segundo plano (pythonw): sem terminal, escreve num arquivo de registro
-    _pasta_logs = os.path.join(OPER, "logs")
-    os.makedirs(_pasta_logs, exist_ok=True)
-    _arq_log = os.path.join(_pasta_logs, "voz.log")
-    if os.path.exists(_arq_log) and os.path.getsize(_arq_log) > 2_000_000:
-        os.remove(_arq_log)
-    sys.stdout = sys.stderr = open(_arq_log, "a", encoding="utf-8", buffering=1)
+if sys.stdout is None or sys.stderr is None:  # rodando em segundo plano (pythonw): sem terminal, escreve no registro, com hora e processo
+    sys.stdout = sys.stderr = registro.abrir(os.path.join(OPER, "logs"))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 SEM_JANELA = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # nenhuma janelinha de terminal ao chamar o Claude ou o PowerShell
@@ -173,6 +171,21 @@ def abrir_para_gravar():
     return MIC is None or MIC.tentar(chave_groq())
 
 
+def reconectar_microfone(q):
+    """O microfone parou de mandar som (aparelho trocado, desligado ou ainda ligando, como o microfone virtual do NVIDIA Broadcast no logon).
+    Fecha, relê a lista de aparelhos do Windows (o PortAudio só lê uma vez, ao abrir) e abre de novo no aparelho padrão de agora."""
+    if MIC is None:
+        return False
+    MIC.parar()
+    drenar(q)
+    try:
+        sd._terminate()
+        sd._initialize()
+    except Exception as erro:
+        print("  (não consegui reler os aparelhos de som:", erro, ")")
+    return MIC.tentar(chave_groq()) if escuta_continua() else True
+
+
 def fechar_apos_gravar(q):
     """Fim da gravação: sem a escuta contínua o microfone fecha de verdade, para o indicador do Windows apagar."""
     if MIC is not None and not escuta_continua():
@@ -213,7 +226,10 @@ PAUSA_LONGA = 2.4  # depois de alguns segundos falando, a pausa para pensar no m
 FALA_LONGA = 3.0  # s de voz a partir dos quais vale a pausa longa
 ESPERA_FALA = 7.0  # sem ninguém falar nesse tempo, a escuta se encerra
 TETO_FALA = 240.0  # trava de segurança (4 minutos), para um ruído contínuo não prender o microfone
+SEM_AUDIO = 2.5  # s sem nenhum pedaço de áudio chegar: o microfone parou (aparelho trocado ou sumiu); um microfone vivo manda 10 por segundo
 CANCELADO = object()  # a pessoa apertou Esc (ou clicou no microfone) enquanto o guardião escutava
+MUDO = object()  # o microfone parou de mandar áudio no meio da escuta
+AVISO_MIC_MUDO = "O microfone parou de mandar som. Já reconectei: clique no microfone e fale de novo, ou escreva aqui embaixo."
 
 
 def bipe(frequencia, ms):
@@ -233,8 +249,20 @@ def esc_apertado():
         return False
 
 
+def pediu_para_parar():
+    """Esc, clique no microfone ou texto digitado no painel: a escuta em andamento termina sem enviar nada (o texto segue na fila e é atendido)."""
+    if esc_apertado() or bus.cancelar_escuta.is_set():
+        bus.cancelar_escuta.clear()
+        return True
+    with bus.comandos.mutex:  # espiar a fila sem tirar nada dela
+        return any(c and c[0] == "perguntar" for c in bus.comandos.queue)
+
+
 def gravar(q, piso, ao_bloco=None):
-    """Grava até a pessoa parar de falar. Devolve o áudio, None (ninguém falou) ou CANCELADO (Esc ou clique no microfone).
+    """Grava até a pessoa parar de falar. Devolve o áudio, None (ninguém falou), CANCELADO (Esc, clique no microfone ou texto digitado)
+    ou MUDO (o microfone parou de mandar áudio).
+    Nunca espera o áudio sem prazo: a cada 0,2 s confere o Esc, os tempos e se o microfone está vivo. Antes (até a 0.9.7) a espera era sem
+    prazo, e um microfone que parava de mandar som deixava o guardião preso em "ouvindo" para sempre, sem Esc nem texto (caso de 15/10/2026).
     A pausa que encerra cresce com a fala: 1,2 s numa resposta curta e 2,4 s depois de alguns segundos falando.
     ao_bloco(dado, falando) pode devolver o texto ao vivo: enquanto ele muda, a pessoa ainda está falando."""
     limiar = max(250.0, piso * 3.0)
@@ -250,15 +278,25 @@ def gravar(q, piso, ao_bloco=None):
     blocos = []
     esc_apertado()  # zera um Esc antigo
     bus.cancelar_escuta.clear()
+    ultimo_audio = inicio
     while True:
-        dado = q.get()
+        try:
+            dado = q.get(timeout=0.2)
+        except queue.Empty:
+            dado = None
+        agora = time.time()
+        if pediu_para_parar():
+            return CANCELADO
+        if dado is None:
+            if agora - ultimo_audio > SEM_AUDIO:
+                return MUDO
+            if agora - inicio > TETO_FALA:
+                return None
+            continue
+        ultimo_audio = agora
         blocos.append(dado)
         rms = rms_de(dado)
         bus.emitir("nivel", mic=nivel_mic(rms))
-        agora = time.time()
-        if esc_apertado() or bus.cancelar_escuta.is_set():
-            bus.cancelar_escuta.clear()
-            return CANCELADO
         recentes = (recentes + [rms])[-5:]
         if not falou:
             seguidos = seguidos + 1 if rms > limiar else 0
@@ -1016,7 +1054,7 @@ def arquivo_prompt_sessao():
 
 
 def _pastas_da_skill():
-    """Onde a skill pode estar instalada: na pasta do usuário, na pasta operacional ou na pasta da sessão (o projeto da pessoa, como o Paulo-geral)."""
+    """Onde a skill pode estar instalada: na pasta do usuário, na pasta operacional ou na pasta da sessão (a pasta de projeto da pessoa)."""
     import hud_servidor
     pastas = [os.path.join(os.path.expanduser("~"), ".claude", "skills", "guardiao-triwer"), os.path.join(hud_servidor.OPER, ".claude", "skills", "guardiao-triwer")]
     sessao_pasta = str((_config().get("sessao") or {}).get("pasta") or "").strip()
@@ -1938,10 +1976,32 @@ def ler_o_plano(a, abertura):
     return True
 
 
+LIGADO_HA_POUCO = 90.0  # s desde que o Windows ligou: antes disso o som de alguns aparelhos ainda não está no ar
+
+
+def segundos_ligado():
+    try:
+        k = ctypes.windll.kernel32
+        k.GetTickCount64.restype = ctypes.c_uint64
+        return k.GetTickCount64() / 1000.0
+    except Exception:
+        return 1e9
+
+
+def esperar_som_do_computador(minimo=LIGADO_HA_POUCO):
+    """Logo depois de ligar o computador, aparelhos de som que sobem com o Windows (fone USB, NVIDIA Broadcast, Bluetooth) ainda não tocam:
+    a leitura do plano saía muda e a voz só aparecia no meio dela (caso de 15/10/2026). Espera o computador completar `minimo` segundos ligado."""
+    falta = minimo - segundos_ligado()
+    if falta > 0:
+        print(f"  (computador ligado há pouco: espero {falta:.0f} s o som ficar pronto antes de falar)")
+        time.sleep(falta)
+
+
 def abrir_o_dia(a, primeira):
     """O que o guardião faz quando o app abre (a tela pede no começo da animação e libera a fala no fim dela).
     Devolve True quando ele fez uma pergunta e espera resposta."""
     bus.portao_saudacao.wait(timeout=20)
+    esperar_som_do_computador()
     if PROPOSTA or revisao_ativa() or controle_fala.FALANDO.is_set():
         return False
     hoje = time.strftime("%Y-%m-%d")
@@ -2294,6 +2354,14 @@ def autoteste(modelo, chave, com_cerebro):
         print("   Como a voz vai ler:", normalizar_para_fala(resp))
 
 
+def _ler_texto(caminho):
+    try:
+        with open(caminho, encoding="utf-8-sig") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
 def porta_em_uso(porta):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.5)
@@ -2319,8 +2387,7 @@ def vigiar_avisos():
         time.sleep(30)
 
 
-# o painel abre no Edge, no perfil da pessoa. O navegador pode segurar o som da abertura até o primeiro clique:
-# a página já espera o clique (o áudio só liga depois de um gesto), então não há o que fazer do lado de cá
+# o painel abre no Edge, numa pasta de navegador só dele, com o som liberado sem clique (veja janela_painel.py)
 def abrir_tela(url):
     """Abre o painel no Edge como janela de aplicativo (sem abas nem barra de endereço); sem Edge, no Chrome; sem os dois, numa aba (veja janela_painel.py)."""
     janela_painel.abrir(url, "1500,940")
@@ -2660,7 +2727,10 @@ def ditar(q, chave, piso, campo):
         pcm = gravar(q, piso)
     finally:
         fechar_apos_gravar(q)
-    if pcm is CANCELADO:
+    if pcm is MUDO:
+        reconectar_microfone(q)
+        bus.emitir("aviso", texto=AVISO_MIC_MUDO, erro=True)
+    elif pcm is CANCELADO:
         bipe(440, 90)
         bus.emitir("escuta_cancelada")
     elif pcm:
@@ -2721,7 +2791,14 @@ def escutar(a, q, modelo, chave, piso, seguimento=False, avisar_cancelamento=Tru
         fechar_apos_gravar(q)
     if ao_vivo:
         print()
-    if pcm is CANCELADO:  # Esc ou clique no microfone: a escuta acaba aqui e nada é enviado
+    if pcm is MUDO:  # o microfone parou no meio: reconecta, avisa e volta a esperar (texto digitado continua valendo)
+        print("  (o microfone parou de mandar som: reconectando)")
+        bus.emitir("previa", texto="")
+        reconectar_microfone(q)
+        bus.emitir("aviso", texto=AVISO_MIC_MUDO, erro=True)
+        bus.emitir("estado", v="aguardando")
+        return "", None, "erro"
+    if pcm is CANCELADO:  # Esc, clique no microfone ou texto digitado: a escuta acaba aqui e nada é enviado
         print("  (escuta cancelada)")
         drenar(q)
         bus.emitir("previa", texto="")
@@ -2957,8 +3034,14 @@ def main():
     ap.add_argument("--v2", action="store_true", help="sem efeito, mantido para atalhos antigos: o painel aberto é sempre o de http://localhost:8767/v2/")
     a = ap.parse_args()
 
+    if not (a.dispositivos or a.autoteste) and not instancia.tomar(instancia.nome_da_trava(PORTA_TELA)):  # antes de carregar qualquer coisa: um guardião por painel
+        if not a.vigia:
+            print("O guardião já está ligado (ou ligando) neste computador. Este não liga de novo.")
+        return
     if a.vigia and porta_em_uso(PORTA_TELA):
         return
+    print(f"Guardião {_ler_texto(os.path.join(OPER, 'VERSION')) or '?'} ligando.")
+    threading.Thread(target=tarefas.ajustar, args=(BASE,), daemon=True).start()  # instalações antigas: tarefas e atalho sem janela de terminal
     if a.voz_kokoro == VOZ_KOKORO:  # sem escolha na linha de comando, vale a voz escolhida no onboarding
         a.voz_kokoro = voz_configurada()
     if a.cerebro:
@@ -3045,13 +3128,19 @@ def main():
             threading.Thread(target=lambda: guardiao_sessao.preparar(arquivo_prompt_sessao()), daemon=True).start()
         rec = reconhecedor(modelo)
         sessao_ligada, olhar_em = modo_sessao(), 0.0
+        ultimo_audio = time.time()
         while True:
             try:
                 dado = q.get(timeout=0.2)
+                ultimo_audio = time.time()
             except queue.Empty:
                 dado = None
             if time.time() > revisar_em:  # o que pode mudar com o guardião aberto: a chave gravada depois, o fone ligado depois, o Claude Code instalado depois
                 revisar_em = time.time() + 5
+                if continuo and mic.stream is not None and time.time() - ultimo_audio > 2 * SEM_AUDIO:  # microfone aberto e mudo: "Ei guardião" nunca chegaria
+                    print("  (o microfone parou de mandar som: reconectando)")
+                    reconectar_microfone(q)
+                    ultimo_audio = time.time()
                 if a.cerebro and ACOES_ATIVAS and time.time() > supervisor_em:  # atraso sem folga no dia: proposta de replanejamento
                     supervisor_em = time.time() + 60
                     supervisionar()
@@ -3157,6 +3246,7 @@ def main():
                 else:
                     conversar(a, q, modelo, chave, piso, texto_digitado=valor if tipo == "perguntar" else None)
                 rec = reconhecedor(modelo)
+                ultimo_audio = time.time()  # durante o comando quem leu o microfone foi a gravação, não este laço
                 print("Aguardando 'Ei guardião'...")
                 continue
             if dado is None or not continuo:  # sem a escuta contínua nada é analisado fora de uma gravação por botão
@@ -3183,6 +3273,7 @@ def main():
                 threading.Thread(target=lambda: guardiao_sessao.preparar(arquivo_prompt_sessao()), daemon=True).start()
             conversar(a, q, modelo, chave, piso)
             rec = reconhecedor(modelo)
+            ultimo_audio = time.time()
             print("Aguardando 'Ei guardião'...")
     finally:
         mic.parar()

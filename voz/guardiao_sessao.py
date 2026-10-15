@@ -728,7 +728,7 @@ class Processo:
         return ""
 
     def _registrar_imprevistos(self, plano, anterior):
-        """Calibragem dos imprevistos (Milena, 2026-10-14): quantos entram, o que deslocam e quantos ela adia depois da provocação.
+        """Calibragem dos imprevistos (2026-10-14): quantos entram, o que deslocam e quantos ela adia depois da provocação.
         Só fatos, um evento por imprevisto: "imprevisto_encaixado" (com o que saiu do lugar) e "imprevisto_adiado" (lista imprevistos_adiados)."""
         try:
             antes = {cp._chave_bloco(b): b for b in anterior.get("blocos") or []}

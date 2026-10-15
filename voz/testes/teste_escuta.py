@@ -41,7 +41,7 @@ class Fila:
     def __init__(self, relogio, roteiro, ao_entregar=None):
         self.relogio, self.itens, self.n, self.ao_entregar = relogio, list(roteiro), 0, ao_entregar
 
-    def get(self):
+    def get(self, timeout=None):  # o microfone de mentira nunca atrasa: entrega um bloco a cada chamada
         self.relogio.t += 0.1
         self.n += 1
         if self.ao_entregar:

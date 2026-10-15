@@ -44,8 +44,8 @@ confere("sem agenda_impoe barra", any("agenda_impoe" in p for p in cp.conferir({
 sobre = dict(bom, blocos=bom["blocos"] + [{"id": "b2", "inicio": "17:30", "fim": "17:50", "titulo": "Stories"}])
 confere("sobreposição barra", any("sobrepõe" in p for p in cp.conferir(sobre)))
 confere("bloco já feito não conta na sobreposição", cp.conferir(sobre, feitos={"b2"}) == [])
-volta = dict(bom, blocos=bom["blocos"] + [{"id": "b7", "inicio": "18:00", "fim": "18:15", "titulo": "Aprovações do Vitor (1 do Carlos)"}])
-confere("removido não volta", any("Vitor" in p for p in cp.conferir(volta, {"removidos": ["Aprovações do Vitor"]})))
+volta = dict(bom, blocos=bom["blocos"] + [{"id": "b7", "inicio": "18:00", "fim": "18:15", "titulo": "Aprovações do Caio (1 do Davi)"}])
+confere("removido não volta", any("Caio" in p for p in cp.conferir(volta, {"removidos": ["Aprovações do Caio"]})))
 
 # conferência de semana (2026-10-14): tarefa não some, prazo final vale, nobre é do importante
 qui = date(2026, 10, 15)

@@ -10,7 +10,7 @@ import os
 import re
 from datetime import date, datetime, timedelta
 
-# Padrões (a rotina da Milena, que estreou o roteador). Cada pessoa tem a sua em config.json, rotina: chegada, horario_nobre e
+# Padrões (a rotina de quem estreou o roteador). Cada pessoa tem a sua em config.json, rotina: chegada, horario_nobre e
 # parar_por_dia. aplicar_rotina() troca estes valores ao importar; o que faltar no config fica no padrão e vira pendência (checar_config.py).
 CHEGADA = 8 * 60 + 40
 NOBRE_MANHA = (8 * 60 + 40, 13 * 60)

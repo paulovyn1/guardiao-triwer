@@ -7,6 +7,21 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.9.8 - 2026-10-15
+- Animações fluidas de novo: o painel usa a placa de vídeo sempre.
+- Os sons da abertura tocam sozinhos, sem esperar um clique.
+- Nenhuma janela preta de terminal aparece ao ligar o computador.
+- O guardião não fica mais preso em "ouvindo": Esc, clique ou digitar sempre encerram a escuta.
+- No logon, a voz espera o som do computador ficar pronto antes de falar.
+
+## 0.9.7 - 2026-10-14
+- Imprevisto entra no plano aprovado na hora, e o ClickUp acompanha.
+- O guardião enxerga a semana inteira e decide se a tarefa cabe hoje, na semana ou mais para frente.
+- Quando não cabe, ele mostra as saídas com datas e horas.
+- O plano da manhã sai mais rápido e gasta menos do Claude.
+- Depois de atualizar, ele confere se falta algum ajuste na sua configuração e ajuda a completar.
+- Plano de outro dia pode ser aprovado antes, com os horários já no ClickUp.
+
 ## 0.9.1 - 2026-10-14
 - O aviso de começo de tarefa ganhou a cara do guardião, com o botão Iniciar.
 - Tarefa já concluída no ClickUp não é mais cobrada pelo aviso de tempo.

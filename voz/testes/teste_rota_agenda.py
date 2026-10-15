@@ -41,7 +41,7 @@ grava("plano_do_dia.json", {"data": "2026-10-14", "blocos": [b("b1", "08:40", "1
                                                             b("b3", "16:00", "18:00", "Stories e mensagens")],
                             "fixos": [{"inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}]})
 # quinta lotada no nobre, com um leve (aprovações) no nobre e tarde livre 14:00-16:00
-grava("planos/plano_2026-10-15.json", {"data": "2026-10-15", "blocos": [b("c1", "08:40", "10:40", "Copy A"), b("c2", "10:40", "11:20", "Aprovações do Vitor", "Agência"),
+grava("planos/plano_2026-10-15.json", {"data": "2026-10-15", "blocos": [b("c1", "08:40", "10:40", "Copy A"), b("c2", "10:40", "11:20", "Aprovações do Caio", "Agência"),
                                                                        b("c3", "11:20", "13:00", "Roteiro B"), b("c4", "16:00", "18:00", "Design C"), b("c5", "18:00", "19:20", "Aula")],
                                        "fixos": [{"inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}]})
 grava("resumo_clickup.json", {"tarefas": [{"id": "x1abc23456", "nome": "Copy do post de segunda", "prazo": "2026-10-16", "inicio": "08:40", "fim": "13:00", "lista": "Conteúdos"},
@@ -49,10 +49,11 @@ grava("resumo_clickup.json", {"tarefas": [{"id": "x1abc23456", "nome": "Copy do 
                                           {"id": "x3abc23456", "nome": "Decidir o bônus", "prazo": "2026-10-20", "lista": "Estratégia"}]})
 with open(os.path.join(mem, "campanhas", "lanc.md"), "w", encoding="utf-8") as f:
     f.write("---\nslug: lanc\ndata_inicio: 2026-10-10\ndata_fim: 2026-11-20\nstatus: em-execucao\nimportancia: critica\n---\n# Lanc\n## 2. Estado\n| Data | x |\n|---|---|\n| Sex 30 | não é marco |\n"
-            "## 3. Marcos e tarefas\n| Data | Marco ou tarefa | Dono | ClickUp |\n|---|---|---|---|\n| Ter 20 | Decidir o bônus | Milena | x3abc23456 |\n"
-            "| Qua 4/11 | Abertura do carrinho | Milena | a criar |\n| Seg 9/11 | Live de vendas | Paulo | x9abc23456 |\n\n| Mãe (ClickUp) | Data | Itens |\n|---|---|---|\n"
+            "## 3. Marcos e tarefas\n| Data | Marco ou tarefa | Dono | ClickUp |\n|---|---|---|---|\n| Ter 20 | Decidir o bônus | Ana | x3abc23456 |\n"
+            "| Qua 4/11 | Abertura do carrinho | Ana | a criar |\n| Seg 9/11 | Live de vendas | Bruno | x9abc23456 |\n\n| Mãe (ClickUp) | Data | Itens |\n|---|---|---|\n"
             "| Página no ar (y1abc23456) | qua 28 | copy e design |\n## 4. Decisões\n- 2026-10-12 | Algo decidido | x\n")
 ra.OPER = oper
+EU = {"pessoa": {"nome": "Ana Souza"}}  # os alertas de marco valem para quem usa o guardião (pessoa.nome)
 
 
 def rota(minutos, tipo, prazo=None, frente="", agora=14 * 60 + 50, estender=None, depende=0):
@@ -86,14 +87,14 @@ nomes = [x[2] for x in m]
 confere("marcos: só a seção 3, com colunas pelo cabeçalho", "Decidir o bônus" in nomes and "Abertura do carrinho" in nomes and "Página no ar" in nomes and "não é marco" not in nomes and "Algo decidido" not in nomes, m)
 confere("marco: data do ClickUp quando o id está no resumo, do texto quando não", (date(2026, 10, 20), "Decidir o bônus") in [(x[0], x[2]) for x in m] and (date(2026, 10, 28), "Página no ar") in [(x[0], x[2]) for x in m], m)
 confere("marco: mês certo pelo dia da semana (qua 28 = 28/10)", any(x[0] == date(2026, 10, 28) for x in m))
-al = ra.alertas(ra.vs.planos_da_semana(oper, hoje), hoje, {}, mem, oper)
+al = ra.alertas(ra.vs.planos_da_semana(oper, hoje), hoje, EU, mem, oper)
 confere("alerta: quinta cheia é avisada", any("15/10" in a and ("ocupado" in a or "nobre" in a) for a in al), al)
-confere("alerta: marco da Milena sem horário a 6 dias é avisado", any("Decidir o bônus" in a for a in al), al)
-confere("alerta: marco do Paulo não vira alerta dela", not any("Live de vendas" in a for a in al), al)
-confere("tipo: design vem antes de copy no título", ra.tipo_de("Design | Copy de segunda") == "design" and ra.tipo_de("Copy | X") == "pesado" and ra.tipo_de("Aprovações do Vitor") == "leve")
+confere("alerta: marco da pessoa sem horário a 6 dias é avisado", any("Decidir o bônus" in a for a in al), al)
+confere("alerta: marco de outra pessoa não vira alerta", not any("Live de vendas" in a for a in al), al)
+confere("tipo: design vem antes de copy no título", ra.tipo_de("Design | Copy de segunda") == "design" and ra.tipo_de("Copy | X") == "pesado" and ra.tipo_de("Aprovações do Caio") == "leve")
 texto = ra.texto(rota(40, "leve"))
 confere("texto diz o nível e o que ler", texto.startswith("ROTA") and "nível 1" in texto)
-# janela é preferência (Milena, 2026-10-14): copy com prazo não atrasa por falta de nobre; leve só vai ao nobre sem outro espaço
+# janela é preferência (2026-10-14): copy com prazo não atrasa por falta de nobre; leve só vai ao nobre sem outro espaço
 r = rota(60, "pesado", date(2026, 10, 15), "Conteúdo", agora=19 * 60)
 confere("copy de post com prazo amanhã e nobre lotado: vai para a tarde, não passa do prazo", r["candidatos"] and r["candidatos"][0]["dia"] <= date(2026, 10, 15)
         and "FORA DO NOBRE" in r["candidatos"][0]["como"], r)
@@ -103,7 +104,7 @@ r = rota(40, "leve")
 confere("leve prefere a tarde mesmo com a noite nobre livre", r["candidatos"][0]["inicio"] == 15 * 60, r)
 r = rota(70, "leve", agora=19 * 60)
 confere("leve sem espaço fora do nobre na semana só entra no nobre marcado", all(("NO NOBRE" in c["como"]) == ra._no_nobre(c["inicio"]) for c in r["candidatos"]), r)
-# não cabe: dizer e oferecer saídas com números (Milena, 2026-10-14)
+# não cabe: dizer e oferecer saídas com números (2026-10-14)
 r = rota(300, "pesado", date(2026, 10, 16), "Agência", agora=19 * 60)
 t = ra.texto(r)
 confere("não cabe: o texto manda dizer e oferece negociar prazo, eliminar, simplificar, delegar, tirar outra coisa",
@@ -111,7 +112,7 @@ confere("não cabe: o texto manda dizer e oferece negociar prazo, eliminar, simp
 confere("não cabe: a data para negociar é depois do prazo", r.get("cabe_em") and r["cabe_em"]["dia"] > date(2026, 10, 16), r.get("cabe_em"))
 confere("cabe bem: sem a lista de saídas", "NÃO CABE BEM" not in ra.texto(rota(40, "leve")))
 grava("planos/plano_2026-10-19.json", {"data": "2026-10-19", "blocos": [b("s1", "08:40", "13:00", "Manhã cheia"), b("s2", "14:00", "19:00", "Tarde cheia")], "fixos": [{"inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}]})
-al = ra.alertas(ra.vs.planos_da_semana(oper, hoje), hoje, {}, mem, oper)
+al = ra.alertas(ra.vs.planos_da_semana(oper, hoje), hoje, EU, mem, oper)
 confere("desequilíbrio: dia no limite com outro folgado vira alerta", any("Desequilíbrio" in a for a in al), al)
 r = rota(400, "pesado", date(2026, 10, 23), "Conteúdo", agora=19 * 60)
 partes = r["candidatos"]
@@ -129,5 +130,5 @@ confere("ocupação de hoje conta só a partir de agora", ra.ocupacao(p_hoje, ho
 pre = {"blocos": [{"id": "x1", "inicio": "08:55", "fim": "10:55", "titulo": "Branding"}, {"id": None, "inicio": "11:00", "fim": "12:00", "titulo": "Sem id"}], "fixos": []}
 confere("bloco sem id nunca é ignorado por engano ao testar uma troca", ra.vs._intervalos(pre, {None}) == [(535, 655), (660, 720)])
 confere("destrinchar e reestruturar são trabalho pesado", ra.tipo_de("Produtos da Pri: destrinchar a revisão e reestruturação") == "pesado")
-confere("depois do expediente, hoje não vira alerta", not any("14/10" in a for a in ra.alertas(ra.vs.planos_da_semana(oper, hoje), hoje, {}, mem, oper, agora=23 * 60)))
+confere("depois do expediente, hoje não vira alerta", not any("14/10" in a for a in ra.alertas(ra.vs.planos_da_semana(oper, hoje), hoje, EU, mem, oper, agora=23 * 60)))
 sys.exit(1 if falhas else 0)
