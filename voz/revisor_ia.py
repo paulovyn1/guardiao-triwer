@@ -19,14 +19,15 @@ from datetime import date
 
 OPER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPO = 240
-ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar", "feito", "tirar", "imprevisto", "limite"}
-SO_TITULO = {"feito", "tirar", "imprevisto", "limite"}
+ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar", "feito", "tirar", "imprevisto", "limite", "cancelar"}
+SO_TITULO = {"feito", "tirar", "imprevisto", "limite", "cancelar"}
 
 REGRAS = """REGRAS DA AGENDA (o código já aplica as de horário; você só julga):
 - Quem decide a agenda é o guardião. Pergunte à pessoa SÓ quando for impossível: até 2h de hora extra a pergunta é "você prefere estender o dia ou renegociar o prazo?"; acima disso, renegociar o prazo com quem combinou. Nunca pergunte onde colocar algo.
 - Stories: meta de 45 min por dia, em blocos de até 15 min; só o dia de captação tem pouco stories. Consumo antes das copies, um por dia. Copies juntas, depois designs. Copy antes do design do mesmo post.
 - Tarefa sem tempo medido (lista JULGAR): estime pelo título e pelo perfil. Entrega ou marco de campanha sem tarefa: desdobre em subtarefas com tempo e quantos dias antes do prazo cada uma termina.
-- Subtarefa de outra pessoa (Paulo, Vitor) leva "dono" com o nome dela: vira delegação, não entra na agenda da pessoa.
+- Subtarefa de outra pessoa leva "dono" com o nome dela SÓ quando a tarefa, a nota ou a pessoa disseram quem faz. Nunca atribua dono por dedução:
+  na dúvida, sem dono (fica com a pessoa) e, se importar, pergunte.
 - Use "prioridade" quando a ordem por prazo não reflete o que importa (campanha de venda perto do fim vem antes de tarefa interna).
 - Não invente fato, número nem tarefa que não decorra do que está aqui.
 - "explicar" é FALADO À PESSOA: 1 ou 2 frases curtas, na primeira pessoa do guardião ("Coloquei a thumb antes da live", "Deixei o design para segunda"),
@@ -45,7 +46,8 @@ def _perfil(memoria):
 
 PEDIDO = """PEDIDO DA PESSOA (traduza em instruções; não monte horário, o código monta):
 - o que ela diz que já fez: {"acao":"feito","titulo":"..","minutos":N}
-- o que ela mandou tirar: {"acao":"tirar","titulo":".."}
+- o que ela mandou tirar DESTE DIA (a tarefa continua existindo e vai para outro dia): {"acao":"tirar","titulo":".."}
+- o que ela cancelou de vez ("cancela", "não vou mais fazer", "não faz mais sentido"): {"acao":"cancelar","titulo":".."} (a tarefa é fechada no ClickUp ao aprovar)
 - compromisso, refeição ou imprevisto com horário que ela disse (ex.: almoço às 14h, reunião de emergência): {"acao":"imprevisto","titulo":"..","inicio":"HH:MM","fim":"HH:MM"}
 - tarefa que ela quer em outro momento ou com outro prazo ("joga mais pra frente", "pronta antes do dia 27"): {"acao":"limite","titulo":"..","ate":"AAAA-MM-DD"}
   (o código acha o melhor dia até essa data; "mais pra frente" sem data: use a data da entrega ligada a ela, se houver, ou 7 dias depois de hoje)
@@ -175,6 +177,8 @@ def ajustes(instrucoes):
             a["feitos"].append({"titulo": str(i["titulo"]), "minutos": int(i.get("minutos") or 0)})
         elif acao == "tirar":
             a["tirar"].append(str(i["titulo"]))
+        elif acao == "cancelar":
+            a.setdefault("cancelar", []).append(str(i["titulo"]))
         elif acao == "limite":
             a["limites"][str(i["titulo"])] = i["ate"]
         elif acao == "imprevisto":

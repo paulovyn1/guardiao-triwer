@@ -241,6 +241,13 @@ def _refazer_hoje(plano, d, oper, ajustes, fila):
         if feito_reg or (not cp._eh_stories(b) and any(_parecido(titulo, f["titulo"]) for f in feitos_ia)):
             b["status"] = "feito"
             continue
+        if any(_parecido(titulo, t) for t in aj.get("cancelar") or []):
+            plano["blocos"].remove(b)
+            plano.setdefault("removidos", []).append(titulo)
+            if b.get("clickup_id"):
+                plano.setdefault("cancelar", []).append(b["clickup_id"])  # fecha no ClickUp ao aprovar
+            fila.pop(b.get("clickup_id") or _norm(titulo), None)
+            continue
         if any(_parecido(titulo, t) for t in aj.get("tirar") or []):
             plano["blocos"].remove(b)
             plano.setdefault("removidos", []).append(titulo)
@@ -262,6 +269,13 @@ def _refazer_hoje(plano, d, oper, ajustes, fila):
                 pass
             fila.setdefault(b.get("clickup_id") or _norm(titulo), {"id": b.get("clickup_id"), "titulo": titulo, "limite": limite,
                                                                    "origem": "replanejado hoje", "minutos": max(5, cp._minutos(b)), "lista": b.get("frente")})
+    for t in aj.get("cancelar") or []:  # cancelada que ainda estava só na fila (atrasada, de outro dia)
+        for chave, item in list(fila.items()):
+            if _parecido(item.get("titulo"), t):
+                fila.pop(chave)
+                if item.get("id"):
+                    plano.setdefault("cancelar", []).append(item["id"])
+                plano.setdefault("removidos", []).append(item.get("titulo"))
     for f in feitos_ia:  # o que ela fez fora do plano sai da fila
         for chave, item in list(fila.items()):
             if _parecido(item.get("titulo"), f["titulo"]):
@@ -415,12 +429,29 @@ def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True
             r = montar_semana(oper, cfg, hoje, dias, incluir_hoje, aj)
         except Exception as erro:  # sem IA o rascunho do motor continua valendo
             print(f"(motor: a revisão da IA falhou, fica o rascunho: {erro})", file=sys.stderr)
-    r["perguntas"] = list(dict.fromkeys(((aj or {}).get("perguntas") or []) + [n["pergunta"] for n in r["nao_coube"]]))
+    atrasos = _perguntas_de_atraso(oper, hoje, aj)
+    r["perguntas"] = list(dict.fromkeys(((aj or {}).get("perguntas") or []) + [n["pergunta"] for n in r["nao_coube"]] + atrasos))
+    if atrasos and hoje.isoformat() in r["dias"]:  # fica visível no Aviso do dia até ela decidir (a fala só traz uma pergunta por vez)
+        cp.anotar_avisos(r["dias"][hoje.isoformat()], atrasos)
     r["explicacao"] = " ".join((aj or {}).get("explicar") or [])
     if r["explicacao"]:
         for plano in r["dias"].values():
             plano["aviso"] = r["explicacao"] + " " + str(plano.get("aviso") or "")
     return r
+
+
+def _perguntas_de_atraso(oper, hoje, aj):
+    """Tarefa vencida há 2 dias ou mais, ainda aberta: o guardião não decide sozinho se ela ainda vale (replay depois da live, por exemplo)."""
+    cancelados = [_norm(t) for t in (aj or {}).get("cancelar") or []]
+    saida = []
+    for t in (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []:
+        try:
+            atraso = (hoje - date.fromisoformat(str(t.get("prazo")))).days
+        except ValueError:
+            continue
+        if atraso >= 2 and not t.get("aprovar") and not any(c and c in _norm(t.get("nome")) for c in cancelados):
+            saida.append(f"\"{t.get('nome')}\" está atrasada desde {t['prazo'][8:10]}/{t['prazo'][5:7]}. Ainda vale fazer? Se não vale mais, diga \"cancela\" que eu fecho no ClickUp.")
+    return saida[:2]
 
 
 def gravar(resultado, oper=OPER, hoje=None, hoje_mesmo_aprovado=False):

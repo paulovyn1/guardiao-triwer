@@ -100,6 +100,8 @@ def fixos_do_dia(dia, cfg=None):
     if not fixos and rotina.get("almoco"):
         ini = vs.hm(rotina["almoco"])
         fixos.append({"inicio": vs.fmt(ini), "fim": vs.fmt(ini + 60), "titulo": "Almoço"})
+    for i, f in enumerate(fixos, 1):  # compromisso fixo também se conclui (WhatsApp, aprovações): precisa de identificador estável
+        f.setdefault("id", f"f{i}")
     return fixos
 
 

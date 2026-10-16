@@ -366,6 +366,10 @@ def concluir_bloco(dados):
         pass
     plano = _plano_de_hoje()
     bloco = next((b for b in (plano or {}).get("blocos", []) if b.get("id") == dados.get("id")), None)
+    if not bloco:  # compromisso fixo (WhatsApp, aprovações) também se conclui: pelo id "fN" ou pelo título
+        titulo = re.sub(r"\W+", " ", str(dados.get("titulo") or dados.get("id") or "")).lower().strip()
+        bloco = next((f for f in (plano or {}).get("fixos", []) if f.get("id") == dados.get("id")
+                      or (titulo and titulo in re.sub(r"\W+", " ", str(f.get("titulo") or "")).lower())), None)
     if not bloco:
         return {"ok": False, "erro": "Esse bloco não está no plano de hoje."}
     concluido = bool(dados.get("concluido", True))
@@ -674,6 +678,12 @@ def _levar_ao_clickup(plano):
                 criadas += 1
             except Exception as erro:  # um bloco com problema não impede os outros
                 erros.append(f"{b.get('titulo')}: {erro}")
+        for cid in list(plano.get("cancelar") or []):  # cancelada pela pessoa: fecha no ClickUp (tirar do dia não fecha nada)
+            try:
+                clickup_mudar_status(cid, True)
+                plano["cancelar"].remove(cid)
+            except Exception as erro:
+                erros.append(f"cancelar {cid}: {erro}")
     return criadas, reagendadas, erros
 
 
@@ -682,9 +692,10 @@ def aprovar_plano():
     plano, caminho = _plano_e_caminho()
     if not plano:
         return {"ok": False, "erro": "Não há plano para hoje."}
-    if plano.get("status") == "aprovado":
+    if plano.get("status") == "aprovado" and not plano.get("sincronizacao_pendente"):
         return {"ok": True, "criadas": 0, "erros": []}
     criadas, reagendadas, erros = _levar_ao_clickup(plano)
+    _marcar_sincronizacao(plano, erros)
     plano["status"] = "aprovado"
     plano["aprovado_em"] = time.strftime("%Y-%m-%d %H:%M")
     with open(caminho, "w", encoding="utf-8") as f:
@@ -695,7 +706,32 @@ def aprovar_plano():
         _v2().entrar()
     except Exception as erro:
         print("  (não consegui entrar em execução depois de aprovar:", erro, ")")
+    _avisar_proximos_sugeridos()
     return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros}
+
+
+def _marcar_sincronizacao(plano, erros):
+    """O que não chegou ao ClickUp fica anotado no plano; aprovar de novo tenta outra vez (antes, aprovado escondia a falha e não tentava mais)."""
+    if erros:
+        plano["sincronizacao_pendente"] = erros
+        bus.emitir("aviso", texto="Aprovei, mas " + str(len(erros)) + " mudança(s) não chegaram ao ClickUp. Toque em Aprovar de novo para tentar outra vez.",
+                   erro=True)
+    else:
+        plano.pop("sincronizacao_pendente", None)
+
+
+def _avisar_proximos_sugeridos():
+    """Aprovado o dia de hoje, os próximos dias que o replanejamento mudou continuam sugeridos e o ClickUp guarda as datas antigas até serem aprovados."""
+    dias = []
+    for d in range(1, 8):
+        iso = (date.today() + timedelta(days=d)).isoformat()
+        p = _ler_json(os.path.join(OPER, "planos", f"plano_{iso}.json"))
+        if isinstance(p, dict) and p.get("status") == "sugerido" and any(b.get("reagendado") or (b.get("lista_id") and not b.get("clickup_id"))
+                                                                         for b in p.get("blocos") or []):
+            dias.append(iso[8:10] + "/" + iso[5:7])
+    if dias:
+        bus.emitir("aviso", texto="Os planos de " + ", ".join(dias) + " também mudaram e o ClickUp ainda tem as datas antigas. "
+                                  "Aprove em Próximos dias para levar as datas novas.", erro=False)
 
 
 def aprovar_plano_de_outro_dia(data_iso):
@@ -709,10 +745,11 @@ def aprovar_plano_de_outro_dia(data_iso):
         return {"ok": False, "erro": f"Não há plano gravado para {data_iso}."}
     if data_iso < date.today().isoformat():
         return {"ok": False, "erro": "Esse dia já passou."}
-    if plano.get("status") == "aprovado":
+    if plano.get("status") == "aprovado" and not plano.get("sincronizacao_pendente"):
         return {"ok": True, "criadas": 0, "reagendadas": 0, "erros": []}
     plano["data"] = data_iso
     criadas, reagendadas, erros = _levar_ao_clickup(plano)
+    _marcar_sincronizacao(plano, erros)
     plano["status"] = "aprovado"
     plano["aprovado_em"] = time.strftime("%Y-%m-%d %H:%M")
     with open(caminho, "w", encoding="utf-8") as f:
