@@ -19,7 +19,8 @@ from datetime import date
 
 OPER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPO = 240
-ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar"}
+ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar", "feito", "tirar", "imprevisto"}
+SO_TITULO = {"feito", "tirar", "imprevisto"}
 
 REGRAS = """REGRAS DA AGENDA (o código já aplica as de horário; você só julga):
 - Quem decide a agenda é o guardião. Pergunte à pessoa SÓ quando for impossível: até 2h de hora extra a pergunta é "você prefere estender o dia ou renegociar o prazo?"; acima disso, renegociar o prazo com quem combinou. Nunca pergunte onde colocar algo.
@@ -38,8 +39,23 @@ def _perfil(memoria):
         return ""
 
 
-def montar_prompt(resultado, cfg, marcos=()):
-    linhas = [f"Hoje é {date.today():%d/%m/%Y}. Você é o guardião da agenda de {((cfg.get('pessoa') or {}).get('nome')) or 'uma pessoa'}.", REGRAS, ""]
+PEDIDO = """PEDIDO DA PESSOA (traduza em instruções; não monte horário, o código monta):
+- o que ela diz que já fez: {"acao":"feito","titulo":"..","minutos":N}
+- o que ela mandou tirar: {"acao":"tirar","titulo":".."}
+- compromisso, refeição ou imprevisto com horário que ela disse (ex.: almoço às 14h, reunião de emergência): {"acao":"imprevisto","titulo":"..","inicio":"HH:MM","fim":"HH:MM"}
+Use o título como aparece no plano atual quando for o mesmo item."""
+
+
+def montar_prompt(resultado, cfg, marcos=(), pedido=None, plano_hoje=None):
+    linhas = [f"Hoje é {date.today():%d/%m/%Y}, agora são {time.strftime('%H:%M')}. Você é o guardião da agenda de "
+              f"{((cfg.get('pessoa') or {}).get('nome')) or 'uma pessoa'}.", REGRAS, ""]
+    if pedido:
+        linhas += [PEDIDO, f'Ela disse: "{pedido}"', ""]
+        if plano_hoje:
+            linhas.append("PLANO ATUAL DE HOJE (antes do pedido):")
+            linhas += [f"  {b.get('inicio')}-{b.get('fim')} {str(b.get('titulo'))[:80]}" + (" (feito)" if b.get("status") == "feito" else "")
+                       for b in (plano_hoje.get("fixos") or []) + (plano_hoje.get("blocos") or [])]
+            linhas.append("")
     perfil = _perfil(((cfg.get("pastas") or {}).get("memoria")))
     if perfil:
         linhas += ["PERFIL (resumo):", perfil, ""]
@@ -118,6 +134,10 @@ def interpretar(texto):
             continue
         if i["acao"] in ("estimar", "janela", "prioridade", "desdobrar") and not i.get("id"):
             continue
+        if i["acao"] in SO_TITULO and not i.get("titulo"):
+            continue
+        if i["acao"] == "imprevisto" and not all(re.fullmatch(r"\d{1,2}:\d{2}", str(i.get(k) or "")) for k in ("inicio", "fim")):
+            continue
         if i["acao"] == "estimar" and not (isinstance(i.get("minutos"), (int, float)) and 5 <= i["minutos"] <= 480):
             continue
         validas.append(i)
@@ -126,7 +146,7 @@ def interpretar(texto):
 
 def ajustes(instrucoes):
     """Instruções -> ajustes que o motor entende."""
-    a = {"minutos": {}, "janela": {}, "prioridade": {}, "desdobrar": {}, "perguntas": [], "explicar": []}
+    a = {"minutos": {}, "janela": {}, "prioridade": {}, "desdobrar": {}, "perguntas": [], "explicar": [], "feitos": [], "tirar": [], "imprevistos": []}
     tipos = {"manha": "pesado", "nobre": "pesado", "tarde": "leve", "design": "design", "leve": "leve", "pesado": "pesado"}
     for i in instrucoes:
         acao, chave = i["acao"], str(i.get("id") or "")
@@ -142,4 +162,10 @@ def ajustes(instrucoes):
             a["perguntas"].append(str(i["texto"])[:300])
         elif acao == "explicar" and i.get("texto"):
             a["explicar"].append(str(i["texto"])[:500])
+        elif acao == "feito":
+            a["feitos"].append({"titulo": str(i["titulo"]), "minutos": int(i.get("minutos") or 0)})
+        elif acao == "tirar":
+            a["tirar"].append(str(i["titulo"]))
+        elif acao == "imprevisto":
+            a["imprevistos"].append({"titulo": str(i["titulo"])[:80], "inicio": i["inicio"].zfill(5), "fim": i["fim"].zfill(5)})
     return a

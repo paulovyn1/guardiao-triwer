@@ -50,6 +50,20 @@ $log = Join-Path $pastaLogs ("gerar_plano_" + $alvo + ".log")
 # Resumo do ClickUp fresco (sem Claude).
 try { & (Join-Path $pasta 'ler_clickup.ps1') | Out-Null } catch { "ler_clickup falhou: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
 
+# Plano da manhã pelo motor da agenda (docs/PRD-motor-agenda.md): o código monta hoje e os próximos dias e a IA revisa UMA vez, sem ler arquivos.
+# Grava como proposta (sugerido); nunca troca um plano aprovado. O caminho antigo abaixo fica só para -Data/-Saida (plano de um dia pedido à parte).
+if (-not $Data -and -not $Saida) {
+    $pyM = Join-Path $pasta 'voz\.venv\Scripts\python.exe'
+    if (-not (Test-Path $pyM)) { $pyM = 'python' }
+    $env:PYTHONIOENCODING = 'utf-8'
+    Push-Location (Join-Path $pasta 'voz')
+    try {
+        $saidaMotor = & $pyM 'motor_agenda.py' --hoje --ia --gravar --dias 5 2>&1
+        "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano pelo motor ===`r`n$($saidaMotor | Out-String)" | Out-File $log -Append -Encoding utf8
+    } finally { Pop-Location }
+    exit
+}
+
 # Plano base por código (voz\plano_base.py): a semana combinada (ClickUp com hora) mais os fixos. Se nada pede decisão, o plano está pronto
 # e o Claude NÃO é chamado. Se pede, o Claude parte de um dossiê curto (motivos, plano base, semana, alertas) em vez de reler tudo.
 $py = Join-Path $pasta 'voz\.venv\Scripts\python.exe'

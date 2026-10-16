@@ -164,6 +164,72 @@ def _desdobrar(fila, desdobrar, cfg, delegar=None):
             fila[_norm(novo["titulo"])] = novo
 
 
+def _parecido(a, b):
+    a, b = _norm(a), _norm(b)
+    return bool(a and b) and (a in b or b in a or a[:25] == b[:25])
+
+
+def _feitos_do_registro(oper, iso):
+    reg = vs._json(os.path.join(oper, "registros", f"registro_{iso}.json")) or {}
+    return [b for b in reg.get("blocos") or [] if b.get("estado") == "feito"]
+
+
+def _sobrepoe(b, ocupado):
+    return any(x < vs.hm(b["fim"]) and vs.hm(b["inicio"]) < y for x, y in ocupado)
+
+
+def _refazer_hoje(plano, d, oper, ajustes, fila):
+    """Hoje a partir de agora (pedido dela ou atraso): o que já foi feito fica como feito; o que passou sem ser feito volta para a fila; imprevistos e
+    refeições com horário dito por ela entram como fixos e liberam o que estava por baixo; o que ela mandou tirar sai; stories já feitos contam."""
+    iso = d.isoformat()
+    agora = _a_partir(d) or 0
+    aj = ajustes or {}
+    feitos_reg = _feitos_do_registro(oper, iso)
+    feitos_ia = aj.get("feitos") or []
+    for imp in aj.get("imprevistos") or []:
+        fixos = plano.setdefault("fixos", [])
+        mesmo = next((f for f in fixos if _parecido(f.get("titulo"), imp["titulo"])), None)
+        if mesmo:
+            mesmo.update(inicio=imp["inicio"], fim=imp["fim"])
+        else:
+            fixos.append(dict(imp, imprevisto=True))
+    ocupado = [(vs.hm(f["inicio"]), vs.hm(f["fim"])) for f in plano.get("fixos") or [] if f.get("inicio") and f.get("fim")]
+    eh_stories = lambda t: "stor" in _norm(t) or "caixinha" in _norm(t)
+    stories_feitos = sum((f.get("minutos") or 15) for f in feitos_ia if eh_stories(f["titulo"]))
+    feitos_ia = [f for f in feitos_ia if not eh_stories(f["titulo"]) and len(_norm(f["titulo"])) >= 10]  # stories feitos só descontam minutos
+    for b in list(plano.get("blocos") or []):
+        titulo = b.get("titulo")
+        feito_reg = any(_parecido(titulo, f.get("titulo")) or (b.get("clickup_id") and b.get("clickup_id") == f.get("clickup_id")) for f in feitos_reg)
+        if feito_reg or (not cp._eh_stories(b) and any(_parecido(titulo, f["titulo"]) for f in feitos_ia)):
+            b["status"] = "feito"
+            continue
+        if any(_parecido(titulo, t) for t in aj.get("tirar") or []):
+            plano["blocos"].remove(b)
+            plano.setdefault("removidos", []).append(titulo)
+            fila.pop(b.get("clickup_id") or _norm(titulo), None)
+            continue
+        if cp._eh_stories(b) and not b.get("clickup_id"):
+            if stories_feitos > 0:
+                stories_feitos -= cp._minutos(b)
+                plano["blocos"].remove(b)
+            elif vs.hm(b["inicio"]) < agora or _sobrepoe(b, ocupado):
+                plano["blocos"].remove(b)  # stories que passou ou bate num fixo: o plano base repõe no que sobra
+            continue
+        if vs.hm(b["inicio"]) < agora or _sobrepoe(b, ocupado):
+            plano["blocos"].remove(b)  # passou sem ser feito, ou está por baixo de um fixo: volta para a fila
+            limite = None
+            try:
+                limite = date.fromisoformat(str(b.get("prazo_final") or ""))
+            except ValueError:
+                pass
+            fila.setdefault(b.get("clickup_id") or _norm(titulo), {"id": b.get("clickup_id"), "titulo": titulo, "limite": limite,
+                                                                   "origem": "replanejado hoje", "minutos": max(5, cp._minutos(b)), "lista": b.get("frente")})
+    for f in feitos_ia:  # o que ela fez fora do plano sai da fila
+        for chave, item in list(fila.items()):
+            if _parecido(item.get("titulo"), f["titulo"]):
+                fila.pop(chave)
+
+
 def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ajustes=None):
     """{"dias": {iso: plano}, "aprovados": [iso], "nao_coube": [...], "julgar": [...], "problemas": {iso: [graves]}}."""
     cfg = cfg if cfg is not None else pb._cfg()
@@ -179,7 +245,7 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
         if d == hoje and not incluir_hoje:
             aprovados.append(iso)
             continue
-        if (ex or {}).get("status") == "aprovado":
+        if (ex or {}).get("status") == "aprovado" and d != hoje:  # hoje, com incluir_hoje, é refeito a partir de agora (ela pediu)
             aprovados.append(iso)
             acrescimo[iso] = json.loads(json.dumps(ex))
             acrescimo[iso]["_n"] = len(ex.get("blocos") or [])
@@ -191,6 +257,15 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             chave = item.get("id") or _norm(item.get("titulo"))
             if chave and chave not in fila:
                 fila[chave] = item
+        if d == hoje:
+            _refazer_hoje(base, d, oper, ajustes, fila)
+        parar = ra.parar_em(d, memoria)
+        for b in list(base.get("blocos") or []):  # nada passa da hora de parar: o que ficou depois dela (de um plano antigo) volta para a fila
+            if b.get("status") != "feito" and b.get("fim") and vs.hm(b["fim"]) > parar:
+                base["blocos"].remove(b)
+                fila.setdefault(b.get("clickup_id") or _norm(b.get("titulo")), {"id": b.get("clickup_id"), "titulo": b.get("titulo"), "limite": None,
+                                                                                "origem": "depois da hora de parar", "minutos": max(5, cp._minutos(b)),
+                                                                                "lista": b.get("frente")})
     delegar = []
     _desdobrar(fila, (ajustes or {}).get("desdobrar"), cfg, delegar)
     prioridade = (ajustes or {}).get("prioridade") or {}
@@ -222,7 +297,7 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             posto = _colocar(rascunho[validos[-1]], date.fromisoformat(validos[-1]), item, minutos, tipo, nome, memoria)
         if posto:
             continue
-        if not item.get("limite") or item["limite"].isoformat() > ultimo_dia:  # vence depois do horizonte: fica para os próximos dias, não é "não coube"
+        if item.get("limite") and item["limite"].isoformat() > ultimo_dia:  # vence depois do horizonte: fica para os próximos dias, não é "não coube"
             adiados.append({"id": item.get("id"), "titulo": item.get("titulo"), "limite": item["limite"].isoformat() if item.get("limite") else None})
             continue
         ultimo = validos[-1] if validos else None
@@ -242,6 +317,8 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             continue
         plano["aviso"] = f"Acrescentei ao plano aprovado, sem mexer no que estava: {'; '.join(novos)}. Aprove de novo. " + str(plano.get("aviso") or "")
         plano.pop("aprovado_em", None)
+    for iso, plano in rascunho.items():  # stories tirados ou que passaram: o plano base repõe no que sobrou do dia
+        pb.inserir_stories(plano, date.fromisoformat(iso), cfg, nome)
     problemas = {}
     for iso, plano in rascunho.items():
         d = date.fromisoformat(iso)
@@ -257,7 +334,7 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
     return {"dias": rascunho, "aprovados": aprovados, "nao_coube": nao_coube, "julgar": julgar, "problemas": problemas, "adiados": adiados, "delegar": delegar}
 
 
-def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True):
+def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True, pedido=None):
     """O fluxo inteiro: o motor monta; se há o que julgar (tempo sem medida, não coube, marco sem tarefa), a IA revisa UMA vez e o motor remonta
     com as instruções. Devolve o resultado com "perguntas" (para a pessoa) e "explicacao"."""
     cfg = cfg if cfg is not None else pb._cfg()
@@ -269,10 +346,11 @@ def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True
     except Exception:
         pass
     aj = None
-    if ia and (r["julgar"] or r["nao_coube"] or marcos):
+    if ia and (pedido or r["julgar"] or r["nao_coube"] or marcos):
         import revisor_ia
         try:
-            aj = revisor_ia.ajustes(revisor_ia.interpretar(revisor_ia.chamar(revisor_ia.montar_prompt(r, cfg, marcos), oper)))
+            atual = vs._json(os.path.join(oper, "plano_do_dia.json")) if pedido else None
+            aj = revisor_ia.ajustes(revisor_ia.interpretar(revisor_ia.chamar(revisor_ia.montar_prompt(r, cfg, marcos, pedido, atual), oper)))
             r = montar_semana(oper, cfg, hoje, dias, incluir_hoje, aj)
         except Exception as erro:  # sem IA o rascunho do motor continua valendo
             print(f"(motor: a revisão da IA falhou, fica o rascunho: {erro})", file=sys.stderr)
@@ -284,7 +362,7 @@ def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True
     return r
 
 
-def gravar(resultado, oper=OPER, hoje=None):
+def gravar(resultado, oper=OPER, hoje=None, hoje_mesmo_aprovado=False):
     """Grava os dias montados (nunca um aprovado). Hoje vai para plano_do_dia.json e para planos/plano_<hoje>.json."""
     hoje = hoje or date.today()
     os.makedirs(os.path.join(oper, "planos"), exist_ok=True)
@@ -293,8 +371,9 @@ def gravar(resultado, oper=OPER, hoje=None):
         destinos = [os.path.join(oper, "planos", f"plano_{iso}.json")] + ([os.path.join(oper, "plano_do_dia.json")] if iso == hoje.isoformat() else [])
         for caminho in destinos:
             atual = vs._json(caminho)
-            if isinstance(atual, dict) and atual.get("status") == "aprovado":
-                continue
+            if isinstance(atual, dict) and atual.get("status") == "aprovado" and not (hoje_mesmo_aprovado and iso == hoje.isoformat()) \
+                    and "Acrescentei ao plano aprovado" not in str(plano.get("aviso") or ""):
+                continue  # aprovado só volta para aprovação quando ela pediu para refazer hoje, ou quando o motor acrescentou algo
             with open(caminho, "w", encoding="utf-8") as f:
                 json.dump(plano, f, ensure_ascii=False, indent=2)
             gravados.append(caminho)

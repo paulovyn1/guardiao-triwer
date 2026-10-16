@@ -1774,10 +1774,30 @@ def prompt_completo(pedido, arquivo_plano):
 
 
 _SESSAO_COMPLETO = {"claude": None, "codex": None}  # a correção do revisor retoma a sessão do pedido, sem reler tudo
+PELO_MOTOR = {"ultimo": False}
+
+
+def _planejar_pelo_motor(pedido):
+    """Pedido de plano: o motor da agenda monta a partir de agora e a IA só traduz o pedido em instruções (feito, tirar, imprevisto) e julga o que
+    falta (docs/PRD-motor-agenda.md). Uma chamada de IA, sem ler arquivos. Grava como proposta: hoje volta para aprovação."""
+    import motor_agenda
+    inicio = COMPLETO["inicio"] if COMPLETO else time.time()
+    bus.emitir("progresso", modo="completo", ativo=True, rotulo="Montando a agenda", inicio=inicio)
+    r = motor_agenda.planejar(OPER, incluir_hoje=True, ia=True, pedido=pedido)
+    motor_agenda.gravar(r, OPER, hoje_mesmo_aprovado=True)
+    PELO_MOTOR["ultimo"] = True
+    partes = [r.get("explicacao") or "Refiz o plano a partir de agora."]
+    if r.get("delegar"):
+        partes.append("Para delegar: " + "; ".join(f"{d['titulo']} ({d['dono']})" for d in r["delegar"][:3]) + ".")
+    perguntas = (r.get("perguntas") or [])[:2]
+    return " ".join(partes + perguntas + ([] if perguntas else ["Quer revisar e aprovar o plano?"]))
 
 
 def _chamar_completo(pedido, arquivo_plano, retomar=False):
     memoria = pasta_memoria()
+    PELO_MOTOR["ultimo"] = False
+    if not retomar and PEDE_PLANO.search(pedido or ""):
+        return _planejar_pelo_motor(pedido)
     if provedor_ia() == "codex":
         inicio = COMPLETO["inicio"] if COMPLETO else time.time()
         exigir_plano = bool(re.search(r"plano|planej|reorganiz|organizar|encaix|agenda|horário", pedido, re.I))
@@ -1874,7 +1894,7 @@ def conferir_plano(antes):
 def _revisar_completo(arq, antes):
     """Todo pedido ao guardião completo que grava plano é replanejamento: o revisor sem contexto (revisor.py) confere o plano e, se reprovar,
     o gerador corrige em uma rodada. Falha do revisor nunca derruba o pedido. Não roda quando o comando é de teste (COMANDO_COMPLETO)."""
-    if COMANDO_COMPLETO is not None:
+    if COMANDO_COMPLETO is not None or PELO_MOTOR["ultimo"]:  # o motor já confere por código; não há segunda volta de IA
         return
     try:
         import datetime

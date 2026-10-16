@@ -7,6 +7,12 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.1 - 2026-10-16
+- Motor da agenda: o código monta hoje e os próximos dias (fila por limite, consumo antes da copy, stories na meta, nada depois da hora de parar) e a IA revisa uma vez, devolvendo instruções em vez de horário (cerca de 16 mil tokens e 40 s por plano).
+- "Refaça meu plano" e o plano da manhã passam pelo motor: a IA só traduz o que a pessoa disse (já fiz, tira, almoço às 14h) e o que não cabe vira a pergunta "estender o dia ou renegociar o prazo?".
+- Codex roda numa pasta vazia na conversa, no resumo e na revisão (lia 200 mil tokens por chamada dentro da pasta do guardião).
+- Onboarding pergunta por evento recorrente com preparo (live semanal); caixinha fica em 45 min.
+
 ## 0.10.0 - 2026-10-16
 - Nada mexe no plano sem perguntar: o supervisor de atraso só avisa e pergunta; a manutenção dos próximos dias monta só por código, sem IA, e não troca plano refinado.
 - Botão Parar na conversa: interrompe a resposta ou o trabalho em segundo plano (Claude ou Codex).
