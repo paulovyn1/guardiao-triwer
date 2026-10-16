@@ -171,8 +171,8 @@ def inserir_stories(plano, dia, cfg, nome="Eu"):
                 if cabe >= alvo:
                     melhor = (ini, alvo)
                     break
-                if cabe >= cp.BLOCO_MINIMO_MIN and (melhor is None or cabe > melhor[1]):
-                    melhor = (ini, cabe)  # espaço menor que o bloco ideal: usa o que couber e quebra o resto
+                if not exigir and cabe >= cp.BLOCO_MINIMO_MIN and (melhor is None or cabe > melhor[1]):
+                    melhor = (ini, cabe)  # só se não há um vão inteiro em lugar nenhum: usa o que couber e quebra o resto
             if melhor:
                 escolha = melhor
                 break

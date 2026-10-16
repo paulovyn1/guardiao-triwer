@@ -131,7 +131,7 @@ resumo([t("c1", "Stories: respostas da caixinha (parte 1)", "2026-10-23", "15:00
 sex2, _ = pb.montar(date(2026, 10, 23), oper, cfg_st, date(2026, 10, 23))
 confere("com 15 min de caixinha já no dia, completa só os 30 que faltam", mins([b for b in sex2["blocos"] if "caixinha" in b["titulo"]]) == 45)
 # dia com espaços pequenos: o tempo é quebrado em blocos menores
-resumo([t("p1", "Reunião A", "2026-10-21", "14:00", "14:10"), t("p2", "Reunião B", "2026-10-21", "14:20", "14:30"), t("p3", "Reunião C", "2026-10-21", "14:40", "17:50")])
+resumo([t("p0", "Reunião da manhã", "2026-10-21", "08:40", "14:00"), t("p1", "Reunião A", "2026-10-21", "14:00", "14:10"), t("p2", "Reunião B", "2026-10-21", "14:20", "14:30"), t("p4", "Reunião D", "2026-10-21", "14:40", "14:50"), t("p3", "Reunião C", "2026-10-21", "15:00", "19:30")])
 apert, _ = pb.montar(date(2026, 10, 21), oper, cfg_st, date(2026, 10, 21))
 pequenos = [b for b in apert["blocos"] if "Stories" in b["titulo"]]
 confere("sem espaço de 15 min, quebra em blocos menores (mínimo 5 min) e ainda chega ao tempo do tipo", mins(pequenos) >= 30 and any(
