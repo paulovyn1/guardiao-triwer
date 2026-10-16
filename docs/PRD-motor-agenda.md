@@ -233,3 +233,8 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 - `ler_o_plano` (abertura e plano pronto) só vai para a aba Dia e diz numa frase que há plano para aprovar na barra de baixo. A leitura antiga ficou em `ler_o_plano_em_voz`, sem uso. "Ainda espera o seu ok" também não abre mais `propor_aprovacao`.
 - `_planejar_pelo_motor` leva a tela para a aba Dia e termina com "confira e aprove na barra de baixo".
 - Teste desatualizado de propósito: `teste_revisao` ("plano montado: lê tarefa a tarefa e pede o ok", "sem plano...", "Esc pula a leitura").
+
+### [FEITO] v0.10.4 (16/10)
+- `revisor_ia.REGRAS`: "explicar" é falado à pessoa, em 1 ou 2 frases e na primeira pessoa, sem instruções ao sistema; no máximo 1 pergunta. Caso real: a IA escreveu "preserve os compromissos..." e isso foi lido para ela.
+- `_planejar_pelo_motor` responde em parágrafos. `dizer` preserva os parágrafos no texto escrito e no texto final. O CSS `.m-g p{white-space:pre-line}` mostra as quebras.
+- REGRA: sempre rodar `py_compile` antes de `atualizar.ps1`. Em 16/10, um arquivo com erro de sintaxe foi instalado e o painel caiu por alguns minutos.
