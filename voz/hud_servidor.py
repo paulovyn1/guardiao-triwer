@@ -593,6 +593,11 @@ def _levar_ao_clickup(plano):
         if any(b.get("lista_id") and not b.get("clickup_id") for b in plano.get("blocos", [])):
             atualizar_resumo_clickup()  # outra pessoa ou outra automação pode ter criado a tarefa depois da última leitura agendada
         abertas = (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", [])
+        por_id = {t.get("id"): t for t in abertas}
+        for b in plano.get("blocos", []):  # o guardião manda na data: o que o plano pôs em outro dia ou horário vai para o ClickUp
+            t = por_id.get(b.get("clickup_id"))
+            if t and not b.get("reagendado") and (t.get("prazo") != plano.get("data") or t.get("inicio") != b.get("inicio") or t.get("fim") != b.get("fim")):
+                b["reagendado"] = True
         for b in plano.get("blocos", []):  # título igual ao de uma tarefa aberta: o bloco passa a usar ela (e ela muda de hora abaixo)
             if b.get("lista_id") and not b.get("clickup_id") and not b.get("post"):
                 achada, exata = achar_parecida(b.get("titulo"), abertas)
@@ -612,6 +617,11 @@ def _levar_ao_clickup(plano):
                     r.raise_for_status()
                     b.pop("reagendado", None)
                     reagendadas += 1
+                    try:
+                        import travas
+                        travas.registrar_agendada(OPER, b["clickup_id"], plano["data"], b["inicio"], b["fim"])  # o guardião já avaliou e marcou esta data
+                    except Exception:
+                        pass
                 except Exception as erro:
                     erros.append(f"{b.get('titulo')} (novo horário): {erro}")
                 continue

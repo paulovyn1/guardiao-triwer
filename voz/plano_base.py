@@ -15,7 +15,9 @@ import sys
 from datetime import date, datetime, timedelta
 
 import conferencia_plano as cp
+import etapas_post as ep
 import rota_agenda as ra
+import travas as tv
 import visao_semana as vs
 
 OPER = ra.OPER
@@ -41,12 +43,19 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     nome = ((cfg.get("pessoa") or {}).get("nome")) or "Eu"
     resumo = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []
     iso = dia.isoformat()
-    blocos, sem_hora, atrasadas, aprovar, com_prazo_hora = [], [], [], [], []
+    blocos, sem_hora, atrasadas, aprovar, com_prazo_hora, etapas = [], [], [], [], [], []
+    maes = (vs._json(os.path.join(oper, "posts_maes.json")) or {}).get("maes") or []
+    marcos_travados = tv.ids_de_marcos(_memoria(cfg))
+    agendadas = tv.carregar_agendadas(oper)
     for t in resumo:
         prazo = str(t.get("prazo") or "")
         if t.get("aprovar"):
             if prazo <= iso:
                 aprovar.append(t)
+            continue
+        e = ep.info(t, maes)
+        if e and tv.classe(t, cfg, marcos_travados, agendadas) == tv.SUGESTAO:  # etapa de post sem trava: o prazo do ClickUp é sugestão, o guardião encaixa
+            etapas.append(e)
             continue
         if prazo < min(iso, hoje.isoformat()):
             atrasadas.append(t)
@@ -73,6 +82,10 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     motivos = []
     if atrasadas:
         motivos.append(f"{len(atrasadas)} tarefa(s) atrasada(s) precisam de lugar ou decisão: " + "; ".join(f"{t.get('nome')} ({t.get('prazo')}, id {t.get('id')})" for t in atrasadas[:8]))
+    etapas = _etapas_a_encaixar(etapas, dia, oper, hoje)
+    if etapas:
+        motivos.append(f"ETAPAS DE POST A ENCAIXAR ({len(etapas)}): decida o dia e o horário de cada uma, dentro do limite. O prazo do ClickUp é só sugestão.\n"
+                       + "\n".join(_linha_etapa(e) for e in etapas[:15]))
     if com_prazo_hora:
         motivos.append(f"{len(com_prazo_hora)} entrega(s) com horário limite neste dia e sem horário de trabalho: "
                        + "; ".join(f"{t.get('nome')} (até {t.get('fim')}, id {t.get('id')})" for t in com_prazo_hora[:6])
@@ -99,6 +112,24 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     for item in trabalhos_do_guardiao(memoria, dia):
         motivos.append(f"Trabalho do guardião com data chegada (estado.md, seção \"Do guardião\"): {item}")
     return plano, motivos
+
+
+def _linha_etapa(e):
+    limite = (f"terminar até {e['limite']:%d/%m}" if e["limite"] else f"só a partir de {e['abre']:%d/%m}" if e["abre"] else "sem limite")
+    return (f"- [{e['tipo']}] {str(e['titulo'])[:70]} | " + (f"post de {e['post']:%d/%m} | " if e["post"] else "") + limite
+            + (f" | sugestão do ClickUp {e['sugestao']:%d/%m}" if e["sugestao"] else "") + f" | id {e['id']}")
+
+
+def _etapas_a_encaixar(etapas, dia, oper, hoje):
+    """Etapas de post ainda sem lugar em outro plano gravado e perto de vencer (limite em até 10 dias) ou já abertas (relatório)."""
+    try:
+        em_outros = {b.get("clickup_id") for d, p in vs.carregar_planos(oper, hoje).items() if d != dia.isoformat()
+                     for b in p.get("blocos") or [] if b.get("clickup_id") and b.get("id") is not None}
+    except Exception:
+        em_outros = set()
+    limite_horizonte = dia + timedelta(days=10)
+    return [e for e in etapas if e["id"] not in em_outros and (e["limite"] is None or e["limite"] <= limite_horizonte)
+            and (e["abre"] is None or e["abre"] <= dia + timedelta(days=1))]
 
 
 HORIZONTE_DIAS = 14  # quantos dias à frente o plano do dia olha as campanhas (o plano do mês), não só o ClickUp
@@ -184,6 +215,7 @@ def dossie(dia, plano, motivos, oper=OPER, cfg=None):
     memoria = _memoria(cfg)
     planos = vs.planos_da_semana(oper, dia)
     partes = ["POR QUE O PLANO PRECISA DE VOCÊ (resolva só isto; o resto já está decidido):", *[f"- {m}" for m in motivos],
+              *(["", ep.regras_texto()] if any("ETAPAS DE POST" in m for m in motivos) else []),
               "", "PLANO BASE (a semana combinada; mantenha estes blocos e horários, salvo conflito):", json.dumps(plano, ensure_ascii=False, indent=1),
               "", vs.texto(oper, memoria, hoje=dia, incluir_hoje=False),
               "", ra.horizonte(dia, dia + timedelta(days=HORIZONTE_DIAS), planos, cfg, memoria, oper)]

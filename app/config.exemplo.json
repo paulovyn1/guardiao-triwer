@@ -15,6 +15,11 @@
     "memoria_em_obsidian": false
   },
   "rotina": {
+    "travas": {
+      "listas_fixas": ["Reuniões Gerais"],
+      "tags_fixas": ["fixo"],
+      "tags_limite": ["prazo máximo", "entrega", "cliente"]
+    },
     "dias_trabalho": [
       "Monday",
       "Tuesday",

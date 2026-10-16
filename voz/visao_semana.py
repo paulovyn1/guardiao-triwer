@@ -130,10 +130,18 @@ def pre_planos_do_clickup(oper, planos, hoje=None):
     # Só fica de fora a tarefa que já está no plano gravado DO MESMO dia. Se ela está no plano de outro dia mas o ClickUp diz este dia, vale o
     # ClickUp (ela acabou de ser movida): antes ela sumia dos dois lados e a conferência barrava a mudança como "tarefa que some".
     em_plano = {(d, b.get("clickup_id")) for d, p in planos.items() for b in (p.get("blocos") or []) if b.get("clickup_id")}
+    import etapas_post
+    import travas
+    maes = (_json(os.path.join(oper, "posts_maes.json")) or {}).get("maes") or []
+    cfg = _json(os.path.join(oper, "config.json")) or {}
+    marcos_travados = travas.ids_de_marcos((cfg.get("pastas") or {}).get("memoria"))
+    agendadas = travas.carregar_agendadas(oper)
     pre = {}
     for t in resumo.get("tarefas") or []:
         dia = str(t.get("prazo") or "")
         if t.get("aprovar") or (dia, t.get("id")) in em_plano or dia in planos or not (hoje.isoformat() <= dia <= limite):
+            continue
+        if etapas_post.info(t, maes) and travas.classe(t, cfg, marcos_travados, agendadas) == travas.SUGESTAO:  # prazo é sugestão: o guardião decide (plano_base)
             continue
         p = pre.setdefault(dia, {"data": dia, "status": "pré-planejado no ClickUp", "origem": "clickup", "blocos": [], "sem_hora": []})
         bloco = {"id": t.get("id"), "titulo": t.get("nome"), "clickup_id": t.get("id"), "frente": t.get("lista") or "?"}

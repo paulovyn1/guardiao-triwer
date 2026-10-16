@@ -45,6 +45,8 @@ $resumo = $tarefas | ForEach-Object {
         fim     = HoraLocal $_.due_date
         aprovar = [bool]($prefixo -and $_.name -like "$prefixo*")   # subtarefa de aprovação: a data é falsa, vai para o bloco de aprovações
         lista   = $_.list.name
+        tags    = @($_.tags | ForEach-Object { $_.name })
+        criada_pelo_guardiao = [bool]((([string]$_.text_content) + ([string]$_.description)) -match 'Criada pelo Guardi')
         url     = $_.url
     }
 } | Sort-Object prazo, inicio, fim

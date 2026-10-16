@@ -343,6 +343,47 @@ def conferir_prazos(plano, dia, tarefas):
     return problemas
 
 
+def conferir_travas(plano, dia, tarefas, cfg, memoria):
+    """Fixa: data e horário não mudam. Prazo máximo (entrega, cliente, marco de campanha): pode vir antes, nunca depois, porque mudar exige renegociar."""
+    import travas as tv
+    iso = dia.isoformat()
+    marcos = tv.ids_de_marcos(memoria)
+    problemas = []
+    for b in plano.get("blocos") or []:
+        t = (tarefas or {}).get(b.get("clickup_id"))
+        if not t:
+            continue
+        c = tv.classe(t, cfg, marcos)
+        if c == tv.FIXA and (iso != t.get("prazo") or (t.get("inicio") and (b.get("inicio") != t.get("inicio") or b.get("fim") != t.get("fim")))):
+            problemas.append(f"\"{b.get('titulo')}\" é tarefa fixa ({str(t.get('prazo'))[8:10]}/{str(t.get('prazo'))[5:7]} {t.get('inicio') or ''}): data e horário não mudam sem negociar com quem combinou.")
+        elif c == tv.LIMITE and iso > str(t.get("prazo") or "9999"):
+            problemas.append(f"\"{b.get('titulo')}\" tem prazo máximo em {str(t.get('prazo'))[8:10]}/{str(t.get('prazo'))[5:7]}: pode ser feita antes, nunca depois, porque mudar exige renegociar.")
+    return problemas
+
+
+def conferir_etapas(plano, dia, tarefas, maes, outros):
+    """Etapas de post (etapas_post.py): nenhuma passa do limite da postagem, relatório não abre antes de 24h, e etapa que já chegou ao limite está em algum plano."""
+    import etapas_post as ep
+    iso = dia.isoformat()
+    problemas = []
+    no_plano = {b.get("clickup_id") for b in plano.get("blocos") or [] if b.get("clickup_id")}
+    em_outros = {b.get("clickup_id") for d, p in (outros or {}).items() if d != iso for b in p.get("blocos") or [] if b.get("clickup_id") and b.get("id") is not None}
+    for b in plano.get("blocos") or []:
+        t = (tarefas or {}).get(b.get("clickup_id"))
+        e = ep.info(t, maes) if t else None
+        if not e:
+            continue
+        if e["limite"] and dia > e["limite"]:
+            problemas.append(f"\"{b.get('titulo')}\" ({iso[8:10]}/{iso[5:7]}) passa do limite: " + (f"o post sai em {e['post']:%d/%m}, " if e["post"] else "")
+                             + f"a etapa termina até {e['limite']:%d/%m}. Mova para antes.")
+        if e["abre"] and dia < e["abre"]:
+            problemas.append(f"\"{b.get('titulo')}\" ({iso[8:10]}/{iso[5:7]}) vem antes de 24h da postagem (post de {e['post']:%d/%m}): só a partir de {e['abre']:%d/%m}.")
+    for e in ep.pendentes(list((tarefas or {}).values()), maes):
+        if e["limite"] and e["limite"] <= dia and e["id"] not in no_plano and e["id"] not in em_outros:
+            problemas.append(f"A etapa \"{e['titulo']}\" chegou ao limite ({e['limite']:%d/%m}) e não está em nenhum plano. Ponha neste dia ou antes.")
+    return problemas
+
+
 # Alavancas: o que move a métrica de uma campanha PÚBLICA de venda (mais gente entrando na venda). Campanha interna não tem.
 # A nota da campanha pode listar as suas no cabeçalho ("alavancas: stories, aviso no Daily"); sem a lista, vale esta.
 ALAVANCAS_PADRAO = ("stories", "story", "daily", "grupo", "antecipa", "convite", "lembrete", "aviso")
@@ -407,6 +448,12 @@ def conferir_regras_da_pasta(plano, dia, outros, oper):
             tarefas = {t.get("id"): t for t in json.load(f).get("tarefas") or []}
     except (OSError, ValueError):
         tarefas = {}
+    try:
+        with open(os.path.join(oper, "config.json"), encoding="utf-8-sig") as f:
+            cfg_completo = json.load(f)
+    except (OSError, ValueError):
+        cfg_completo = {}
     return (conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool(regras.get("etapas_em_lote")),
                             bool(regras.get("ideia_depois_de_consumo"))) + conferir_alavancas(plano, dia, memoria)
-            + conferir_consumo(plano) + conferir_duplicadas(plano, dia, outros) + conferir_prazos(plano, dia, tarefas))
+            + conferir_consumo(plano) + conferir_duplicadas(plano, dia, outros) + conferir_prazos(plano, dia, tarefas)
+            + conferir_etapas(plano, dia, tarefas, maes, outros) + conferir_travas(plano, dia, tarefas, cfg_completo, memoria))
