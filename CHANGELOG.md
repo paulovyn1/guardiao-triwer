@@ -7,6 +7,39 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.9.15 - 2026-10-16
+- Conferência conserta em vez de recusar: stories e blocos diários que faltam, consumo repetido, rotina com a mesma tarefa em dois dias, `agenda_impoe` e preparo da live vencido são resolvidos por código antes de conferir.
+- Regras de preferência (copy/design alternados, minutos de stories, alavanca, nobre) viram aviso no plano em vez de barrar; só o grave (sobreposição, tarefa que some, prazo, fixa, duplicada) reprova.
+- Correções retomam a mesma sessão (Claude `--session-id`/`--resume`, Codex `exec resume`) e pedem para reler só o plano; se a correção do revisor estragar o plano, volta o plano já conferido, não a base.
+- Replanejamento por voz lê um dossiê calculado por código em vez de reler ClickUp, planos, campanhas e memória.
+- Preparo de evento recorrente (`rotina.preparos` + `clickup.eventos`): a Estrateclass passa a ter tema, thumb e agendamento até a quarta anterior e a antecipação no grupo até a quinta; etapas de outra pessoa viram cobrança no plano.
+
+## 0.9.14 - 2026-10-16
+- As correções de um plano reprovado retomam a mesma sessão do Codex, reaproveitando a pesquisa já feita dentro daquele pedido.
+
+## 0.9.13 - 2026-10-16
+- Replanejamento segue a ordem definida pela pessoa: reagendar o adiável, simplificar uma tarefa e só então propor hora extra.
+- Se o Codex devolver uma recusa ou um plano reprovado, o Guardião apresenta os problemas e pede uma proposta corrigida, até duas rodadas de correção.
+- A conferência reúne os problemas de todos os dias da proposta; o dia apertado continua reconhecido depois que tarefas foram reagendadas.
+- Movimentos entre dias futuros são conferidos em cadeia, sem alterar o arquivo histórico do dia atual.
+
+## 0.9.12 - 2026-10-16
+- O painel mostra etapas curtas e tempo decorrido enquanto o Codex trabalha, fora da conversa.
+- Pedidos de plano continuam protegidos pela conferência; ao mover uma tarefa, o app completa o dia futuro de origem se o Codex o omitir.
+- Falhas de conferência e limite de uso do Codex agora explicam o motivo no próprio Guardião.
+
+## 0.9.11 - 2026-10-16
+- A skill passa a carregar corretamente no Codex.
+- Ao planejar com Codex, o Guardião confere a resposta e grava somente arquivos de plano permitidos; o modelo continua com acesso de leitura.
+
+## 0.9.10 - 2026-10-16
+- O Codex usa GPT-6 Sol com esforço médio por padrão; o modelo e o esforço podem ser alterados por configuração.
+
+## 0.9.9 - 2026-10-16
+- O painel permite escolher Claude Code ou Codex para conversas e planos, mantendo Claude como padrão.
+- Uma instalação pode habilitar os dois: Claude e Codex leem a mesma skill global, sem duplicar o arquivo.
+- A escolha é salva nas preferências e vale no próximo pedido; cada provedor usa seu próprio login.
+
 ## 0.9.8 - 2026-10-15
 - Animações fluidas de novo: o painel usa a placa de vídeo sempre.
 - Os sons da abertura tocam sozinhos, sem esperar um clique.

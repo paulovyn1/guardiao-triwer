@@ -200,6 +200,10 @@ confere("30 min de caixinha é pouco em dia com folga (pede 45)", len(cp.conferi
 cheio = [{"id": "x", "inicio": "08:40", "fim": "19:00", "titulo": "tudo"}]
 confere("em dia apertado a caixinha cai para 15 min", cp.dia_apertado({"blocos": cheio, "fixos": []}, sex) is True
         and cp.conferir_stories({"blocos": cheio + [cx_("15:00")], "fixos": []}, sex, cfg_s2) == [])
+replanejado_ = {"blocos": [cx_("15:00")], "fixos": [], "modo_dia": "apertado",
+               "aviso": "Replanejado: tarefa leve passa para segunda; caixinha simplificada."}
+confere("dia apertado continua apertado depois de reagendar tarefas", cp.dia_apertado(replanejado_, sex) is True
+        and cp.conferir_stories(replanejado_, sex, cfg_s2) == [])
 qua_ = date(2026, 10, 21)  # quarta = sequência normal (30 min)
 confere("quarta (sequência normal): 30 min em 2 blocos passa; 15 min é pouco", cp.conferir_stories({"blocos": [nm_("10:00"), nm_("15:00")], "fixos": []}, qua_, cfg_s2) == []
         and len(cp.conferir_stories({"blocos": [nm_("10:00")], "fixos": []}, qua_, cfg_s2)) == 1)

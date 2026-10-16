@@ -32,6 +32,12 @@ confere("saíram as opções de animação de abertura, saudação e vidro (0.9)
 r = h.salvar_preferencias({"execucao_ao_abrir": False, "volume": 0.35})
 confere("salvar muda só o que veio e devolve tudo", r["execucao_ao_abrir"] is False and r["volume"] == 0.35 and r["sons"] is True and set(r) == set(h.PREFS_PADRAO), r)
 confere("o arquivo guarda e outra leitura devolve igual", json.load(open(h.ARQ_PREFS, encoding="utf-8")) == r and h.preferencias() == r)
+r = h.salvar_preferencias({"provedor_ia": "codex"})
+confere("troca para Codex e persiste no mesmo arquivo", r["provedor_ia"] == "codex" and h.preferencias()["provedor_ia"] == "codex")
+r = h.salvar_preferencias({"provedor_ia": "desconhecido"})
+confere("provedor desconhecido não substitui a escolha", r["provedor_ia"] == "codex")
+r = h.salvar_preferencias({"provedor_ia": "claude"})
+confere("voltar ao Claude preserva as outras preferências", r["provedor_ia"] == "claude" and r["volume"] == 0.35)
 eventos = []
 while not fila.empty():
     eventos.append(fila.get_nowait())

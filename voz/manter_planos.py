@@ -102,7 +102,12 @@ def assinatura(dia, oper=OPER, cfg=None, hoje=None):
         marcos = sorted(pb.marcos_sem_lugar(dia, oper, cfg))
     except Exception:
         marcos = []
-    return hashlib.sha1(json.dumps([do_dia, atrasadas, marcos], ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+    try:  # preparo da live (Estrateclass) que pesa neste dia: etapa dela com limite até 3 dias depois, cobrança vencida
+        preparo = sorted(str(e["id"] or e["titulo"]) + e["limite"].isoformat() for e in pb.pp.etapas(cfg, oper, hoje)
+                         if e["limite"] <= dia + timedelta(days=pb.pp.ABRE_DIAS))
+    except Exception:
+        preparo = []
+    return hashlib.sha1(json.dumps([do_dia, atrasadas, marcos] + ([preparo] if preparo else []), ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
 
 
 def _estado(oper):

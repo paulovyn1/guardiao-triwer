@@ -407,6 +407,13 @@ def tipo_do_dia(plano, dia, s):
 
 
 def dia_apertado(plano, dia, memoria=None):
+    # No replanejamento a ocupação do plano final pode cair porque tarefas foram
+    # movidas. Isso não apaga o aperto que motivou a redução da caixinha.
+    modo = _norm((plano or {}).get("modo_dia"))
+    aviso = _norm((plano or {}).get("aviso"))
+    if modo in ("apertado", "dia apertado") and any(
+            palavra in aviso for palavra in ("replanej", "remanej", "adiad", "movid", "passa", "saiu", "simplific")):
+        return True
     try:
         import rota_agenda as ra
         return ra.ocupacao(plano, dia, memoria)[0] >= LIMITE_DIA_APERTADO
@@ -562,8 +569,39 @@ def texto_do_plano(entrada):
         return None
 
 
-def conferir_regras_da_pasta(plano, dia, outros, oper):
-    """conferir_regras com o que está na pasta operacional: mães dos posts, fixos da rotina e as regras pessoais ligadas no config.json."""
+# Avisos: regra de preferência ou de quantidade que o plano tenta cumprir, mas que não justifica deixar a pessoa sem plano (caso real 16/10: o
+# replanejamento das 14h35 foi recusado três vezes por stories e copy/design alternados, e ela ficou o dia inteiro com o plano da véspera).
+# O que é mecânico o código conserta antes (plano_base.consertar); o que sobrar vai para o "aviso" do plano, que ela vê ao aprovar.
+# Grave continua barrando: sobreposição, tarefa que some, prazo, fixa movida, duplicada, almoço, relatório antes de 24h, design antes da copy.
+_AVISO = re.compile(r"alternados|pelo título, não por letra|bloco de ideia sem um bloco de consumo|^Stories:|Stories de captação de leads só|"
+                    r"nenhum bloco que traga gente|horário nobre da manhã|blocos de consumo/recarga|divida os stories|^Todo dia de trabalho tem")
+
+
+def e_aviso(problema):
+    return bool(_AVISO.search(str(problema)))
+
+
+def separar(problemas):
+    """(graves, avisos): graves barram a gravação; avisos vão para o campo "aviso" do plano."""
+    return [p for p in problemas if not e_aviso(p)], [p for p in problemas if e_aviso(p)]
+
+
+def anotar_avisos(plano, avisos):
+    """Junta ao "aviso" do plano o que a conferência não conseguiu resolver, sem repetir a mesma frase."""
+    novos = [a for a in dict.fromkeys(avisos) if a and a not in str(plano.get("aviso") or "")]
+    if novos:
+        plano["aviso"] = (str(plano.get("aviso") or "").rstrip() + " Pendências que ficaram para você decidir: " + " ".join(novos)).strip()
+    return plano
+
+
+def conferir_regras_da_pasta(plano, dia, outros, oper, com_avisos=False):
+    """conferir_regras com o que está na pasta operacional: mães dos posts, fixos da rotina e as regras pessoais ligadas no config.json.
+    Devolve só os problemas graves; com_avisos=True devolve (graves, avisos)."""
+    graves, avisos = separar(_regras_da_pasta(plano, dia, outros, oper))
+    return (graves, avisos) if com_avisos else graves
+
+
+def _regras_da_pasta(plano, dia, outros, oper):
     try:
         with open(os.path.join(oper, "posts_maes.json"), encoding="utf-8-sig") as f:
             maes = json.load(f).get("maes") or []
@@ -594,4 +632,14 @@ def conferir_regras_da_pasta(plano, dia, outros, oper):
                             bool(regras.get("ideia_depois_de_consumo"))) + conferir_alavancas(plano, dia, memoria)
             + conferir_consumo(plano) + conferir_duplicadas(plano, dia, outros) + conferir_prazos(plano, dia, tarefas)
             + conferir_etapas(plano, dia, tarefas, maes, outros) + conferir_travas(plano, dia, tarefas, cfg_completo, memoria)
-            + conferir_blocos_diarios(plano, dia, cfg_completo) + conferir_stories(plano, dia, cfg_completo, outros, memoria))
+            + conferir_blocos_diarios(plano, dia, cfg_completo) + conferir_stories(plano, dia, cfg_completo, outros, memoria)
+            + conferir_preparos(plano, dia, cfg_completo, oper, outros))
+
+
+def conferir_preparos(plano, dia, cfg, oper, outros=None):
+    """Preparo de evento recorrente (Estrateclass): etapa dela que chegou ao limite e não está em nenhum plano, ou que está depois do limite."""
+    try:
+        import preparos
+    except ImportError:
+        return []
+    return preparos.conferir(plano, dia, cfg, oper, outros)

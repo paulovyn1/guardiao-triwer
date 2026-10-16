@@ -32,6 +32,7 @@ from vosk import KaldiRecognizer, SetLogLevel
 
 import controle_fala
 import guardiao_sessao
+import guardiao_codex
 import guardiao_v2 as v2
 import calibragem_semanal
 import instancia
@@ -96,6 +97,15 @@ def chamou(resultado):
 def achar_claude(refazer=False):
     """O Claude Code está instalado e executa? (npm, instalador oficial ou extensão do VS Code: veja guardiao_sessao.comando_do_claude)"""
     return bool(guardiao_sessao.comando_do_claude(refazer))
+
+
+def provedor_ia():
+    """A escolha do painel vale no próximo pedido, sem reiniciar o Guardião."""
+    return preferencias().get("provedor_ia", "claude")
+
+
+def achar_provedor():
+    return bool(guardiao_codex.comando()) if provedor_ia() == "codex" else achar_claude()
 
 
 AVISO_SEM_CLAUDE = guardiao_sessao.AVISO_SEM_CLAUDE
@@ -900,6 +910,13 @@ def bloco_conversa():
 
 def _chamar_resumo(pedido):
     """O resumo do dia: uma chamada curta ao modelo leve, sem ferramentas, sem conectores e sem pensamento. Devolve o texto ou None."""
+    if provedor_ia() == "codex":
+        try:
+            return guardiao_codex.executar(
+                "Resuma de forma curta e fiel, sem inventar fatos. Responda só com o resumo.\n\n" + pedido,
+                OPER, pasta_memoria(), timeout=90)[0]
+        except RuntimeError:
+            return None
     base = guardiao_sessao.comando_do_claude()
     if not base:
         return None
@@ -1046,7 +1063,8 @@ _CONVERSA_DA_VEZ = [None]
 
 
 def modo_sessao():
-    return bool(preferencias().get("sessao")) and os.environ.get("GUARDIAO_SEM_SESSAO") != "1"
+    return (provedor_ia() == "claude" and bool(preferencias().get("sessao"))
+            and os.environ.get("GUARDIAO_SEM_SESSAO") != "1")
 
 
 def arquivo_prompt_sessao():
@@ -1296,6 +1314,11 @@ def comando_claude(pergunta, streaming, modelo=None):
 
 def perguntar_claude(pergunta, modelo=None):
     t0 = time.time()
+    if provedor_ia() == "codex":
+        resposta, _ = guardiao_codex.executar(
+            prompt_sistema() + "\n\n" + mensagem_do_turno(pergunta),
+            OPER, pasta_memoria(), timeout=120)
+        return resposta, time.time() - t0
     cmd, env = comando_claude(pergunta, streaming=False, modelo=modelo)
     saida = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env, cwd=OPER, timeout=90, creationflags=guardiao_sessao.FLAGS_CLAUDE)
     try:
@@ -1349,6 +1372,23 @@ class Cortador:
 
 def frases_do_claude(pergunta, modelo=None, motivo=""):
     """Pergunta ao Claude em streaming e devolve cada frase assim que ela fica completa."""
+    if provedor_ia() == "codex":
+        inicio = time.time()
+        bus.emitir("progresso", modo="conversa", ativo=True, rotulo="Iniciando o Codex", inicio=inicio)
+        try:
+            resposta, _ = guardiao_codex.executar(
+                prompt_sistema() + "\n\n" + mensagem_do_turno(pergunta),
+                OPER, pasta_memoria(), timeout=120,
+                progresso=lambda rotulo: bus.emitir("progresso", modo="conversa", ativo=True,
+                                                    rotulo=rotulo, inicio=inicio))
+        finally:
+            bus.emitir("progresso", modo="conversa", ativo=False)
+        cortador = Cortador()
+        yield from cortador.alimentar(resposta)
+        resto = cortador.resto()
+        if resto:
+            yield resto
+        return
     cmd, env = comando_claude(pergunta, streaming=True, modelo=modelo)
     erro_arq = guardiao_sessao.arquivo_de_erro()
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=erro_arq, text=True, encoding="utf-8", env=env, cwd=OPER, creationflags=guardiao_sessao.FLAGS_CLAUDE)
@@ -1663,6 +1703,10 @@ EXPLICITO_APROVAR = re.compile(r"aprov")
 # vai para o Claude com a skill guardiao-triwer, do mesmo jeito que o gerar_plano.ps1 faz: leva de dois a cinco minutos e não trava a conversa.
 # Ele só pode gravar arquivo de plano, nunca o ClickUp: o plano volta como "sugerido" e a pessoa aprova na tela ou pela voz.
 REGRAS_DO_PLANO = (
+    "Ao montar ou refazer o plano, falta de tempo não encerra o pedido. Resolva nesta ordem: (1) tire de hoje o que não precisa acontecer hoje e marque outro dia; "
+    "(2) simplifique uma tarefa do dia, reduzindo o escopo e o tempo, mas mantendo uma entrega útil; (3) só se ainda faltar tempo, proponha trabalhar até mais tarde, "
+    "com o horário extra identificado e sujeito ao ok da pessoa. Preserve compromissos fixos e tarefas concluídas. Entregue sempre uma proposta concreta para o resto do dia, "
+    "mesmo que algumas tarefas saiam de hoje. Se usar a caixinha reduzida a 15 min por dia apertado, registre modo_dia='apertado' e explique no aviso o que foi reagendado. "
     "Ao gravar o plano de hoje: grave o plano inteiro, em JSON válido, no formato de plano_exemplo.json, com \"status\": \"sugerido\" "
     "(a pessoa aprova na tela e o servidor cria ou move as tarefas no ClickUp). Mantenha os blocos já feitos, mantenha o id e o clickup_id dos blocos que continuam, "
     "dê aos blocos novos um id ainda não usado (b seguido de número), use clickup_id para tarefa que já existe no resumo e lista_id só para bloco realmente novo, "
@@ -1672,6 +1716,35 @@ REGRAS_DO_PLANO = (
 COMPLETO = None  # pedido em andamento: {"pedido": texto, "inicio": time}
 COMANDO_COMPLETO = None  # os testes trocam por uma função (pedido, arquivo do plano) -> texto da resposta
 TEMPO_COMPLETO = 900  # segundos
+
+
+PEDE_PLANO = re.compile(r"plano|planej|reorganiz|organizar|encaix|agenda|hor[aá]rio|refa[cz]|replanej|mover|muda", re.I)
+
+
+def _leitura_completo(pedido, hoje):
+    """O que ler. Pedido de plano: o dossiê calculado por código (o mesmo do plano da manhã) no lugar de reler ClickUp, planos, campanhas e
+    memória a cada pedido (caso real 16/10: cada replanejamento levava 3 minutos ou mais de leitura). Outro pedido: o que a skill manda."""
+    registro = f"registros\\registro_{hoje}.json"
+    if PEDE_PLANO.search(pedido or ""):
+        try:
+            import datetime
+            import plano_base
+            dia = datetime.date.fromisoformat(hoje)
+            base, motivos = plano_base.montar(dia, OPER)
+            arq = os.path.join(OPER, "logs", "dossie_replanejar.txt")
+            os.makedirs(os.path.dirname(arq), exist_ok=True)
+            with open(arq, "w", encoding="utf-8") as f:
+                f.write(plano_base.dossie(dia, base, motivos, OPER))
+            return (f"Leia PRIMEIRO o dossiê {arq}: os motivos que pedem decisão, a semana combinada do ClickUp, os próximos dias, o horizonte das campanhas "
+                    "e os alertas, já calculados. Leia também o plano atual (plano_do_dia.json) e o registro de hoje "
+                    f"({registro}, com os blocos já feitos ou adiados), na pasta operacional. NÃO leia resumo_clickup.json, planos de outros dias, notas de "
+                    "campanha nem os arquivos de memória que a skill manda carregar: o que precisa deles está no dossiê. Da memória leia só perfil.md e "
+                    "aprendizados.md. Abra outro arquivo só se o dossiê não responder a uma dúvida concreta. O código completa sozinho stories, "
+                    "consumo repetido, agenda_impoe e preparo da live que venceu: não gaste voltas com isso.\n")
+        except Exception as erro:
+            print("  (dossiê do replanejamento falhou, a skill lê tudo:", erro, ")")
+    return ("Leia o que a skill manda carregar e, se o pedido tocar o plano de hoje, leia também o plano atual (plano_do_dia.json) e o registro de hoje "
+            f"({registro}, com os blocos já feitos ou adiados), os dois na pasta operacional.\n")
 
 
 def prompt_completo(pedido, arquivo_plano):
@@ -1685,8 +1758,7 @@ def prompt_completo(pedido, arquivo_plano):
         f"Hoje é {hoje} e agora são {time.strftime('%H:%M')}. Pasta operacional (plano, registros, resumo do ClickUp, scripts): {OPER}. Pasta de memória: {memoria}.\n"
         + (f"Conversa recente por voz, só para contexto:\n{conversa}\n" if conversa else "") +
         "Esta execução não tem conversa: não pergunte nada. Se faltar informação, escolha o caminho mais seguro e diga isso em uma frase.\n"
-        "Leia o que a skill manda carregar e, se o pedido tocar o plano de hoje, leia também o plano atual (plano_do_dia.json) e o registro de hoje "
-        f"(registros\\registro_{hoje}.json, com os blocos já feitos ou adiados), os dois na pasta operacional.\n"
+        + _leitura_completo(pedido, hoje) +
         "Não crie nem altere nada no ClickUp nem em outro lugar, e não edite os arquivos de memória. As únicas escritas permitidas são: "
         f"o arquivo {arquivo_plano} (plano de hoje) e planos\\plano_AAAA-MM-DD.json na pasta operacional (plano de outro dia), e só se o pedido for montar ou mudar um plano; "
         "e o config.json da pasta operacional, só para completar a CONFIGURAÇÃO PENDENTE quando o pedido for esse.\n"
@@ -1696,16 +1768,32 @@ def prompt_completo(pedido, arquivo_plano):
         "Fale na primeira pessoa, como o mesmo guardião da conversa: não cite esta execução, o guardião completo, checagens técnicas nem o que você não tem permissão de fazer. "
         "Diga o que você montou ou concluiu, o que ficou de fora e por quê, e o que a pessoa precisa decidir. "
         "Se sobrar algo para resolver no ClickUp (concluir, apagar ou mover uma tarefa), não mande a pessoa fazer: diga qual é a tarefa, pelo título, e pergunte se ela quer que você resolva. "
-        "Termine com uma pergunta só: a do ClickUp, se houver; senão, se você mudou o plano de hoje, pergunte se ela quer revisar o plano."
+        "Termine com uma pergunta só: a do ClickUp, se houver; senão, se propôs hora extra, pergunte se ela aprova essa hora extra; "
+        "senão, se você mudou o plano de hoje, pergunte se ela quer revisar o plano."
     )
 
 
-def _chamar_completo(pedido, arquivo_plano):
+_SESSAO_COMPLETO = {"claude": None, "codex": None}  # a correção do revisor retoma a sessão do pedido, sem reler tudo
+
+
+def _chamar_completo(pedido, arquivo_plano, retomar=False):
     memoria = pasta_memoria()
+    if provedor_ia() == "codex":
+        inicio = COMPLETO["inicio"] if COMPLETO else time.time()
+        exigir_plano = bool(re.search(r"plano|planej|reorganiz|organizar|encaix|agenda|horário", pedido, re.I))
+        resposta, uso = guardiao_codex.executar(
+            pedido if retomar and _SESSAO_COMPLETO["codex"] else prompt_completo(pedido, arquivo_plano), OPER, memoria,
+            pode_escrever=True, timeout=TEMPO_COMPLETO,
+            exigir_plano=exigir_plano, _sessao_id=_SESSAO_COMPLETO["codex"] if retomar else None,
+            progresso=lambda rotulo: bus.emitir("progresso", modo="completo", ativo=True,
+                                                rotulo=rotulo, inicio=inicio))
+        _SESSAO_COMPLETO["codex"] = uso.get("sessao_id")
+        return resposta
     base = guardiao_sessao.comando_do_claude()
     if not base:
         raise guardiao_sessao.ErroDeConta(AVISO_SEM_CLAUDE)
-    cmd = [*base, "-p", prompt_completo(pedido, arquivo_plano), "--model", MODELO_PADRAO, "--add-dir", memoria,
+    sessao = ["--resume", _SESSAO_COMPLETO["claude"]] if retomar and _SESSAO_COMPLETO["claude"] else []
+    cmd = [*base, "-p", pedido if sessao else prompt_completo(pedido, arquivo_plano), *sessao, "--model", MODELO_PADRAO, "--add-dir", memoria,
            "--allowedTools", "Read,Write,Glob,Skill", "--max-turns", "30", "--output-format", "json"]
     env = dict(os.environ)
     env.pop("CLAUDECODE", None)
@@ -1723,6 +1811,7 @@ def _chamar_completo(pedido, arquivo_plano):
     if controle_fala.FUNDO_CANCELADO.is_set():
         raise InterruptedError("cancelado com Esc")
     ev = json.loads(saida)
+    _SESSAO_COMPLETO["claude"] = ev.get("session_id")
     registrar_chamada(MODELO_PADRAO, "guardião completo", ev)
     return str(ev.get("result") or "")
 
@@ -1766,6 +1855,19 @@ def conferir_plano(antes):
         plano.pop("aprovado_em", None)
         with open(arq, "w", encoding="utf-8") as f:
             json.dump(plano, f, ensure_ascii=False, indent=2)
+    if COMANDO_COMPLETO is None:  # conserta o que é mecânico e anota no aviso o que ficou; nunca desfaz o plano por isso
+        try:
+            import conferencia_plano
+            import plano_base
+            graves, consertos = plano_base.preparar_arquivo(arq, oper=OPER)
+            if consertos:
+                print("  Consertado por código:", "; ".join(consertos))
+            if graves:
+                p = json.loads(ler_plano())
+                with open(arq, "w", encoding="utf-8") as f:
+                    json.dump(conferencia_plano.anotar_avisos(p, graves), f, ensure_ascii=False, indent=2)
+        except Exception as erro:
+            print("  (não consegui consertar o plano:", erro, ")")
     return "mudou"
 
 
@@ -1784,7 +1886,7 @@ def _revisar_completo(arq, antes):
         problemas = revisor.revisar(plano, datetime.date.fromisoformat(str(plano.get("data"))), "replanejamento (pedido ao guardião completo)")
         if problemas:
             print("  Revisor reprovou o plano:", " | ".join(problemas))
-            _chamar_completo(revisor.texto_da_correcao(problemas, arq), arq)
+            _chamar_completo("Releia o plano com Read antes de gravar (o código pode tê-lo ajustado). " + revisor.texto_da_correcao(problemas, arq), arq, retomar=True)
     except Exception as erro:
         print("  (revisor: não consegui revisar:", erro, ")")
 
@@ -1798,6 +1900,8 @@ def rodar_completo(pedido):
     controle_fala.FUNDO_CANCELADO.clear()
     try:
         resposta = (COMANDO_COMPLETO or _chamar_completo)(pedido, arq)
+        bus.emitir("progresso", modo="completo", ativo=True, rotulo="Conferindo o resultado",
+                   inicio=COMPLETO["inicio"] if COMPLETO else time.time())
         _revisar_completo(arq, antes)
         fala = extrair_diretivas(re.sub(r"[*_#`]+", "", resposta))[0].replace("—", ",").strip()
         conferido = conferir_plano(antes)
@@ -1812,11 +1916,20 @@ def rodar_completo(pedido):
         conferir_plano(antes)  # o que ele chegou a gravar volta para aprovação (ou é desfeito, se ficou pela metade)
         fala = ""
         bus.emitir("aviso", texto="Parei o trabalho em segundo plano.", erro=False)
+    except RuntimeError as erro:
+        print("  Erro no guardião completo:", erro)
+        detalhe = str(erro)
+        if "não passou na conferência: " in detalhe:
+            detalhe = detalhe.split("não passou na conferência: ", 1)[1]
+            fala = "Não alterei o plano porque encontrei uma inconsistência: " + detalhe
+        else:
+            fala = "Não consegui terminar esse pedido agora. " + detalhe[:180]
     except Exception as erro:
         print("  Erro no guardião completo:", erro)
         fala = "Não consegui terminar esse pedido agora. Tenta de novo daqui a pouco."
     finally:
         COMPLETO = None
+        bus.emitir("progresso", modo="completo", ativo=False)
         bus.emitir("completo", ativo=False)
     if mudou:
         bus.emitir("plano")
@@ -1864,6 +1977,8 @@ def iniciar_completo(pedido):
     if COMPLETO:
         return False
     COMPLETO = {"pedido": pedido, "inicio": time.time()}
+    bus.emitir("progresso", modo="completo", ativo=True, rotulo="Preparando o pedido",
+               inicio=COMPLETO["inicio"])
     bus.emitir("completo", ativo=True, pedido=pedido)
     threading.Thread(target=rodar_completo, args=(pedido,), daemon=True).start()
     return True
@@ -2949,7 +3064,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
     falado = ""
     sem_conta = False
     na_sessao = modo_sessao()
-    llm, motivo_llm = escolher_modelo(texto)
+    llm, motivo_llm = escolher_modelo(texto) if provedor_ia() == "claude" else ("codex", "escolha do painel")
     print("  (sessão do Claude Code)" if na_sessao else f"  (modelo: {llm}, {motivo_llm})")
 
     def pedir(pedido):
@@ -2973,7 +3088,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
             else:
                 resposta, seg2 = perguntar_claude(texto, llm)
             falado, diretivas = extrair_diretivas(resposta)
-            print(f"  Guardião (Claude, {seg2:.1f}s): {falado}")
+            print(f"  Guardião ({provedor_ia()}, {seg2:.1f}s): {falado}")
             executar_diretivas(diretivas, texto)
             bus.emitir("estado", v="falando")
             bus.emitir("guardiao_texto", texto=falado)
@@ -2998,7 +3113,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
         bus.emitir("metricas", stt=stt, primeira=primeira, total=total)
     except Exception as erro:
         print("  Erro:", erro)
-        conta = isinstance(erro, (guardiao_sessao.ErroDeConta, FileNotFoundError))  # sem Claude Code, sem login, no limite de uso...
+        conta = isinstance(erro, (guardiao_sessao.ErroDeConta, FileNotFoundError, RuntimeError))
         if conta:
             sem_conta = True
         else:
@@ -3080,13 +3195,19 @@ def main():
         a.voz_kokoro = voz_configurada()
     if a.cerebro:
         memoria_conversa.vigiar(_chamar_resumo, lambda: pessoa()["primeiro"])  # o resumo do dia é atualizado quando a pessoa fica uns minutos sem falar
-        estado = guardiao_sessao.estado_do_claude()
-        if estado["ok"]:
-            print(f"Claude Code: {estado['versao']} ({estado['de']})")
+        if provedor_ia() == "codex":
+            estado = guardiao_codex.estado()
+            print(f"Codex: {estado['versao']}" if estado["ok"] else estado["erro"])
+            if estado["ok"] and not estado["autenticado"]:
+                print("Codex instalado; rode 'codex login' uma vez no terminal.")
         else:
-            print("Não achei um Claude Code que execute. O painel abre, mas o guardião não responde até ele ser instalado: https://claude.com/claude-code")
-            if estado["erro"]:
-                print("  tentativas:", estado["erro"])
+            estado = guardiao_sessao.estado_do_claude()
+            if estado["ok"]:
+                print(f"Claude Code: {estado['versao']} ({estado['de']})")
+            else:
+                print("Não achei um Claude Code que execute. O painel abre, mas o guardião não responde até ele ser instalado: https://claude.com/claude-code")
+                if estado["erro"]:
+                    print("  tentativas:", estado["erro"])
     ACOES_ATIVAS = not a.sem_acoes
     if a.prompt_estavel:
         PROMPT_ESTAVEL = True
@@ -3151,9 +3272,10 @@ def main():
     if sem_mic:
         a.sem_escuta_aberta = True  # sem microfone, ninguém fica esperando uma resposta falada
     try:
-        modo = "com o cérebro (Claude)" if a.cerebro else "só transcrevendo"
+        modo = f"com o cérebro ({provedor_ia()})" if a.cerebro else "só transcrevendo"
         print(f"Pronto, {modo}. " + ("Microfone desligado: escreva no painel." if sem_mic else "Diga 'Ei guardião', espere o bipe e fale." if continuo else "Microfone fechado: ele só liga quando você clica no botão do microfone.") + " Ctrl+C para sair.")
-        saude = {"mic": not sem_mic, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
+        saude = {"mic": not sem_mic, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()),
+                 "codex": bool(a.cerebro and guardiao_codex.disponivel()), "voz": voz_ok}
         bus.emitir("saude", **saude)
         revisar_em = mic_em = claude_em = time.time() + 5
         supervisor_em = time.time() + 60
@@ -3193,10 +3315,12 @@ def main():
                         print("Microfone ligado. Diga 'Ei guardião', espere o bipe e fale.")
                 if not continuo:
                     a.sem_escuta_aberta = not (chave and mic.existe())
-                if a.cerebro and not achar_claude() and time.time() > claude_em:
+                if a.cerebro and provedor_ia() == "claude" and not achar_claude() and time.time() > claude_em:
                     claude_em = time.time() + 30
                     threading.Thread(target=lambda: achar_claude(refazer=True), daemon=True).start()  # a conferência executa o Claude: fora do laço do áudio
-                agora_saude = {"mic": (mic.stream is not None) if continuo else bool(chave and mic.existe()), "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
+                agora_saude = {"mic": (mic.stream is not None) if continuo else bool(chave and mic.existe()),
+                               "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()),
+                               "codex": bool(a.cerebro and guardiao_codex.disponivel()), "voz": voz_ok}
                 if agora_saude != saude:
                     saude = agora_saude
                     bus.emitir("saude", **saude)

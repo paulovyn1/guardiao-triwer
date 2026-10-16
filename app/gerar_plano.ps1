@@ -106,27 +106,59 @@ No fim, responda em ate 6 linhas: o que colocou, o que deixou de fora e por que.
 
 $env:CLAUDECODE = $null
 Set-Location $pasta
+$provedor = 'claude'
+$arqPrefs = Join-Path $pasta 'voz\preferencias.json'
+if (Test-Path $arqPrefs) {
+    try {
+        $pref = [System.IO.File]::ReadAllText($arqPrefs, $utf8) | ConvertFrom-Json
+        if ($pref.provedor_ia -eq 'codex') { $provedor = 'codex' }
+    } catch { "preferencias inválidas: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
+}
 # Achar o claude.exe de verdade (npm, instalador oficial ou extensão do VS Code) e fixar o modelo: sem isso o plano diário usaria o padrão
 # da conta de quem instalou, que pode ser um modelo várias vezes mais caro. GUARDIAO_MODELO troca (o painel usa a mesma variável).
-$claude = Get-ClaudeEstado
-if (-not $claude.Ok) {
-    "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===`r`nNão achei um Claude Code que execute: $($claude.Erro)" | Out-File $log -Append -Encoding utf8
-    exit 1
+$exeClaude = $null; $preClaude = @()
+if ($provedor -eq 'claude') {
+    $claude = Get-ClaudeEstado
+    if (-not $claude.Ok) {
+        "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===`r`nNão achei um Claude Code que execute: $($claude.Erro)" | Out-File $log -Append -Encoding utf8
+        exit 1
+    }
+    $exeClaude = $claude.Comando[0]
+    if ($claude.Comando.Count -gt 1) { $preClaude = @($claude.Comando[1..($claude.Comando.Count - 1)]) }
 }
-$exeClaude = $claude.Comando[0]; $preClaude = @(); if ($claude.Comando.Count -gt 1) { $preClaude = @($claude.Comando[1..($claude.Comando.Count - 1)]) }
 $modelo = if ($env:GUARDIAO_MODELO) { $env:GUARDIAO_MODELO } else { 'claude-sonnet-5-5' }
-$saidaClaude = & $exeClaude @preClaude -p $prompt --model $modelo --add-dir $memoria --allowedTools "Read,Write,Glob,Skill" --max-turns 25 --output-format text 2>&1
-"=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===" | Out-File $log -Append -Encoding utf8
+# A correção (conferência ou revisor) RETOMA a sessão da primeira chamada: antes cada correção abria outra sessão, relia dossiê, skill e
+# memória, e ainda era barrada ao gravar um arquivo que "não tinha lido". Caso real 16/10: o plano de 20/10 foi refeito 4 vezes.
+$sessaoClaude = [guid]::NewGuid().ToString()
+$primeiraChamada = $true
+$arqSessaoCodex = Join-Path $pastaLogs ("codex_sessao_" + $sessaoClaude + ".txt")
+function Chamar-Provedor([string]$texto, [string]$ferramentas) {
+    if ($provedor -eq 'codex') {
+        $arqPrompt = Join-Path $pastaLogs ("codex_pedido_" + [guid]::NewGuid().ToString('N') + ".txt")
+        [System.IO.File]::WriteAllText($arqPrompt, $texto, $utf8)
+        try {
+            & $py (Join-Path $pasta 'voz\guardiao_codex.py') --prompt-file $arqPrompt --operacional $pasta --memoria $memoria --escrever --sessao-arquivo $arqSessaoCodex 2>&1
+        } finally {
+            Remove-Item -LiteralPath $arqPrompt -Force -ErrorAction SilentlyContinue
+        }
+    } else {
+        $sessao = if ($script:primeiraChamada) { @('--session-id', $sessaoClaude) } else { @('--resume', $sessaoClaude) }
+        $script:primeiraChamada = $false
+        & $exeClaude @preClaude -p $texto @sessao --model $modelo --add-dir $memoria --allowedTools $ferramentas --max-turns 25 --output-format text 2>&1
+    }
+}
+$saidaClaude = Chamar-Provedor $prompt "Read,Write,Glob,Skill"
+"=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ($provedor) ===" | Out-File $log -Append -Encoding utf8
 $saidaClaude | Out-String | Out-File $log -Append -Encoding utf8
 
 # Limite de uso do Claude (ou da conta): a chamada não fez o plano e o que está no arquivo é só a base. Antes isso passava em silêncio.
 # Marca o plano para ser refeito sozinho depois (manter_planos.py) e avisa a pessoa no próprio plano.
-if (($saidaClaude | Out-String) -match 'session limit|usage limit|rate limit|limit reached|hit your') {
-    "--- limite de uso do Claude: plano fica só com a base e será refeito ---" | Out-File $log -Append -Encoding utf8
+if (($saidaClaude | Out-String) -match 'session limit|usage limit|rate limit|limit reached|hit your|O Codex não concluiu|Não achei o Codex|falta entrar na conta') {
+    "--- $provedor indisponível: plano fica só com a base e será refeito ---" | Out-File $log -Append -Encoding utf8
     try {
         $pl = [System.IO.File]::ReadAllText($planoCaminho, $utf8) | ConvertFrom-Json
-        $pl | Add-Member -NotePropertyName refazer_motivo -NotePropertyValue 'limite de uso do Claude' -Force
-        $pl | Add-Member -NotePropertyName aviso -NotePropertyValue 'Este plano está só com a semana combinada: não consegui refiná-lo agora (limite de uso do Claude). Ele será refeito sozinho quando o limite voltar.' -Force
+        $pl | Add-Member -NotePropertyName refazer_motivo -NotePropertyValue "$provedor indisponível" -Force
+        $pl | Add-Member -NotePropertyName aviso -NotePropertyValue "Este plano está só com a semana combinada: não consegui refiná-lo agora ($provedor indisponível). Ele será refeito sozinho quando voltar." -Force
         [System.IO.File]::WriteAllText($planoCaminho, ($pl | ConvertTo-Json -Depth 6), $utf8)
     } catch { "não consegui marcar o plano para refazer: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
     exit 3
@@ -137,8 +169,8 @@ if (($saidaClaude | Out-String) -match 'session limit|usage limit|rate limit|lim
 $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
 if ($LASTEXITCODE -ne 0) {
     "--- conferência reprovou ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
-    $correcao = "O plano que voce gravou em $planoCaminho foi reprovado na conferencia. Corrija so isto e grave de novo, sem mexer no resto:`n$($conf | Out-String)"
-    $saida2 = & $exeClaude @preClaude -p $correcao --model $modelo --add-dir $memoria --allowedTools "Read,Write" --max-turns 25 --output-format text 2>&1
+    $correcao = "O plano que voce gravou em $planoCaminho foi reprovado na conferencia (o codigo ja consertou o que era mecanico). Releia o arquivo com Read, corrija so isto e grave de novo, sem mexer no resto e sem reler outros arquivos:`n$($conf | Out-String)"
+    $saida2 = Chamar-Provedor $correcao "Read,Write"
     $saida2 | Out-String | Out-File $log -Append -Encoding utf8
     $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
     if ($LASTEXITCODE -ne 0 -and (Test-Path $copiaBase)) {
@@ -157,19 +189,23 @@ if ($temDossie) { $argsRev += @('--dossie', $dossie) }
 if ($Replanejar) { $argsRev += '--replanejar' }
 $rev = & $py (Join-Path $pasta 'voz\revisor.py') @argsRev 2>&1
 if ($LASTEXITCODE -eq 1) {
+    # O plano que passou na conferência fica guardado: se a correção do revisor estragar algo, volta ESTE (refinado), não a base sem decisões.
+    $copiaBoa = Join-Path $pastaLogs ("plano_conferido_" + $alvo + ".json")
+    Copy-Item $planoCaminho $copiaBoa -Force
     "--- revisor reprovou ---`r`n$($rev | Out-String)" | Out-File $log -Append -Encoding utf8
-    $correcaoRev = "Um revisor independente apontou problemas no plano que voce gravou em $planoCaminho. Corrija SO isto e grave de novo, sem mexer no resto, mantendo o formato e o status sugerido:`n$($rev | Out-String)"
-    $saidaRev = & $exeClaude @preClaude -p $correcaoRev --model $modelo --add-dir $memoria --allowedTools "Read,Write" --max-turns 25 --output-format text 2>&1
+    $correcaoRev = "Um revisor independente apontou problemas no plano que voce gravou em $planoCaminho. Releia o arquivo com Read (o codigo pode te-lo ajustado), corrija SO isto e grave de novo, sem mexer no resto, mantendo o formato e o status sugerido e sem reler outros arquivos:`n$($rev | Out-String)"
+    $saidaRev = Chamar-Provedor $correcaoRev "Read,Write"
     $saidaRev | Out-String | Out-File $log -Append -Encoding utf8
     $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
-    if ($LASTEXITCODE -ne 0 -and (Test-Path $copiaBase)) {
-        "--- depois do revisor o plano reprovou na conferência: volta o plano base ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
-        Copy-Item $copiaBase $planoCaminho -Force
-        try {  # a base não tem as etapas de post nem o que o Claude decidiria: marca o plano para ser refeito e avisa a pessoa
+    if ($LASTEXITCODE -ne 0 -and (Test-Path $copiaBoa)) {
+        "--- depois do revisor o plano reprovou na conferência: volta o plano conferido antes da correção ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
+        Copy-Item $copiaBoa $planoCaminho -Force
+        try {  # os pontos do revisor ficam no aviso para ela decidir; o plano não é refeito por isso (cada volta custava minutos e tokens)
             $pb = [System.IO.File]::ReadAllText($planoCaminho, $utf8).TrimStart([char]0xFEFF) | ConvertFrom-Json
-            $pb | Add-Member -NotePropertyName refazer_motivo -NotePropertyValue 'conferencia reprovou depois da correcao' -Force
-            $pb | Add-Member -NotePropertyName aviso -NotePropertyValue 'Este plano está só com a semana combinada: o plano refinado não passou na conferência. Faltam as etapas de post e outras decisões; ele será refeito sozinho.' -Force
+            $pontos = (($rev | Out-String) -replace '\s+', ' ').Trim()
+            if ($pontos.Length -gt 600) { $pontos = $pontos.Substring(0, 600) + '...' }
+            $pb | Add-Member -NotePropertyName aviso -NotePropertyValue ("$($pb.aviso) Pontos do revisor que ficaram para você decidir: $pontos").Trim() -Force
             [System.IO.File]::WriteAllText($planoCaminho, ($pb | ConvertTo-Json -Depth 8), $utf8)
-        } catch { "não consegui marcar o plano base para refazer: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
+        } catch { "não consegui anotar os pontos do revisor: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
     }
 }

@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta
 import conferencia_plano as cp
 import etapas_post as ep
 import gordura as gd
+import preparos as pp
 import rota_agenda as ra
 import travas as tv
 import visao_semana as vs
@@ -49,8 +50,11 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     marcos_travados = tv.ids_de_marcos(_memoria(cfg))
     agendadas = tv.carregar_agendadas(oper)
     por_mae = ep.datas_por_mae(resumo, maes)
+    ids_preparo = pp.ids(cfg, oper, hoje)
     for t in resumo:
         prazo = str(t.get("prazo") or "")
+        if t.get("id") in ids_preparo and not (prazo == iso and t.get("inicio") and t.get("fim")):
+            continue  # preparo de evento (Estrateclass): a data do ClickUp é da automação; o limite real vem de preparos.py e entra nos motivos
         if t.get("aprovar"):
             if prazo <= iso:
                 aprovar.append(t)
@@ -89,6 +93,8 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     if etapas:
         motivos.append(f"ETAPAS DE POST A ENCAIXAR ({len(etapas)}): decida o dia e o horário de cada uma, dentro do limite. O prazo do ClickUp é só sugestão.\n"
                        + "\n".join(_linha_etapa(e) for e in etapas[:15]))
+    motivos += pp.motivos(dia, cfg, oper, hoje, _ids_em_outros(dia, oper, hoje))
+    pp.inserir_cobrancas(plano, dia, cfg, oper, nome, hoje)
     inserir_stories(plano, dia, cfg, nome)
     inserir_blocos_diarios(plano, dia, cfg, nome)
     faltam_diarios = cp.conferir_blocos_diarios(plano, dia, cfg) + cp.conferir_stories(plano, dia, cfg, None, _memoria(cfg))
@@ -184,7 +190,7 @@ def inserir_stories(plano, dia, cfg, nome="Eu"):
         parte = len(existentes) + len(criados) + 1
         titulo = {"normal": f"Stories: sequência normal (parte {parte})", "caixinha": f"Stories: respostas da caixinha (parte {parte})",
                   "captacao": f"Stories de captação de leads ({t['telas']} telas)"}[tipo]
-        bloco = {"id": f"b{len(plano.get('blocos') or []) + 1}", "inicio": vs.fmt(ini), "fim": vs.fmt(ini + dur), "titulo": titulo, "dono": nome, "frente": "Conteúdo",
+        bloco = {"id": _id_livre(plano), "inicio": vs.fmt(ini), "fim": vs.fmt(ini + dur), "titulo": titulo, "dono": nome, "frente": "Conteúdo",
                  "descricao": f"Hoje é dia de stories de {cp.NOME_TIPO_STORIES[tipo]} ({t['telas']} telas no dia, {precisa} min): blocos curtos espalhados pelo dia.",
                  "primeiro_passo": "Abra o cronograma da semana e poste a primeira tela.", "por_que_agora": "Stories é prioridade e entra todos os dias de trabalho."}
         plano.setdefault("blocos", []).append(bloco)
@@ -223,7 +229,7 @@ def inserir_blocos_diarios(plano, dia, cfg, nome="Eu"):
         if escolha is None:
             continue
         nome_bloco = r.get("titulo_padrao") or f"{str(r.get('nome') or 'Bloco').capitalize()} do dia"
-        bloco = {"id": f"b{len(plano.get('blocos') or []) + 1}", "inicio": vs.fmt(escolha), "fim": vs.fmt(escolha + minutos), "titulo": nome_bloco,
+        bloco = {"id": _id_livre(plano), "inicio": vs.fmt(escolha), "fim": vs.fmt(escolha + minutos), "titulo": nome_bloco,
                  "dono": nome, "frente": "Conteúdo",
                  "descricao": f"Bloco diário obrigatório: {r.get('nome')} todo dia de trabalho, antes de tarefa que dispute o horário.",
                  "primeiro_passo": "Abra o cronograma da semana e poste a primeira tela.",
@@ -352,19 +358,126 @@ def dossie(dia, plano, motivos, oper=OPER, cfg=None):
     return "\n".join(partes)
 
 
-def conferir_arquivo(caminho, oper=OPER, cfg=None):
+def _outros(dia, oper):
+    """Os demais planos de hoje em diante (inclui os dias ANTES deste e o pré-plano do ClickUp nos dias sem plano gravado)."""
+    return {d: p for d, p in vs.planos_da_semana(oper, min(dia, date.today())).items() if d != dia.isoformat()}
+
+
+ROTINA = cp.CONSUMO  # bloco de rotina que se repete em vários dias com a mesma tarefa do ClickUp (consumo, recarga)
+
+
+def consertar(plano, dia, oper=OPER, cfg=None, outros=None):
+    """Conserta por código o que é mecânico, ANTES da conferência, em vez de devolver ao modelo (cada volta relia tudo e custava minutos):
+    consumo/recarga repetido no dia; tarefa de rotina com o mesmo id em dois dias; tarefa que outro plano já tem pela data do ClickUp; preparo de
+    evento dela que chegou ao limite sem lugar; stories e blocos diários que faltam. Altera o plano e devolve a lista do que mudou."""
     cfg = cfg if cfg is not None else _cfg()
-    plano = vs._json(caminho)
-    if not isinstance(plano, dict):
-        return ["O plano gravado não é um JSON válido."]
-    dia = cp.data_do_plano(caminho, plano)
-    outros = {d: p for d, p in vs.planos_da_semana(oper, min(dia, date.today())).items() if d != dia.isoformat()}  # inclui os dias ANTES deste, de hoje em diante
+    nome = ((cfg.get("pessoa") or {}).get("nome")) or "Eu"
+    outros = _outros(dia, oper) if outros is None else outros
+    iso = dia.isoformat()
+    feito = []
+    blocos = plano.setdefault("blocos", [])
+    memoria = _memoria(cfg)
+    if not str(plano.get("agenda_impoe") or "").strip():  # a frase que a conferência exige: o código sabe montar
+        marcos = [f"{slug}: {n}" for q, slug, n, _d, _s, _i in ra.marcos(oper, memoria, dia, dia + timedelta(days=7)) if q <= dia + timedelta(days=2)]
+        plano["agenda_impoe"] = ("Marcos de hoje a 2 dias: " + "; ".join(marcos)) if marcos else "Nenhum marco de campanha nos próximos 2 dias."
+        feito.append("completei agenda_impoe")
+    # 1. um consumo/recarga por dia: fica o que tem tarefa no ClickUp (ou o primeiro); os outros sem tarefa saem
+    cons = [b for b in blocos if ROTINA.search(cp._norm(b.get("titulo")))]
+    if len(cons) > 1:
+        fica = next((b for b in cons if b.get("clickup_id")), cons[0])
+        for b in cons:
+            if b is not fica and not b.get("clickup_id") and b.get("status") != "feito":
+                blocos.remove(b)
+                feito.append(f"tirei o segundo bloco de consumo/recarga ({b.get('titulo')} {b.get('inicio')})")
+    # 2. a mesma tarefa do ClickUp em outro dia
+    prazos = {t.get("id"): str(t.get("prazo") or "") for t in (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []}
+    for b in list(blocos):
+        cid = b.get("clickup_id")
+        if not cid or b.get("status") == "feito":
+            continue
+        onde = [d for d, p in outros.items() if d != iso and any(x.get("clickup_id") == cid and x.get("id") is not None for x in p.get("blocos") or [])]
+        if not onde:
+            continue
+        if ROTINA.search(cp._norm(b.get("titulo"))) and prazos.get(cid) != iso:
+            b.pop("clickup_id", None)  # rotina: o bloco fica neste dia, a tarefa do ClickUp fica no dia dela
+            feito.append(f"\"{b.get('titulo')}\" ficou neste dia sem ligar à tarefa do ClickUp, que é do dia {onde[0][8:10]}/{onde[0][5:7]}")
+        elif prazos.get(cid) in onde or any((outros.get(d) or {}).get("status") == "aprovado" for d in onde):
+            blocos.remove(b)  # o outro dia é o da data do ClickUp ou já foi aprovado: ele manda
+            feito.append(f"tirei \"{b.get('titulo')}\", que já está no plano de {onde[0][8:10]}/{onde[0][5:7]}")
+    # 3. preparo de evento (Estrateclass) que chegou ao limite e não está em nenhum plano: entra no primeiro espaço que caiba
+    agora = datetime.now()
+    a_partir = agora.hour * 60 + agora.minute + 5 if dia == agora.date() else None
+    no_plano = {b.get("clickup_id") for b in blocos} | {b.get("clickup_id") for d, p in outros.items() for b in p.get("blocos") or []}
+    for e in pp.da_pessoa(cfg, oper):
+        if not e["id"] or e["id"] in no_plano or e["limite"] > dia:
+            continue
+        minutos = 30
+        vao = next(((x, y) for x, y in _vaos_do_dia(plano, dia, memoria, a_partir) if y - x >= minutos), None)
+        if not vao:
+            continue
+        blocos.append({"id": _id_livre(plano), "inicio": vs.fmt(vao[0]), "fim": vs.fmt(vao[0] + minutos), "titulo": e["titulo"], "dono": nome, "frente": "Conteúdo",
+                       "clickup_id": e["id"], "reagendado": True, "descricao": f"Preparo da {e['evento']}: {e['rotulo']} até {e['limite']:%d/%m}.",
+                       "primeiro_passo": "Abra a tarefa no ClickUp e comece pelo primeiro item.", "por_que_agora": "Chegou ao limite do preparo da live."})
+        blocos.sort(key=lambda b: b.get("inicio") or "")
+        feito.append(f"pus \"{e['titulo']}\" às {vs.fmt(vao[0])} (limite do preparo da live)")
+    # 4. stories e blocos diários que faltam
+    for b in inserir_stories(plano, dia, cfg, nome) + inserir_blocos_diarios(plano, dia, cfg, nome):
+        feito.append(f"pus \"{b['titulo']}\" às {b['inicio']}")
+    for b in blocos:
+        if not b.get("id"):
+            b["id"] = _id_livre(plano)
+    return feito
+
+
+def _id_livre(plano):
+    usados = {str(b.get("id")) for b in plano.get("blocos") or []}
+    n = len(usados) + 1
+    while f"b{n}" in usados:
+        n += 1
+    return f"b{n}"
+
+
+def conferir_plano(plano, dia, oper=OPER, cfg=None, outros=None):
+    """(graves, avisos) do plano: graves barram a gravação; avisos vão para o "aviso" do plano (conferencia_plano.separar)."""
+    cfg = cfg if cfg is not None else _cfg()
+    outros = _outros(dia, oper) if outros is None else outros
     resumo = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas")
     pendentes = {t.get("id") for t in resumo} if resumo is not None else None
     base, _ = montar(dia, oper, cfg)  # o que a semana combinada punha neste dia: nada dela pode sumir sem ir para outro dia
     base["blocos"] = [b for b in base.get("blocos") or [] if b.get("clickup_id")]  # blocos criados pelo próprio plano base (stories) não são tarefa do ClickUp
-    return (cp.conferir(plano) + cp.conferir_semana(plano, dia, base, outros, pendentes, (), _memoria(cfg))
-            + cp.conferir_regras_da_pasta(plano, dia, outros, oper))
+    graves, avisos = cp.separar(cp.conferir(plano) + cp.conferir_semana(plano, dia, base, outros, pendentes, (), _memoria(cfg)))
+    g2, a2 = cp.conferir_regras_da_pasta(plano, dia, outros, oper, com_avisos=True)
+    return graves + g2, avisos + a2
+
+
+def preparar(plano, dia, oper=OPER, cfg=None):
+    """Conserta, confere e anota os avisos. Devolve (graves, consertos). Plano sem graves pode ser gravado como está (já com o aviso anotado)."""
+    outros = _outros(dia, oper)
+    consertos = consertar(plano, dia, oper, cfg, outros)
+    graves, avisos = conferir_plano(plano, dia, oper, cfg, outros)
+    cp.anotar_avisos(plano, avisos)
+    return graves, consertos
+
+
+def conferir_arquivo(caminho, oper=OPER, cfg=None):
+    """Só os problemas graves do plano gravado (os avisos não barram)."""
+    plano = vs._json(caminho)
+    if not isinstance(plano, dict):
+        return ["O plano gravado não é um JSON válido."]
+    return conferir_plano(plano, cp.data_do_plano(caminho, plano), oper, cfg)[0]
+
+
+def preparar_arquivo(caminho, oper=OPER, cfg=None):
+    """preparar() no arquivo: grava o plano consertado e com os avisos anotados. Devolve (graves, consertos)."""
+    plano = vs._json(caminho)
+    if not isinstance(plano, dict):
+        return ["O plano gravado não é um JSON válido."], []
+    antes = json.dumps(plano, ensure_ascii=False, sort_keys=True)
+    graves, consertos = preparar(plano, cp.data_do_plano(caminho, plano), oper, cfg)
+    if json.dumps(plano, ensure_ascii=False, sort_keys=True) != antes:
+        with open(caminho, "w", encoding="utf-8") as f:
+            json.dump(plano, f, ensure_ascii=False, indent=2)
+    return graves, consertos
 
 
 def main(argv=None):
@@ -376,8 +489,10 @@ def main(argv=None):
     ap.add_argument("--conferir")
     ap.add_argument("--completar")  # insere no plano gravado os blocos diários que faltam (sem Claude)
     a = ap.parse_args(argv)
-    if a.conferir:
-        problemas = conferir_arquivo(a.conferir)
+    if a.conferir:  # conserta o que é mecânico, anota os avisos no plano e só reprova pelo que é grave
+        problemas, consertos = preparar_arquivo(a.conferir)
+        if consertos:
+            print("consertado por código: " + "; ".join(consertos))
         print("\n".join(f"- {p}" for p in problemas) if problemas else "ok")
         return 1 if problemas else 0
     if a.completar:

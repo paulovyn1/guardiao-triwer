@@ -58,8 +58,9 @@ class Barramento:
 
     def emitir(self, tipo, /, **dados):
         ev = {"t": tipo, **dados}
-        if tipo in ("estado", "saude", "metricas", "revisao", "completo"):
-            self.ultimos[tipo] = ev
+        chave = tipo + ":" + str(dados.get("modo", "")) if tipo == "progresso" else tipo
+        if tipo in ("estado", "saude", "metricas", "revisao", "completo", "progresso"):
+            self.ultimos[chave] = ev
         with self.trava:
             for q in list(self.assinantes):
                 try:
@@ -151,9 +152,10 @@ PREFS_PADRAO = {
     "execucao_ao_abrir": True,  # com o plano aprovado, as aberturas do dia vão direto para a tarefa de agora (substitui abrir_em_execucao, que nascia desligada)
     "modo_leve": False,        # menos animação, sem vidro e bolinha 2D, para computador fraco
     "sessao": False,           # a conversa vira uma sessão do Claude Code: lembra do que foi dito e usa conectores, skills e agentes
+    "provedor_ia": "claude",   # Claude continua como padrão para instalações existentes
     "bolinha": "N",            # N = Núcleo 3D, A = Relógio (o instrumento clássico)
 }
-PREFS_OPCOES = {"bolinha": ("N", "A")}
+PREFS_OPCOES = {"bolinha": ("N", "A"), "provedor_ia": ("claude", "codex")}
 
 
 def _pref_valida(k, v):

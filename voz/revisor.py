@@ -29,7 +29,7 @@ PEDE_REPLANEJAR = re.compile(r"atrasada|sem hor[aá]rio|replanej|tarefa nova|tar
 ITENS = [
     "Cada tarefa e campanha foi classificada na matriz de prioridade (3.1) e a ordem do plano segue a classificação?",
     "Todo bloco de copy, decisão, pensar ou estratégia cai numa faixa boa do dia (perfil.md)?",
-    "O último bloco termina na hora de parar daquele dia e a sobra tem destino marcado?",
+    "O último bloco termina na hora de parar daquele dia e a sobra tem destino marcado? Se houver hora extra, o plano primeiro reagendou o adiável e simplificou uma tarefa, e deixou a hora extra como proposta sujeita à aprovação?",
     "Cada estimativa de tempo é plausível pelos registros e pelo perfil (relatório de post leva 5 minutos)?",
     "Nenhuma tarefa 'opcional' serve ao foco da semana?",
     "Existe trabalho em fim de semana que um dia útil poderia absorver?",
@@ -53,7 +53,9 @@ def _ler(caminho):
 
 
 def _pasta_skill(oper=OPER):
-    for c in (os.path.join(os.path.expanduser("~"), ".claude", "skills", "guardiao-triwer"), os.path.dirname(os.path.dirname(os.path.abspath(__file__)))):
+    for c in (os.path.join(os.path.expanduser("~"), ".claude", "skills", "guardiao-triwer"),
+              os.path.join(os.path.expanduser("~"), ".codex", "skills", "guardiao-triwer"),
+              os.path.dirname(os.path.dirname(os.path.abspath(__file__)))):
         if os.path.exists(os.path.join(c, "SKILL.md")):
             return c
     return ""
@@ -140,6 +142,14 @@ def interpretar(saida):
 
 
 def _chamar_claude(prompt, oper=OPER):
+    try:
+        with open(os.path.join(oper, "voz", "preferencias.json"), encoding="utf-8-sig") as arquivo:
+            provedor = (json.load(arquivo) or {}).get("provedor_ia")
+    except (OSError, ValueError):
+        provedor = "claude"
+    if provedor == "codex":
+        import guardiao_codex
+        return guardiao_codex.executar(prompt, oper, timeout=TEMPO_REVISAO)[0]
     import guardiao_sessao
     base = guardiao_sessao.comando_do_claude()
     if not base:

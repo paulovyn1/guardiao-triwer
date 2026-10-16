@@ -48,13 +48,46 @@ $resumo = $tarefas | ForEach-Object {
         tags    = @($_.tags | ForEach-Object { $_.name })
         criada_pelo_guardiao = [bool]((([string]$_.text_content) + ([string]$_.description)) -match 'Criada pelo Guardi')
         url     = $_.url
+        pai     = $_.parent
     }
 } | Sort-Object prazo, inicio, fim
+
+# Eventos recorrentes com preparo (voz\preparos.py): a mãe tem a tag do evento (config clickup.eventos, ex. "live semanal") e a data do evento.
+# Guarda as mães dos próximos 21 dias com TODAS as subtarefas (de qualquer dono e status): a antecipação é do Paulo e não vem na busca acima.
+$eventos = @()
+foreach ($tag in @($cfg.clickup.eventos | Where-Object { $_ })) {
+    try {
+        $ate = ([DateTimeOffset](Get-Date).Date.AddDays(21)).ToUnixTimeMilliseconds()
+        $desde = ([DateTimeOffset](Get-Date).Date.AddDays(-1)).ToUnixTimeMilliseconds()
+        $urlEv = "https://api.clickup.com/api/v2/team/$workspace/task?tags[]=$([uri]::EscapeDataString($tag))&due_date_gt=$desde&due_date_lt=$ate"
+        foreach ($mae in @((Invoke-RestMethod -Uri $urlEv -Headers $headers -Method Get).tasks)) {
+            if ($mae.parent) { continue }
+            $completa = Invoke-RestMethod -Uri "https://api.clickup.com/api/v2/task/$($mae.id)?include_subtasks=true" -Headers $headers -Method Get
+            $eventos += [pscustomobject]@{
+                id     = $mae.id
+                nome   = $mae.name
+                data   = ([DateTimeOffset]::FromUnixTimeMilliseconds([int64]$mae.due_date)).ToLocalTime().ToString('yyyy-MM-dd')
+                status = $mae.status.status
+                tags   = @($mae.tags | ForEach-Object { $_.name })
+                etapas = @($completa.subtasks | ForEach-Object {
+                    [pscustomobject]@{
+                        id     = $_.id
+                        nome   = $_.name
+                        status = $_.status.status
+                        prazo  = if ($_.due_date) { ([DateTimeOffset]::FromUnixTimeMilliseconds([int64]$_.due_date)).ToLocalTime().ToString('yyyy-MM-dd') } else { $null }
+                        donos  = @($_.assignees | ForEach-Object { $_.username })
+                    }
+                })
+            }
+        }
+    } catch { Write-Warning "eventos ($tag): $($_.Exception.Message)" }
+}
 
 $saida = [pscustomobject]@{
     gerado_em = (Get-Date).ToString('yyyy-MM-dd HH:mm')
     total     = @($resumo).Count
     tarefas   = @($resumo)
+    eventos   = @($eventos)
 }
-$saida | ConvertTo-Json -Depth 4 | Out-File (Join-Path $PSScriptRoot 'resumo_clickup.json') -Encoding utf8
+$saida | ConvertTo-Json -Depth 6 | Out-File (Join-Path $PSScriptRoot 'resumo_clickup.json') -Encoding utf8
 $resumo | Format-Table prazo, inicio, fim, nome, lista -AutoSize | Out-String
