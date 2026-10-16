@@ -242,3 +242,11 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 ### [FEITO] v0.10.5 (16/10)
 - `_chamar_completo` manda ao motor todo pedido que não bate em `NAO_E_AGENDA` (destrinchar, configuração, onboarding, instalação). Caso real 17h37: "pode jogar ela mais pra frente, precisa estar pronta antes do dia 27" não bateu em `PEDE_PLANO` e ficou 6 min no Codex lendo a pasta.
 - Instrução nova `{"acao":"limite","titulo","ate"}`: o motor tira o bloco de onde estava e reencaixa até a data. Limite: ainda não tira de dia aprovado (o `rascunho` só recebe os aprovados depois desse passo).
+
+### [FEITO] v0.10.6 (16/10): SKILL.md reestruturado (skill-creator)
+- O SKILL.md passou de 28 KB para 11 KB. Ordem: "Quem você é" (dono e responsável pela agenda; gestor que a pessoa não consegue ser por envolvimento emocional; ClickUp só registro; protege a pessoa; não é estrategista), "Como o trabalho se divide" (o motor faz a conta, a IA julga), mapa "o que ler e quando", BOOT, onde está cada coisa, conduta, aprender com correções.
+- As seções 3, 3.1, 3.2 e Modo planejar foram para `references/planejar.md` (mantêm os títulos `## 3.1` e `## 4.`, porque o `revisor.py` lê de lá). Destrinchar, bloco de decisão e POP foram para `references/destrinchar.md`; a entrega para `references/entrega.md`. Texto movido sem reescrever as regras, só com as regras novas de stories e hora extra.
+- Comparação (2 casos, Sonnet, nova x antiga): a nova afirma mais a responsabilidade ("quem decide a ordem sou eu", "não pergunto o que sai, tiro eu"), usa o motor e o `onde_cabe` e faz menos perguntas. Ela carrega 15 KB num caso simples (antes 20 KB) e 26 KB quando abre duas referências.
+- Cópia da versão anterior: `guardiao-triwer-workspace/skill-snapshot/`.
+- REGRA DA MILENA: evitar excesso de testes. Testar só quando necessário, agrupado, pelo agente Sonnet médio.
+- PRÓXIMO: Etapa 3 (mês) e Etapa 4 (semana no onboarding); reescrever os testes desatualizados listados acima; aposentar `revisor.py` e os ciclos do `gerar_plano -Data`.
