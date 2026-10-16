@@ -67,10 +67,10 @@ def gerar(dia, oper=OPER, refazer=False):
     destino = os.path.join(oper, "planos", f"plano_{dia.isoformat()}.json")
     os.makedirs(os.path.dirname(destino), exist_ok=True)
     try:
-        plano, motivos = pb.montar(dia, oper)  # direto, sem pb.main: no pythonw do painel não existe stdout
-        plano["aviso"] = ("Montei por código a partir da semana combinada. " + ("Ainda falta decidir: " + " ".join(m.splitlines()[0] for m in motivos[:4]) if motivos else "Confira e aprove."))
-        with open(destino, "w", encoding="utf-8") as f:
-            json.dump(plano, f, ensure_ascii=False, indent=2)
+        import motor_agenda  # o motor monta a semana inteira (fila de tarefas, limites, stories, consumo) e grava só os dias não aprovados
+        r = motor_agenda.montar_semana(oper)
+        if dia.isoformat() in r["dias"]:
+            motor_agenda.gravar({"dias": {dia.isoformat(): r["dias"][dia.isoformat()]}}, oper)
     except Exception as erro:
         _log(oper, f"plano base de {dia.isoformat()} falhou: {erro}")
     return os.path.exists(destino)
@@ -204,7 +204,7 @@ def revisar(oper=OPER, cfg=None, hoje=None, gerador=gerar, agora=None):
             except Exception:
                 problemas = []
             _log(oper, f"plano aprovado de {iso}: o ClickUp mudou desde a aprovação" + (f"; a conferência aponta: {' | '.join(problemas)}" if problemas else "; a conferência não aponta nada"))
-        elif str(plano.get("origem") or "").startswith("semana combinada") and gerador(d, oper, True):  # só a base por código; plano refinado não é trocado sem ela
+        elif str(plano.get("origem") or "").startswith(("semana combinada", "motor da agenda")) and gerador(d, oper, True):  # só a base por código; plano refinado não é trocado sem ela
             _log(oper, f"plano base de {iso} refeito: o que o alimenta mudou")
             refeitos.append(d)
         else:

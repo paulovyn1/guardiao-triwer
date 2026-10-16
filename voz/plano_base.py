@@ -34,7 +34,10 @@ def _memoria(cfg):
     return (cfg.get("pastas") or {}).get("memoria")
 
 
-def montar(dia, oper=OPER, cfg=None, hoje=None):
+PENDENCIAS = {}  # AAAA-MM-DD -> o que montar() deixou "a encaixar", estruturado, para o motor da agenda (motor_agenda.py)
+
+
+def montar(dia, oper=OPER, cfg=None, hoje=None, so_aprovados=False):
     """(plano, motivos): o plano base do dia e por que ele ainda precisa do Claude (lista vazia = pronto).
     hoje (padrão: a data de hoje): só é ATRASADA a tarefa que venceu antes de hoje. Tarefa de um dia entre hoje e o dia planejado pertence ao plano
     daquele dia e não entra neste (antes, o plano de um dia futuro replanejava tudo que vencia antes dele e duplicava tarefas)."""
@@ -64,7 +67,7 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
             etapas.append(e)
             continue
         if prazo < min(iso, hoje.isoformat()):
-            if t.get("id") not in _ids_em_outros(dia, oper, hoje):  # já tem lugar em outro plano gravado: não replaneja de novo
+            if t.get("id") not in _ids_em_outros(dia, oper, hoje, so_aprovados):  # já tem lugar em outro plano gravado: não replaneja de novo
                 atrasadas.append(t)
         elif prazo < iso:
             continue  # agendada para um dia entre hoje e este: é do plano daquele dia
@@ -86,14 +89,23 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     plano = {"data": iso, "gerado_em": datetime.now().strftime("%Y-%m-%d %H:%M"), "status": "sugerido", "modo_dia": "normal",
              "origem": "semana combinada (montado sem Claude)", "blocos": blocos, "fixos": ra.fixos_do_dia(dia, cfg), "removidos": [],
              "agenda_impoe": ("Marcos de hoje a 2 dias: " + "; ".join(marcos)) if marcos else "Nenhum marco de campanha nos próximos 2 dias."}
+    _mover_almoco(plano)  # antes dos stories e do resto: o almoço escolhe o lugar dele primeiro
     motivos = []
     if atrasadas:
         motivos.append(f"{len(atrasadas)} tarefa(s) atrasada(s) precisam de lugar ou decisão: " + "; ".join(f"{t.get('nome')} ({t.get('prazo')}, id {t.get('id')})" for t in atrasadas[:8]))
-    etapas = _etapas_a_encaixar(etapas, dia, oper, hoje)
+    etapas = _etapas_a_encaixar(etapas, dia, oper, hoje, so_aprovados)
     if etapas:
         motivos.append(f"ETAPAS DE POST A ENCAIXAR ({len(etapas)}): decida o dia e o horário de cada uma, dentro do limite. O prazo do ClickUp é só sugestão.\n"
                        + "\n".join(_linha_etapa(e) for e in etapas[:15]))
-    motivos += pp.motivos(dia, cfg, oper, hoje, _ids_em_outros(dia, oper, hoje))
+    motivos += pp.motivos(dia, cfg, oper, hoje, _ids_em_outros(dia, oper, hoje, so_aprovados))
+    em_outros = _ids_em_outros(dia, oper, hoje, so_aprovados)
+    PENDENCIAS[iso] = (
+        [{"id": t.get("id"), "titulo": t.get("nome"), "limite": None, "origem": "atrasada", "lista": t.get("lista")} for t in atrasadas]
+        + [{"id": e["id"], "titulo": e["titulo"], "limite": e["limite"], "abre": e["abre"], "origem": "etapa", "etapa": e["tipo"], "post": e["post"]} for e in etapas]
+        + [{"id": t.get("id"), "titulo": t.get("nome"), "limite": dia, "ate": t.get("fim"), "origem": "prazo_hora", "lista": t.get("lista")} for t in com_prazo_hora]
+        + [{"id": t.get("id"), "titulo": t.get("nome"), "limite": dia, "origem": "sem_hora", "lista": t.get("lista")} for t in sem_hora]
+        + [{"id": e["id"], "titulo": e["titulo"], "limite": e["limite"], "origem": "preparo", "minutos": 30}
+           for e in pp.da_pessoa(cfg, oper, hoje) if e["id"] and e["id"] not in em_outros])
     pp.inserir_cobrancas(plano, dia, cfg, oper, nome, hoje)
     inserir_stories(plano, dia, cfg, nome)
     inserir_blocos_diarios(plano, dia, cfg, nome)
@@ -110,7 +122,6 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
                          "Se o dia anterior não tem a etapa de produção, diga no aviso.")
     if sem_hora:
         motivos.append(f"{len(sem_hora)} tarefa(s) de hoje sem horário: " + "; ".join(f"{t.get('nome')} (id {t.get('id')})" for t in sem_hora[:8]))
-    _mover_almoco(plano)
     problemas = cp.conferir(plano)
     if problemas:
         motivos.append("Conflitos no que está agendado: " + " ".join(problemas))
@@ -246,18 +257,19 @@ def _linha_etapa(e):
             + (f" | sugestão do ClickUp {e['sugestao']:%d/%m}" if e["sugestao"] else "") + f" | id {e['id']}")
 
 
-def _ids_em_outros(dia, oper, hoje):
-    """Ids de tarefa já colocados em blocos de OUTROS planos gravados (de hoje em diante)."""
+def _ids_em_outros(dia, oper, hoje, so_aprovados=False):
+    """Ids de tarefa já colocados em blocos de OUTROS planos gravados (de hoje em diante). so_aprovados: só os aprovados (o motor refaz os sugeridos)."""
     try:
         return {b.get("clickup_id") for d, p in vs.carregar_planos(oper, hoje).items() if d != dia.isoformat()
+                and (not so_aprovados or p.get("status") == "aprovado")
                 for b in p.get("blocos") or [] if b.get("clickup_id") and b.get("id") is not None}
     except Exception:
         return set()
 
 
-def _etapas_a_encaixar(etapas, dia, oper, hoje):
+def _etapas_a_encaixar(etapas, dia, oper, hoje, so_aprovados=False):
     """Etapas de post ainda sem lugar em outro plano gravado e perto de vencer (limite em até 10 dias) ou já abertas (relatório)."""
-    em_outros = _ids_em_outros(dia, oper, hoje)
+    em_outros = _ids_em_outros(dia, oper, hoje, so_aprovados)
     limite_horizonte = dia + timedelta(days=10)
     return [e for e in etapas if e["id"] not in em_outros and (e["limite"] is None or e["limite"] <= limite_horizonte)
             and (e["abre"] is None or e["abre"] <= dia + timedelta(days=1))]
@@ -333,11 +345,17 @@ def _mover_almoco(plano):
         if "almoco" not in ra._norm(f.get("titulo")):
             continue
         ini, fim = vs.hm(f["inicio"]), vs.hm(f["fim"])
-        for b in plano.get("blocos") or []:
-            bi, bf = vs.hm(b["inicio"]), vs.hm(b["fim"])
-            if bi < fim and ini < bf and bf <= 15 * 60:
-                f["inicio"], f["fim"] = vs.fmt(bf), vs.fmt(bf + (fim - ini))
-                ini, fim = bf, bf + (fim - ini)
+        orig = (f["inicio"], f["fim"])
+        for _ in range(6):  # empurra até não bater em nenhum bloco (antes só olhava um, e o almoço caía em cima do seguinte)
+            bate = [b for b in sorted(plano.get("blocos") or [], key=lambda x: x.get("inicio") or "") if vs.hm(b["inicio"]) < fim and ini < vs.hm(b["fim"])]
+            if not bate:
+                break
+            bf = vs.hm(bate[0]["fim"])
+            if bf > 15 * 60:
+                f["inicio"], f["fim"] = orig  # sem lugar até 15h: fica no horário dele e a conferência acusa
+                break
+            ini, fim = bf, bf + (fim - ini)
+            f["inicio"], f["fim"] = vs.fmt(ini), vs.fmt(fim)
 
 
 def dossie(dia, plano, motivos, oper=OPER, cfg=None):
