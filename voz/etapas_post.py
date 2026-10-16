@@ -83,6 +83,17 @@ def info(tarefa, maes=()):
     return {"id": tarefa.get("id"), "titulo": tarefa.get("nome"), "tipo": tipo, "post": post, "limite": limite, "abre": abre, "sugestao": sugestao}
 
 
+def replanejar(e, classe, tarefa):
+    """A etapa é do guardião replanejar? Sempre quando o prazo do ClickUp é só sugestão; e também quando o guardião já a tinha marcado (ESTABELECIDA)
+    mas a data passa do limite da postagem (caso real 15/10: design de um post de 21/10 marcado para 22/10)."""
+    if not e:
+        return False
+    if classe == "sugestao":
+        return True
+    prazo = _data(tarefa.get("prazo"))
+    return classe == "estabelecida" and bool(e["limite"]) and bool(prazo) and prazo > e["limite"]
+
+
 def pendentes(tarefas, maes=()):
     """Etapas de post das tarefas abertas, ordenadas pelo limite (as sem limite por último)."""
     saida = [i for i in (info(t, maes) for t in tarefas or []) if i]

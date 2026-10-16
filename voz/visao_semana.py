@@ -141,7 +141,7 @@ def pre_planos_do_clickup(oper, planos, hoje=None):
         dia = str(t.get("prazo") or "")
         if t.get("aprovar") or (dia, t.get("id")) in em_plano or dia in planos or not (hoje.isoformat() <= dia <= limite):
             continue
-        if etapas_post.info(t, maes) and travas.classe(t, cfg, marcos_travados, agendadas) == travas.SUGESTAO:  # prazo é sugestão: o guardião decide (plano_base)
+        if etapas_post.replanejar(etapas_post.info(t, maes), travas.classe(t, cfg, marcos_travados, agendadas), t):  # prazo é sugestão: o guardião decide (plano_base)
             continue
         p = pre.setdefault(dia, {"data": dia, "status": "pré-planejado no ClickUp", "origem": "clickup", "blocos": [], "sem_hora": []})
         bloco = {"id": t.get("id"), "titulo": t.get("nome"), "clickup_id": t.get("id"), "frente": t.get("lista") or "?"}

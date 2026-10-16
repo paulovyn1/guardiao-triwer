@@ -64,4 +64,20 @@ confere("etapa antes do limite passa", [x for x in cp.conferir_etapas(passou, da
 vazio = {"blocos": []}
 confere("etapa que chegou ao limite e não está em plano nenhum é cobrada; se está em outro plano, não", any("não está em nenhum plano" in x for x in cp.conferir_etapas(vazio, date(2026, 10, 20), mapa, maes, {}))
         and not any("E1" in x or "Copy" in x for x in cp.conferir_etapas(vazio, date(2026, 10, 20), mapa, maes, {"2026-10-18": {"blocos": [{"id": "b1", "clickup_id": "E1"}]}})))
+# etapa já estabelecida pelo guardião: fica, a não ser que a data passe do limite da postagem (caso real: design de post de 21/10 marcado para 22/10)
+tar_ok, tar_ruim = t("E2", "Design | Mudanças", "2026-10-20"), t("E2", "Design | Mudanças", "2026-10-22")
+confere("etapa estabelecida dentro do limite fica; passando do limite volta a ser do guardião; sugestão é sempre dele",
+        not ep.replanejar(ep.info(tar_ok, maes), "estabelecida", tar_ok) and ep.replanejar(ep.info(tar_ruim, maes), "estabelecida", tar_ruim)
+        and ep.replanejar(ep.info(tar_ok, maes), "sugestao", tar_ok) and not ep.replanejar(ep.info(tar_ok, maes), "limite", tar_ok))
+# atrasada que já tem lugar em outro plano gravado não é replanejada de novo (a copy do dia 14 aparecia na sexta e na segunda)
+oper3 = tempfile.mkdtemp()
+os.makedirs(os.path.join(oper3, "planos"))
+with open(os.path.join(oper3, "resumo_clickup.json"), "w", encoding="utf-8") as f:
+    json.dump({"tarefas": [t("A1", "Pendência de verdade", "2026-10-14", "09:00", "10:00")]}, f)
+with open(os.path.join(oper3, "planos", "plano_2026-10-16.json"), "w", encoding="utf-8") as f:
+    json.dump({"data": "2026-10-16", "blocos": [{"id": "b1", "inicio": "09:00", "fim": "10:00", "titulo": "Pendência de verdade", "clickup_id": "A1"}]}, f)
+_, mot3 = pb.montar(date(2026, 10, 19), oper3, cfg, date(2026, 10, 15))
+confere("tarefa atrasada que já está no plano de sexta não volta a ser atrasada no plano de segunda", "Pendência de verdade" not in " ".join(mot3), mot3)
+_, mot3b = pb.montar(date(2026, 10, 16), oper3, cfg, date(2026, 10, 15))
+confere("mas no próprio plano de sexta ela continua sendo atrasada", "Pendência de verdade" in " ".join(mot3b), mot3b)
 sys.exit(1 if falhas else 0)

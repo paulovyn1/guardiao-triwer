@@ -54,11 +54,12 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
                 aprovar.append(t)
             continue
         e = ep.info(t, maes)
-        if e and tv.classe(t, cfg, marcos_travados, agendadas) == tv.SUGESTAO:  # etapa de post sem trava: o prazo do ClickUp é sugestão, o guardião encaixa
+        if ep.replanejar(e, tv.classe(t, cfg, marcos_travados, agendadas), t):  # etapa de post sem trava: o prazo do ClickUp é sugestão, o guardião encaixa
             etapas.append(e)
             continue
         if prazo < min(iso, hoje.isoformat()):
-            atrasadas.append(t)
+            if t.get("id") not in _ids_em_outros(dia, oper, hoje):  # já tem lugar em outro plano gravado: não replaneja de novo
+                atrasadas.append(t)
         elif prazo < iso:
             continue  # agendada para um dia entre hoje e este: é do plano daquele dia
         elif prazo == iso:
@@ -120,13 +121,18 @@ def _linha_etapa(e):
             + (f" | sugestão do ClickUp {e['sugestao']:%d/%m}" if e["sugestao"] else "") + f" | id {e['id']}")
 
 
+def _ids_em_outros(dia, oper, hoje):
+    """Ids de tarefa já colocados em blocos de OUTROS planos gravados (de hoje em diante)."""
+    try:
+        return {b.get("clickup_id") for d, p in vs.carregar_planos(oper, hoje).items() if d != dia.isoformat()
+                for b in p.get("blocos") or [] if b.get("clickup_id") and b.get("id") is not None}
+    except Exception:
+        return set()
+
+
 def _etapas_a_encaixar(etapas, dia, oper, hoje):
     """Etapas de post ainda sem lugar em outro plano gravado e perto de vencer (limite em até 10 dias) ou já abertas (relatório)."""
-    try:
-        em_outros = {b.get("clickup_id") for d, p in vs.carregar_planos(oper, hoje).items() if d != dia.isoformat()
-                     for b in p.get("blocos") or [] if b.get("clickup_id") and b.get("id") is not None}
-    except Exception:
-        em_outros = set()
+    em_outros = _ids_em_outros(dia, oper, hoje)
     limite_horizonte = dia + timedelta(days=10)
     return [e for e in etapas if e["id"] not in em_outros and (e["limite"] is None or e["limite"] <= limite_horizonte)
             and (e["abre"] is None or e["abre"] <= dia + timedelta(days=1))]
@@ -231,7 +237,7 @@ def conferir_arquivo(caminho, oper=OPER, cfg=None):
     if not isinstance(plano, dict):
         return ["O plano gravado não é um JSON válido."]
     dia = cp.data_do_plano(caminho, plano)
-    outros = {d: p for d, p in vs.planos_da_semana(oper, dia).items() if d != dia.isoformat()}
+    outros = {d: p for d, p in vs.planos_da_semana(oper, min(dia, date.today())).items() if d != dia.isoformat()}  # inclui os dias ANTES deste, de hoje em diante
     resumo = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas")
     pendentes = {t.get("id") for t in resumo} if resumo is not None else None
     base, _ = montar(dia, oper, cfg)  # o que a semana combinada punha neste dia: nada dela pode sumir sem ir para outro dia
