@@ -30,25 +30,32 @@ def _memoria(cfg):
     return (cfg.get("pastas") or {}).get("memoria")
 
 
-def montar(dia, oper=OPER, cfg=None):
-    """(plano, motivos): o plano base do dia e por que ele ainda precisa do Claude (lista vazia = pronto)."""
+def montar(dia, oper=OPER, cfg=None, hoje=None):
+    """(plano, motivos): o plano base do dia e por que ele ainda precisa do Claude (lista vazia = pronto).
+    hoje (padrão: a data de hoje): só é ATRASADA a tarefa que venceu antes de hoje. Tarefa de um dia entre hoje e o dia planejado pertence ao plano
+    daquele dia e não entra neste (antes, o plano de um dia futuro replanejava tudo que vencia antes dele e duplicava tarefas)."""
+    hoje = hoje or date.today()
     cfg = cfg if cfg is not None else _cfg()
     vs.aplicar_rotina(cfg)
     memoria = _memoria(cfg)
     nome = ((cfg.get("pessoa") or {}).get("nome")) or "Eu"
     resumo = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []
     iso = dia.isoformat()
-    blocos, sem_hora, atrasadas, aprovar = [], [], [], []
+    blocos, sem_hora, atrasadas, aprovar, com_prazo_hora = [], [], [], [], []
     for t in resumo:
         prazo = str(t.get("prazo") or "")
         if t.get("aprovar"):
             if prazo <= iso:
                 aprovar.append(t)
             continue
-        if prazo < iso:
+        if prazo < min(iso, hoje.isoformat()):
             atrasadas.append(t)
+        elif prazo < iso:
+            continue  # agendada para um dia entre hoje e este: é do plano daquele dia
         elif prazo == iso:
-            if t.get("inicio") and t.get("fim"):
+            if t.get("fim") and not t.get("inicio"):  # só horário limite (ex.: Substack às 9h): o trabalho é ANTES dele, não neste horário
+                com_prazo_hora.append(t)
+            elif t.get("inicio") and t.get("fim"):
                 blocos.append({"id": f"b{len(blocos) + 1}", "inicio": t["inicio"], "fim": t["fim"], "titulo": t.get("nome"), "dono": nome,
                                "frente": t.get("lista") or "", "clickup_id": t.get("id"),
                                "descricao": "Tarefa combinada na semana para este horário. Os detalhes estão na tarefa do ClickUp.",
@@ -66,6 +73,11 @@ def montar(dia, oper=OPER, cfg=None):
     motivos = []
     if atrasadas:
         motivos.append(f"{len(atrasadas)} tarefa(s) atrasada(s) precisam de lugar ou decisão: " + "; ".join(f"{t.get('nome')} ({t.get('prazo')}, id {t.get('id')})" for t in atrasadas[:8]))
+    if com_prazo_hora:
+        motivos.append(f"{len(com_prazo_hora)} entrega(s) com horário limite neste dia e sem horário de trabalho: "
+                       + "; ".join(f"{t.get('nome')} (até {t.get('fim')}, id {t.get('id')})" for t in com_prazo_hora[:6])
+                       + ". O trabalho precisa estar pronto ANTES do horário limite, em dia anterior ou no sábado: nunca ponha bloco depois dele. "
+                         "Se o dia anterior não tem a etapa de produção, diga no aviso.")
     if sem_hora:
         motivos.append(f"{len(sem_hora)} tarefa(s) de hoje sem horário: " + "; ".join(f"{t.get('nome')} (id {t.get('id')})" for t in sem_hora[:8]))
     _mover_almoco(plano)

@@ -300,6 +300,49 @@ def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=Fals
     return problemas
 
 
+CONSUMO = re.compile(r"consumo|recarga")
+
+
+def conferir_consumo(plano):
+    """Um bloco de consumo/recarga por dia. A sobra do dia não vira um segundo (caso real 15/10: 'Recarga' às 9h20 e 'Consumo com a pergunta' às 16h30)."""
+    blocos = [x for x in (plano.get("blocos") or []) + (plano.get("fixos") or []) if CONSUMO.search(_norm(x.get("titulo")))]
+    if len(blocos) > 1:
+        return ["O dia tem " + str(len(blocos)) + " blocos de consumo/recarga (" + "; ".join(f"{x.get('titulo')} {x.get('inicio')}" for x in blocos)
+                + "). Deixe um só: a sobra vai para outra coisa ou fica como pausa."]
+    return []
+
+
+def conferir_duplicadas(plano, dia, outros):
+    """Tarefa do ClickUp (clickup_id) em mais de um dia. Cada tarefa tem um dia só; o outro plano é quem manda."""
+    iso = dia.isoformat()
+    problemas = []
+    for b in plano.get("blocos") or []:
+        cid = b.get("clickup_id")
+        if not cid:
+            continue
+        for d, p in (outros or {}).items():
+            if d != iso and any(x.get("clickup_id") == cid and x.get("id") is not None for x in p.get("blocos") or []):
+                problemas.append(f"\"{b.get('titulo')}\" já está no plano de {d[8:10]}/{d[5:7]}. Uma tarefa tem um dia só: deixe-a em um dos dois.")
+                break
+    return problemas
+
+
+def conferir_prazos(plano, dia, tarefas):
+    """Bloco de tarefa que só tem horário limite no ClickUp (sem início) nunca termina depois do limite nem vai para depois do dia do prazo.
+    Caso real 15/10: 'Substack - Newsletter' (publica segunda às 9h) foi para segunda 17h10."""
+    iso = dia.isoformat()
+    problemas = []
+    for b in plano.get("blocos") or []:
+        t = (tarefas or {}).get(b.get("clickup_id"))
+        if not t or t.get("inicio") or t.get("aprovar"):
+            continue
+        prazo, limite = str(t.get("prazo") or ""), str(t.get("fim") or "")
+        if prazo and (iso > prazo or (iso == prazo and limite and str(b.get("fim") or "") > limite)):
+            problemas.append(f"\"{b.get('titulo')}\" ({iso[8:10]}/{iso[5:7]} {b.get('inicio')} a {b.get('fim')}) fica depois do prazo da tarefa "
+                             f"({prazo[8:10]}/{prazo[5:7]}{' ' + limite if limite else ''}). O trabalho vai ANTES do prazo, em dia anterior ou no sábado.")
+    return problemas
+
+
 # Alavancas: o que move a métrica de uma campanha PÚBLICA de venda (mais gente entrando na venda). Campanha interna não tem.
 # A nota da campanha pode listar as suas no cabeçalho ("alavancas: stories, aviso no Daily"); sem a lista, vale esta.
 ALAVANCAS_PADRAO = ("stories", "story", "daily", "grupo", "antecipa", "convite", "lembrete", "aviso")
@@ -359,5 +402,11 @@ def conferir_regras_da_pasta(plano, dia, outros, oper):
             memoria = (json.load(f).get("pastas") or {}).get("memoria")
     except (OSError, ValueError):
         memoria = None
+    try:
+        with open(os.path.join(oper, "resumo_clickup.json"), encoding="utf-8-sig") as f:
+            tarefas = {t.get("id"): t for t in json.load(f).get("tarefas") or []}
+    except (OSError, ValueError):
+        tarefas = {}
     return (conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool(regras.get("etapas_em_lote")),
-                            bool(regras.get("ideia_depois_de_consumo"))) + conferir_alavancas(plano, dia, memoria))
+                            bool(regras.get("ideia_depois_de_consumo"))) + conferir_alavancas(plano, dia, memoria)
+            + conferir_consumo(plano) + conferir_duplicadas(plano, dia, outros) + conferir_prazos(plano, dia, tarefas))

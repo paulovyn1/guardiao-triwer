@@ -157,4 +157,20 @@ confere("a lista de alavancas da nota vale no lugar da padrão", len(cp.conferir
         and cp.conferir_alavancas({"blocos": [{"id": "a", "inicio": "09:00", "fim": "10:00", "titulo": "Reels de convite"}], "fixos": []}, date(2026, 10, 29), mem_a) == [])
 campanha("venda-z", "venda-publica", "2026-10-31", "publica: nao\n")
 confere("campanha marcada como interna (publica: nao) não cobra", cp.conferir_alavancas(sem_alavanca, date(2026, 10, 29), mem_a) == [])
+# erros críticos do plano de 15/10: consumo duplo, tarefa em dois planos, bloco depois do prazo
+dois_consumos = {"blocos": [{"id": "a", "inicio": "16:30", "fim": "17:10", "titulo": "Consumo com a pergunta: isso pode virar post?"}],
+                 "fixos": [{"inicio": "09:20", "fim": "09:45", "titulo": "Recarga: leitura ou curso, sem tela de trabalho"}]}
+confere("dois blocos de consumo/recarga no mesmo dia são barrados; um só passa", len(cp.conferir_consumo(dois_consumos)) == 1
+        and cp.conferir_consumo({"blocos": dois_consumos["blocos"], "fixos": []}) == [])
+plano_seg = {"blocos": [{"id": "a", "inicio": "15:30", "fim": "17:10", "titulo": "Rascunho do Substack", "clickup_id": "T1"}]}
+outros_dup = {"2026-10-16": {"blocos": [{"id": "b3", "inicio": "14:00", "fim": "15:40", "titulo": "Rascunho do Substack", "clickup_id": "T1"}]}}
+confere("tarefa que já está no plano de outro dia é barrada", len(cp.conferir_duplicadas(plano_seg, date(2026, 10, 19), outros_dup)) == 1
+        and cp.conferir_duplicadas(plano_seg, date(2026, 10, 19), {"2026-10-16": {"blocos": [{"clickup_id": "T1"}]}}) == [])
+newsletter = {"T2": {"id": "T2", "prazo": "2026-10-19", "inicio": None, "fim": "09:00"}}
+plano_news = {"blocos": [{"id": "a", "inicio": "17:10", "fim": "17:30", "titulo": "Substack - Newsletter", "clickup_id": "T2"}]}
+confere("bloco depois do horário limite da tarefa (Substack às 9h, bloco às 17h10) é barrado",
+        len(cp.conferir_prazos(plano_news, date(2026, 10, 19), newsletter)) == 1)
+confere("o mesmo trabalho na sexta, antes do prazo, passa; e tarefa com início (movível) não é cobrada",
+        cp.conferir_prazos({"blocos": [{"id": "a", "inicio": "14:00", "fim": "15:40", "titulo": "Rascunho", "clickup_id": "T2"}]}, date(2026, 10, 16), newsletter) == []
+        and cp.conferir_prazos(plano_news, date(2026, 10, 19), {"T2": {"id": "T2", "prazo": "2026-10-19", "inicio": "09:00", "fim": "10:00"}}) == [])
 sys.exit(1 if falhas else 0)
