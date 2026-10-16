@@ -1761,6 +1761,26 @@ def conferir_plano(antes):
     return "mudou"
 
 
+def _revisar_completo(arq, antes):
+    """Todo pedido ao guardião completo que grava plano é replanejamento: o revisor sem contexto (revisor.py) confere o plano e, se reprovar,
+    o gerador corrige em uma rodada. Falha do revisor nunca derruba o pedido. Não roda quando o comando é de teste (COMANDO_COMPLETO)."""
+    if COMANDO_COMPLETO is not None:
+        return
+    try:
+        import datetime
+        import revisor
+        texto = ler_plano()
+        if not texto or texto == antes or not _plano_valido(texto):
+            return
+        plano = json.loads(texto)
+        problemas = revisor.revisar(plano, datetime.date.fromisoformat(str(plano.get("data"))), "replanejamento (pedido ao guardião completo)")
+        if problemas:
+            print("  Revisor reprovou o plano:", " | ".join(problemas))
+            _chamar_completo(revisor.texto_da_correcao(problemas, arq), arq)
+    except Exception as erro:
+        print("  (revisor: não consegui revisar:", erro, ")")
+
+
 def rodar_completo(pedido):
     """Roda o pedido na skill inteira. Confere o plano que voltou e entrega a fala para o guardião dizer."""
     global COMPLETO
@@ -1770,6 +1790,7 @@ def rodar_completo(pedido):
     controle_fala.FUNDO_CANCELADO.clear()
     try:
         resposta = (COMANDO_COMPLETO or _chamar_completo)(pedido, arq)
+        _revisar_completo(arq, antes)
         fala = extrair_diretivas(re.sub(r"[*_#`]+", "", resposta))[0].replace("—", ",").strip()
         conferido = conferir_plano(antes)
         if conferido == "defeito":

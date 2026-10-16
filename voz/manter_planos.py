@@ -66,7 +66,7 @@ def gerar(dia, oper=OPER, refazer=False):
     destino = os.path.join(oper, "planos", f"plano_{dia.isoformat()}.json")
     os.makedirs(os.path.dirname(destino), exist_ok=True)
     comando = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", os.path.join(oper, "gerar_plano.ps1"),
-               "-Data", dia.isoformat(), "-Saida", destino] + (["-Forcar"] if refazer else [])
+               "-Data", dia.isoformat(), "-Saida", destino] + (["-Forcar", "-Replanejar"] if refazer else [])
     try:
         subprocess.run(comando, cwd=oper, timeout=TIMEOUT_GERAR, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, subprocess.SubprocessError):

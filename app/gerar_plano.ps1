@@ -6,7 +6,8 @@ param(
     [string]$Data = "",
     [string]$Saida = "",
     [switch]$Forcar,
-    [switch]$Manual
+    [switch]$Manual,
+    [switch]$Replanejar
 )
 . (Join-Path $PSScriptRoot '_comum.ps1')
 $cfg     = Get-Config
@@ -132,5 +133,23 @@ if ($LASTEXITCODE -ne 0) {
         $base = [System.IO.File]::ReadAllText($copiaBase, $utf8) | ConvertFrom-Json
         $base | Add-Member -NotePropertyName aviso -NotePropertyValue "O plano automático não passou na conferência e voltei para a semana combinada. Ainda falta decidir: $((Get-Content $dossie -Encoding UTF8 | Select-Object -First 6) -join ' ')" -Force
         [System.IO.File]::WriteAllText($planoCaminho, ($base | ConvertTo-Json -Depth 6), $utf8)
+    }
+}
+
+# Revisor sem contexto (voz\revisor.py): só roda em dia muito apertado ou replanejamento (tarefa nova, atraso, pedido). Aponta, não reescreve.
+# Reprovado: UMA rodada de correção pelo gerador; se ainda reprovar, o plano fica e os pontos abertos vão para o aviso.
+$argsRev = @('--plano', $planoCaminho, '--data', $alvo)
+if ($temDossie) { $argsRev += @('--dossie', $dossie) }
+if ($Replanejar) { $argsRev += '--replanejar' }
+$rev = & $py (Join-Path $pasta 'voz\revisor.py') @argsRev 2>&1
+if ($LASTEXITCODE -eq 1) {
+    "--- revisor reprovou ---`r`n$($rev | Out-String)" | Out-File $log -Append -Encoding utf8
+    $correcaoRev = "Um revisor independente apontou problemas no plano que voce gravou em $planoCaminho. Corrija SO isto e grave de novo, sem mexer no resto, mantendo o formato e o status sugerido:`n$($rev | Out-String)"
+    $saidaRev = & $exeClaude @preClaude -p $correcaoRev --model $modelo --add-dir $memoria --allowedTools "Read,Write" --max-turns 10 --output-format text 2>&1
+    $saidaRev | Out-String | Out-File $log -Append -Encoding utf8
+    $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
+    if ($LASTEXITCODE -ne 0 -and (Test-Path $copiaBase)) {
+        "--- depois do revisor o plano reprovou na conferência: volta o plano base ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
+        Copy-Item $copiaBase $planoCaminho -Force
     }
 }
