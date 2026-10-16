@@ -7,6 +7,9 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.7 - 2026-10-16
+- Tarefa com limite vai o mais perto possível do limite (a partir da véspera, de trás para frente), não no primeiro espaço livre; atrasada continua indo o quanto antes.
+
 ## 0.10.6 - 2026-10-16
 - SKILL.md reescrito (28 KB para 11 KB): começa por quem o guardião é (dono e responsável pela agenda, gestor que a pessoa não consegue ser por envolvimento emocional, ClickUp só registro) e traz um mapa do que ler e quando. Os procedimentos foram para references/planejar.md, destrinchar.md e entrega.md, sem perder regra.
 - Pedido que não é de agenda: a IA segue o SKILL.md e lê sob demanda pelo mapa.

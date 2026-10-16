@@ -301,10 +301,14 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
         validos = [iso for iso in rascunho if (not item.get("limite") or iso <= item["limite"].isoformat())
                    and (not item.get("abre") or iso >= item["abre"].isoformat())]
         posto = None
+        if item.get("limite") and len(validos) > 1:  # com limite: de trás para frente, a partir da véspera do limite (folga de um dia); o próprio limite por último
+            vespera = [iso for iso in validos if iso < item["limite"].isoformat()]
+            validos = sorted(vespera, reverse=True) + [iso for iso in validos if iso not in vespera]
         for iso in validos:
             posto = _colocar(rascunho[iso], date.fromisoformat(iso), item, minutos, tipo, nome, memoria)
             if posto:
                 break
+        validos = sorted(validos)
         while not posto and validos and _encolher_stories(rascunho[validos[-1]], date.fromisoformat(validos[-1]), cfg):  # stories só encolhe se não há para onde mover
             posto = _colocar(rascunho[validos[-1]], date.fromisoformat(validos[-1]), item, minutos, tipo, nome, memoria)
         if posto:
