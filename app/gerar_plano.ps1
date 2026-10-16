@@ -74,12 +74,12 @@ foreach ($m in @($cfg.clickup.membros)) { $linhasDonos += "`n- $($m.nome): $($m.
 
 $leitura = if ($temDossie) {
 @"
-Leia PRIMEIRO o dossie ${dossie}. Ele ja traz o plano base (a semana combinada, que voce mantem), os motivos pelos quais o plano precisa de voce (resolva so eles), a semana dos proximos dias e os alertas. NAO leia resumo_clickup.json nem planos de outros dias: o que precisa deles ja esta no dossie. Da pasta de memoria $memoria leia so perfil.md, estado.md e aprendizados.md; nota de campanha em campanhas\ so se um motivo tocar nela. Pasta operacional: $pasta.
+Leia PRIMEIRO o dossie ${dossie}. Ele ja traz o plano base (a semana combinada, que voce mantem), os motivos pelos quais o plano precisa de voce (resolva so eles), a semana dos proximos dias e os alertas. NAO leia resumo_clickup.json nem planos de outros dias: o que precisa deles ja esta no dossie. Da pasta de memoria $memoria leia so perfil.md, estado.md e aprendizados.md, e da pasta operacional calibragem\regras.md se existir (tempos reais que ela confirmou: use ao estimar); nota de campanha em campanhas\ so se um motivo tocar nela. Pasta operacional: $pasta.
 Se tirar do dia algo que estava agendado no plano base, ponha o titulo em "removidos" e diga no campo aviso para onde sugere levar.
 "@
 } else {
 @"
-Leia, na pasta de memoria $memoria, perfil.md, semana-base.md, equipe.md, estado.md, o indice campanhas.md (abra com Read a nota de uma campanha em campanhas\ SOMENTE se o plano do dia tocar nela), o indice decisoes.md, resumo_clickup.json (na pasta operacional), o registro de ontem em registros\ (se existir). Pasta operacional (scripts, plano, registros, resumo): $pasta.
+Leia, na pasta de memoria $memoria, perfil.md, semana-base.md, equipe.md, estado.md, o indice campanhas.md (abra com Read a nota de uma campanha em campanhas\ SOMENTE se o plano do dia tocar nela), o indice decisoes.md, resumo_clickup.json (na pasta operacional), calibragem\regras.md (na pasta operacional, se existir: tempos reais que ela confirmou, use ao estimar), o registro de ontem em registros\ (se existir). Pasta operacional (scripts, plano, registros, resumo): $pasta.
 "@
 }
 

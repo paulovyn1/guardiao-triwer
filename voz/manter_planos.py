@@ -189,6 +189,11 @@ def _laco():
     time.sleep(60)  # deixa o servidor subir antes da primeira rodada
     while True:
         try:
+            import calibragem_semanal
+            calibragem_semanal.gerar_se_sabado(OPER)  # sábado: as perguntas da calibragem da semana
+        except Exception:
+            pass
+        try:
             atualizar_resumo()
             rodar_uma_vez()
         except Exception:

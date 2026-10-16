@@ -33,6 +33,7 @@ from vosk import KaldiRecognizer, SetLogLevel
 import controle_fala
 import guardiao_sessao
 import guardiao_v2 as v2
+import calibragem_semanal
 import instancia
 import manter_planos
 import janela_painel
@@ -620,6 +621,9 @@ def situacao_plano():
     execucao = v2.contexto_voz()  # modo execução e aviso de tempo em aberto (painel novo)
     if execucao:
         linhas.append(execucao)
+    calibragem = calibragem_semanal.contexto(OPER)  # fim de semana: perguntas da calibragem semanal ainda sem resposta
+    if calibragem:
+        linhas.append(calibragem)
     if COMPLETO:
         linhas.append(f"GUARDIAO COMPLETO TRABALHANDO há {int(time.time() - COMPLETO['inicio'])} segundos neste pedido: {COMPLETO['pedido']}. "
                       "Não use a marca completo de novo: diga que ainda está montando e que avisa quando terminar.")
@@ -744,7 +748,7 @@ def _prompt_sistema_antigo():
 #   {{criar:titulo=..|descricao=..|lista=..|dono=..|prazo=AAAA-MM-DD HH:MM}} só PROPÕE; a criação espera o "sim" da pessoa
 #   {{estender:ID|minutos|motivo}} {{adiar:ID|motivo}} {{motivo:ID|texto}} {{checkin:ok}} acompanham a execução (painel novo)
 #   {{completo:pedido}} passa o pedido ao guardião completo (a skill inteira, em segundo plano); a resposta chega depois
-DIRETIVA = re.compile(r"\{\{\s*(foco|detalhe|concluir|reabrir|comentar|criar|mover|editar|remover|adicionar|desfazer|aprovar|revisao|estender|adiar|motivo|checkin|completo)\s*:?\s*(.*?)\s*\}\}", re.S)
+DIRETIVA = re.compile(r"\{\{\s*(foco|detalhe|concluir|reabrir|comentar|criar|mover|editar|remover|adicionar|desfazer|aprovar|revisao|estender|adiar|motivo|checkin|completo|calibrar)\s*:?\s*(.*?)\s*\}\}", re.S)
 ACOES_ATIVAS = True
 PROPOSTA = None  # algo aguardando o "sim" da pessoa: {"tipo": "criar" ou "aprovar", "dados": {...}, "quando": time}
 REVISAO = None  # revisão do plano em andamento: {"inicio": time, "ultimo": time}; enquanto durar, o microfone reabre depois de cada resposta
@@ -1563,6 +1567,10 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
                     iniciar_revisao()
             else:
                 encerrar_revisao()
+        elif nome == "calibrar":  # resposta dela a uma pergunta da calibragem semanal (sábado)
+            id_pergunta, _, resposta = arg.partition("|")
+            ok, nota = calibragem_semanal.registrar_resposta(OPER, id_pergunta.strip(), resposta)
+            avisar_modelo(("calibragem: " if ok else "calibragem FALHOU: ") + nota)
         elif nome in ("estender", "adiar", "motivo", "checkin"):  # acompanhamento da execução (painel novo)
             partes = [x.strip() for x in arg.split("|")]
             if nome == "checkin":

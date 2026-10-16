@@ -109,6 +109,7 @@ def montar_prompt(plano, dia, motivo, oper=OPER, cfg=None):
         f"APRENDIZADOS (regras que a pessoa ensinou corrigindo):\n{_ler(os.path.join(memoria, 'aprendizados.md'))}\n\n"
         f"EXTENSÕES DA PESSOA:\n{extensoes}\n\n"
         f"PERFIL:\n{_ler(os.path.join(memoria, 'perfil.md'))}\n\n"
+        f"CALIBRAGEM (o que ela confirmou sobre tempos reais; use ao julgar estimativas):\n{_ler(os.path.join(oper, 'calibragem', 'regras.md'))}\n\n"
         f"FATOS (use estes; o estado.md pode estar velho):\n{fatos}\n\n"
         f"CAMPANHAS ATIVAS:\n" + "\n".join(campanhas) + f"\n\nHORIZONTE:\n{horizonte}\n\n"
         f"PLANO A REVISAR:\n{json.dumps(plano, ensure_ascii=False, indent=1)}\n\n"
