@@ -77,6 +77,7 @@ Classificar cada tarefa e campanha antes de pensar em horário. O plano segue a 
 - **Importante sem urgência:** ganha um bloco curto e fixo por dia, protegido, até a folga cair para 2 dias úteis ou menos. Nesse ponto vira importante e urgente. Nunca fica sem horário.
 - **Urgente sem ser importante:** agrupar em bloco de tarefas leves, delegar ou responder em 2 minutos.
 - **Nem urgente nem importante:** descartar ou perguntar uma vez.
+- **Alavanca da campanha pública de venda:** a até 3 dias do fim, todo dia tem pelo menos um bloco que traga gente para a venda (stories, aviso no grupo, convite). A sobra do dia vai primeiro para isso, antes de tarefa que não move a campanha. Campanha interna não tem. O código confere.
 - **Empate entre campanhas:** vence a de menor folga. Mesma folga: a que gera caixa.
 - **Tarefa que a pessoa chama de "opcional"** é reclassificada toda vez que o plano é montado. Se serve ao foco da semana, deixa de ser opcional.
 - O "Foco da semana" do `estado.md` é escrito já ranqueado por essa régua. Ela corrige a ordem, não a escreve.
@@ -97,6 +98,7 @@ Responder sim ou não a cada item. Qualquer não: corrigir e refazer. Plano repr
 10. Existe "opção A ou B" onde eu poderia recomendar?
 11. Li `aprendizados.md` e nenhuma linha dele é violada pelo plano?
 12. Toda campanha de importante sem urgência tem o bloco curto diário?
+13. Campanha pública de venda a até 3 dias do fim tem bloco de alavanca (stories, aviso, convite) neste dia?
 
 ## 4. Dois modos
 

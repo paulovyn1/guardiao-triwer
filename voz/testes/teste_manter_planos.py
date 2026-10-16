@@ -41,7 +41,7 @@ os.remove(os.path.join(oper, "plano_do_dia.json"))
 chamados = []
 
 
-def gerador_ok(d, o):
+def gerador_ok(d, o, refazer=False):
     chamados.append(d.isoformat())
     grava(d.isoformat())
     return True
@@ -56,10 +56,52 @@ mp.rodar_uma_vez(oper, cfg, sexta, gerador_ok, agora=1002)
 confere("na sexta a janela andou: entra o dia 21", chamados == ["2026-10-21"], chamados)
 
 falhou = []
-mp.rodar_uma_vez(oper, cfg, date(2026, 10, 19), lambda d, o: falhou.append(d) or False, agora=2000)
+mp.rodar_uma_vez(oper, cfg, date(2026, 10, 19), lambda d, o, r=False: falhou.append(d) or False, agora=2000)
 n1 = len(falhou)
-mp.rodar_uma_vez(oper, cfg, date(2026, 10, 19), lambda d, o: falhou.append(d) or False, agora=2100)
+mp.rodar_uma_vez(oper, cfg, date(2026, 10, 19), lambda d, o, r=False: falhou.append(d) or False, agora=2100)
 confere("dia que falhou espera uma hora para tentar de novo", n1 == 1 and len(falhou) == 1, falhou)
-mp.rodar_uma_vez(oper, cfg, date(2026, 10, 19), lambda d, o: falhou.append(d) or False, agora=2000 + mp.PAUSA_FALHA + 1)
+mp.rodar_uma_vez(oper, cfg, date(2026, 10, 19), lambda d, o, r=False: falhou.append(d) or False, agora=2000 + mp.PAUSA_FALHA + 1)
 confere("e tenta de novo depois da pausa", len(falhou) == 2, falhou)
+
+# revisão dos planos futuros
+oper2 = tempfile.mkdtemp()
+os.makedirs(os.path.join(oper2, "planos"))
+seg = date(2026, 10, 19)  # hoje: segunda; próximos: ter 20, qua 21, qui 22
+
+
+def resumo2(tarefas):
+    with open(os.path.join(oper2, "resumo_clickup.json"), "w", encoding="utf-8") as f:
+        json.dump({"tarefas": tarefas}, f)
+
+
+def plano2(d, status=None):
+    with open(os.path.join(oper2, "planos", f"plano_{d}.json"), "w", encoding="utf-8") as f:
+        json.dump({"data": d, "status": status} if status else {"data": d}, f)
+
+
+for d in ("2026-10-20", "2026-10-21", "2026-10-22"):
+    plano2(d, "aprovado" if d == "2026-10-21" else None)
+resumo2([{"id": "a", "nome": "X", "prazo": "2026-10-20", "inicio": "09:00", "fim": "10:00", "status": "pendente"}])
+refeitos = []
+
+
+def ger2(d, o, refazer=False):
+    refeitos.append((d.isoformat(), refazer))
+    return True
+
+
+mp.rodar_uma_vez(oper2, cfg, seg, ger2, agora=10000)
+confere("primeira vez que vê planos que já existiam: só marca o ponto de partida, não refaz", refeitos == [], refeitos)
+resumo2([{"id": "a", "nome": "X", "prazo": "2026-10-20", "inicio": "09:00", "fim": "10:00", "status": "pendente"},
+         {"id": "b", "nome": "Nova", "prazo": "2026-10-20", "inicio": "11:00", "fim": "12:00", "status": "pendente"},
+         {"id": "c", "nome": "Nova de qua", "prazo": "2026-10-21", "inicio": "11:00", "fim": "12:00", "status": "pendente"}])
+mp.rodar_uma_vez(oper2, cfg, seg, ger2, agora=10000 + 600)
+confere("mudou, mas ainda dentro das 3 h da última revisão: espera", refeitos == [], refeitos)
+mp.rodar_uma_vez(oper2, cfg, seg, ger2, agora=10000 + mp.REVISAO_PAUSA + 1)
+confere("mudou e passou a pausa: refaz o plano sugerido de terça, com refazer", ("2026-10-20", True) in refeitos, refeitos)
+confere("plano aprovado (quarta) nunca é refeito sozinho, mesmo com mudança", all(d != "2026-10-21" for d, _ in refeitos), refeitos)
+confere("o que não mudou (quinta) não é refeito", all(d != "2026-10-22" for d, _ in refeitos), refeitos)
+n = len(refeitos)
+mp.rodar_uma_vez(oper2, cfg, seg, ger2, agora=10000 + 2 * mp.REVISAO_PAUSA + 5)
+confere("sem nova mudança não refaz de novo", len(refeitos) == n, refeitos)
 sys.exit(1 if falhas else 0)

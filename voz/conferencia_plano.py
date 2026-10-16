@@ -300,6 +300,36 @@ def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=Fals
     return problemas
 
 
+# Alavancas: o que move a métrica de uma campanha PÚBLICA de venda (mais gente entrando na venda). Campanha interna não tem.
+# A nota da campanha pode listar as suas no cabeçalho ("alavancas: stories, aviso no Daily"); sem a lista, vale esta.
+ALAVANCAS_PADRAO = ("stories", "story", "daily", "grupo", "antecipa", "convite", "lembrete", "aviso")
+JANELA_ALAVANCA_DIAS = 3
+
+
+def conferir_alavancas(plano, dia, memoria, janela=JANELA_ALAVANCA_DIAS):
+    """Campanha pública de venda (tipo "venda...") que termina em até `janela` dias exige, no plano de cada um desses dias, pelo menos um bloco
+    que mova a métrica dela (stories, aviso no grupo, convite). Sem isso o tempo sobrando vai para tarefa que não traz gente."""
+    if not memoria:
+        return []
+    problemas = []
+    titulos = [_norm(x.get("titulo")) for x in (plano.get("blocos") or []) + (plano.get("fixos") or [])]
+    for slug in campanhas_ativas(memoria, dia):
+        c = _cabecalho(os.path.join(memoria, "campanhas", slug + ".md"))
+        if not _norm(c.get("tipo")).startswith("venda") or _norm(c.get("publica")) in ("nao", "interna"):
+            continue
+        try:
+            fim = date.fromisoformat(c.get("data_fim", ""))
+        except ValueError:
+            continue
+        if not 0 <= (fim - dia).days <= janela:
+            continue
+        palavras = [_norm(p) for p in re.split(r"[,;]", c.get("alavancas") or "") if _norm(p)] or list(ALAVANCAS_PADRAO)
+        if not any(p in t for p in palavras for t in titulos):
+            problemas.append(f"\"{c.get('nome') or slug}\" é venda pública e termina em {fim:%d/%m}: o plano de {dia:%d/%m} não tem nenhum bloco que traga gente "
+                             f"({', '.join(palavras[:4])}). Ponha um bloco assim antes de qualquer tarefa que não mova a campanha.")
+    return problemas
+
+
 def texto_do_plano(entrada):
     """O JSON que o Write vai gravar, ou None se não dá para saber (Edit parcial)."""
     c = (entrada or {}).get("content")
@@ -324,5 +354,10 @@ def conferir_regras_da_pasta(plano, dia, outros, oper):
     except (OSError, ValueError):
         rotina = {}
     regras = rotina.get("regras") or {}
-    return conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool(regras.get("etapas_em_lote")),
-                           bool(regras.get("ideia_depois_de_consumo")))
+    try:
+        with open(os.path.join(oper, "config.json"), encoding="utf-8-sig") as f:
+            memoria = (json.load(f).get("pastas") or {}).get("memoria")
+    except (OSError, ValueError):
+        memoria = None
+    return (conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool(regras.get("etapas_em_lote")),
+                            bool(regras.get("ideia_depois_de_consumo"))) + conferir_alavancas(plano, dia, memoria))

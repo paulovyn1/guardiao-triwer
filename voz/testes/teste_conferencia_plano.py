@@ -132,4 +132,29 @@ maes_rel = [{"id": "m1", "nome": "Postar várias vezes não adianta NADA", "praz
 rel = {"blocos": [{"id": "x", "inicio": "16:40", "fim": "17:05", "titulo": "Preencher relatório do Postar várias vezes não adianta NADA", "clickup_id": "r1"}]}
 confere("relatório no mesmo dia do post é barrado; no dia seguinte passa (caso real 15/10)",
         len(cp.conferir_regras(rel, date(2026, 10, 15), {}, maes_rel, [])) == 1 and cp.conferir_regras(rel, date(2026, 10, 16), {}, maes_rel, []) == [])
+
+# alavancas: campanha pública de venda que termina em até 3 dias exige bloco que traga gente
+mem_a = tempfile.mkdtemp()
+os.makedirs(os.path.join(mem_a, "campanhas"))
+
+
+def campanha(slug, tipo, fim, extra=""):
+    with open(os.path.join(mem_a, "campanhas", slug + ".md"), "w", encoding="utf-8") as f:
+        f.write(f"---\nnome: {slug}\nslug: {slug}\ntipo: {tipo}\nstatus: em-execucao\ndata_inicio: 2026-10-01\ndata_fim: {fim}\n{extra}---\n# {slug}\n")
+
+
+campanha("venda-x", "venda-publica", "2026-10-31")
+sem_alavanca = {"blocos": [{"id": "a", "inicio": "09:00", "fim": "10:00", "titulo": "Decidir o bônus"}], "fixos": []}
+com_stories = {"blocos": [{"id": "a", "inicio": "09:00", "fim": "10:00", "titulo": "Stories de aquecimento"}], "fixos": []}
+confere("venda pública a 2 dias do fim sem bloco de alavanca é barrada", len(cp.conferir_alavancas(sem_alavanca, date(2026, 10, 29), mem_a)) == 1)
+confere("com stories no dia passa", cp.conferir_alavancas(com_stories, date(2026, 10, 29), mem_a) == [])
+confere("longe do fim (7 dias) não cobra", cp.conferir_alavancas(sem_alavanca, date(2026, 10, 24), mem_a) == [])
+campanha("interna-y", "acao-comercial", "2026-10-31")
+os.remove(os.path.join(mem_a, "campanhas", "venda-x.md"))
+confere("campanha que não é venda pública não cobra alavanca", cp.conferir_alavancas(sem_alavanca, date(2026, 10, 29), mem_a) == [])
+campanha("venda-z", "venda-ao-vivo", "2026-10-31", "alavancas: reels, convite\n")
+confere("a lista de alavancas da nota vale no lugar da padrão", len(cp.conferir_alavancas(com_stories, date(2026, 10, 29), mem_a)) == 1
+        and cp.conferir_alavancas({"blocos": [{"id": "a", "inicio": "09:00", "fim": "10:00", "titulo": "Reels de convite"}], "fixos": []}, date(2026, 10, 29), mem_a) == [])
+campanha("venda-z", "venda-publica", "2026-10-31", "publica: nao\n")
+confere("campanha marcada como interna (publica: nao) não cobra", cp.conferir_alavancas(sem_alavanca, date(2026, 10, 29), mem_a) == [])
 sys.exit(1 if falhas else 0)
