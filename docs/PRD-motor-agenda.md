@@ -177,3 +177,13 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 - Verificado nos dados reais de 16/10: a thumb da #105 entra na seg 19 antes do limite (21); o Substack e as entregas de seg 19 viram pergunta de estender ou renegociar; consumo antes da copy; designs juntos.
 - NÃO testado por agente ainda: rodar a bateria (seção 6) e criar `teste_motor_agenda.py` com os casos da Etapa 1.
 - Falta no motor: (a) bloco do que ela já fez entra como feito; (b) 2º consumo ou descanso para preencher buraco só sem tarefa para adiantar; (c) válvula do dia de captação na semana apertada; (d) a POP desdobrando entrega.
+
+### [FEITO] Etapa 2 (16/10)
+- `voz/revisor_ia.py`:
+  - `montar_prompt(resultado, cfg, marcos)` monta a entrada compacta (rascunho, julgar, não coube, marcos sem tarefa, perfil cortado em 1800 caracteres);
+  - `chamar()` faz uma chamada, Claude `-p --max-turns 1` sem ferramentas, ou Codex numa pasta temporária VAZIA (dentro da operacional ele lia 200 mil tokens), e registra o uso em `logs/modelos.jsonl` com o motivo "revisor da agenda";
+  - `interpretar()` valida as instruções e `ajustes()` converte para o motor.
+- `motor_agenda.planejar(oper, cfg, hoje, dias, incluir_hoje, ia=True)`: o motor monta, a IA revisa uma vez se há o que julgar, e o motor remonta com os ajustes. O motor aplica `minutos`, `janela`, `prioridade` e `desdobrar` (subtarefa nova leva `lista_id` e `pai`; a de outra pessoa vai para `delegar`).
+- Resultado novo: `adiados` (vence depois do horizonte, sem virar pergunta), `delegar`, `perguntas` e `explicacao`.
+- Medido nos dados reais: 44 s e 16 mil tokens de entrada (antes, de 1 a 1,6 milhão e de 3 a 6 min).
+- CLI: `python motor_agenda.py --dias 5 --ia [--hoje] [--gravar]`.
