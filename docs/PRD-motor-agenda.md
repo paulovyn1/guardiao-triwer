@@ -253,3 +253,14 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 
 ### [FEITO] v0.10.7 (16/10)
 - `montar_semana`: item com limite tenta os dias da véspera do limite para trás e deixa o dia do limite por último. Caso real: a thumb da #105 (limite qua 21) caía na sexta 16, no primeiro espaço livre.
+
+### [FEITO] v0.10.8 (16/10)
+- `_soltar_nao_fixas`: tarefa com hora no ClickUp que não é FIXA (`travas.classe`) e não é rotina volta para a fila. `_limite_da_tarefa` recupera o limite de etapa de post ou de preparo. Item com limite encaixa a partir do próprio limite para trás. Preparo da live e "janela esgotada" usam qualquer vão do dia (`qualquer=True`). `conferencia_plano._sem_preparo`: a data do ClickUp do preparo não conta em `conferir_prazos`. `ja` inclui os planos gravados depois do horizonte.
+- Os planos de 20 e 21/10, que estavam "aprovados" desde 15/10 (aprovação feita com o guardião quebrado), voltaram para "sugerido" a pedido dela.
+- CASOS DE BORDA ABERTOS (dados reais de 16/10, 13 graves em 5 dias):
+  - (a) Item que volta à fila herda a duração do bloco antigo (copy de 79 min). Usar a estimativa (`estimar`) quando o bloco antigo veio de plano ruim.
+  - (b) O design de um post entra mesmo quando a copy do mesmo post não coube. O motor deveria segurar o design até a copy ter lugar.
+  - (c) O item que volta à fila perde `etapa`, e a ordem copy-antes-de-design passa a depender só do tipo.
+  - (d) Substack de segunda: `prazo_final` antigo de 18/10 e já está no plano de sábado 17/10. Ignorar planos de dia não útil, ou tratar o sábado.
+  - (e) "Decidir composição... Halloween" (prazo máximo 16/10) é reencaixado em 19/10. Se o prazo máximo passou e não coube hoje, o certo é a pergunta de renegociar.
+  - (f) Etapas de post vencidas (limite 18/10, post de segunda) entram em `nao_coube`, mas a conferência repete "chegou ao limite" em todos os dias. Deduplicar na fala.
