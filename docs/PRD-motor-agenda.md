@@ -1,0 +1,157 @@
+# PRD: Motor de agenda do Guardião (v0.10)
+
+Escrito em 2026-10-16 para a Milena Camila. Serve para qualquer agente (Claude Code ou Codex) continuar a implementação. Leia este arquivo inteiro antes de mexer no código. Marque o andamento na seção "Estado" no fim.
+
+## 1. Contexto e problema
+
+Em 16/10/2026 o Guardião ficou o dia inteiro sem refazer o plano dela. Causas medidas nos logs (`Guardiao-do-dia\logs\voz.log`, `gerar_plano_*.log`, `modelos.jsonl`):
+
+- **Cinco portas montam plano, cada uma com seu prompt e suas regras:** plano da manhã (`app/gerar_plano.ps1`), manutenção dos 3 dias (`voz/manter_planos.py`, laço de 15 min), pedido por voz ("guardião completo", `guardiao_voz.rodar_completo`), sessão do Claude Code (`guardiao_sessao.py`) e supervisor de atraso (`guardiao_voz` → `v2.avaliar_atraso` → `iniciar_completo`).
+- **A IA faz a conta de encaixar horário:** ela erra, a conferência (`voz/conferencia_plano.py`) barra, e cada correção relia dossiê, skill e memória. O plano de 20/10 foi refeito 4 vezes em 15 e 16/10.
+- **Não existe plano de mês nem de semana:** o "mês" é a lista de marcos das campanhas, lida na hora (`rota_agenda.marcos`), e a "semana" é só a soma dos planos diários. Por isso a Estrateclass de terça 20/10 ficou sem tema e sem thumb: ninguém olhava a semana seguinte.
+- **Consumo de tokens:** a conversa no modo sessão gasta de 230 a 390 mil tokens de entrada por fala (US$ 7 a 11 por dia). Um pedido "refazer plano" gasta de 1 a 1,6 milhão de tokens e de 3 a 6 minutos.
+- **Mudanças sem consentimento:** às 15h24 do dia 16, o supervisor replanejou sozinho, gastou 6 minutos e a tela mostrou o plano errado.
+
+## 2. Princípios (decididos pela Milena; não reabrir)
+
+1. **O código monta e a IA revisa.** O código faz a conta: horários, janelas, capacidade, prazos, regras. A IA faz o julgamento: desdobrar entrega sem POP, estimar tarefa nova, priorizar numa semana apertada, entender pedido em texto livre. **A IA nunca escreve horário:** ela devolve instruções e o código aplica e recalcula.
+2. **Quem decide a agenda é o guardião, não a pessoa.** Ele só pergunta quando é impossível. Até 2h de hora extra, a pergunta é "você prefere estender o dia ou renegociar o prazo?". Acima disso, renegociar o prazo com quem combinou. Ele nunca pergunta "onde você quer colocar".
+3. **Nada muda no plano sem ela aprovar.** Processo automático só propõe e avisa, nunca aplica.
+4. **Hierarquia mês, semana, 3 dias, dia:**
+   - **Mês:** todo dia 1, o guardião pergunta "quais ações e campanhas vamos fazer este mês?" e registra as prioridades.
+   - **Semana:** gerada no onboarding. O dia da semana do onboarding vira o dia fixo de planejar a semana. A semana é revista quando a agenda muda.
+   - **Dia:** ela aprova todo dia. Se a agenda mudar depois, o guardião mostra o que mudou e pede aprovação de novo.
+5. **Economia:** uma chamada de IA por evento de planejamento, com um resumo compacto. A IA não lê arquivos e não há ciclo de correções.
+
+## 3. Regras de agenda da Milena (viram restrições do motor)
+
+As regras gerais ficam no código geral. As pessoais ficam ligadas só no `config.json` dela (`rotina.*`).
+
+- **Stories:**
+  - A meta é 45 min por dia de trabalho, podendo ser quebrados em blocos de até 15 min espalhados.
+  - Só 1 dia por semana é de captação, com pouco stories. Ele é a válvula: numa semana apertada, o planejamento semanal joga tarefas para esse dia.
+  - Fora desse dia, o tempo de stories só encolhe se não houver nenhuma tarefa remanejável. A regra antiga "dia apertado: caixinha 15 min" (`conferencia_plano.STORIES_TIPOS_PADRAO`, `minutos_apertado`) contradiz isso e deve sair.
+  - O que ela fez fora do plano (contou "já fiz caixinha") conta para a meta.
+- **Consumo:**
+  - Um por dia, rotina fixa, sempre ANTES das copies (as ideias de post nascem dele; `rotina.regras.ideia_depois_de_consumo`, hoje só vale para bloco de "ideia" e precisa valer para copy).
+  - Um 2º consumo ou descanso só entra quando não há tarefa para adiantar (equilíbrio da semana).
+  - Hoje o próprio `plano_base.montar` manda preencher buraco com "consumo com a pergunta, curso ou descanso programado", e isso gerou 2 consumos que a conferência barrou. O certo é preencher adiantando tarefa de dia cheio primeiro.
+- **Estrateclass (live toda terça às 13h):**
+  - Tema, thumb e live agendada até a QUARTA anterior (data da live menos 6 dias).
+  - Antecipação do Paulo no grupo até a QUINTA (menos 5 dias), só com o link pronto.
+  - Thumb leva no máximo 30 min. Se não couber, delegar ao Paulo.
+  - Já implementado em `voz/preparos.py` (config `rotina.preparos` e `clickup.eventos: ["live semanal"]`). A tarefa mãe tem a tag "live semanal" e a data da live.
+- **Etapas de post:** copy antes do design. Copies juntas, depois designs juntos (`rotina.regras.etapas_em_lote`). Etapa termina antes da postagem. Relatório só 24h depois. O guardião manda na data e o prazo do ClickUp é sugestão, exceto tarefa fixa (`voz/etapas_post.py`, `voz/travas.py`).
+- **Janelas e limites:** já estão no config (horário nobre, zona morta 16h-18h, hora de parar por dia, almoço, fixos da semana, fixos por data).
+- **Tarefa:** um dia só por tarefa. Tarefa não some. Prazo máximo nunca é ultrapassado. Fixa não muda de horário. Rotina sem id (consumo, stories) pode repetir em vários dias.
+
+## 4. Arquitetura alvo
+
+```
+ClickUp (ler_clickup.ps1) + campanhas (Obsidian) + preparos + posts_maes + config + tempos.json
+        |
+        v
+[motor_agenda.py]  código puro, sem IA
+  - entregas(): tudo que precisa ser feito, com prazo, esforço e tipo
+  - semana(): distribui nos dias de trás para frente a partir do prazo
+  - dia(): encaixa horários (reusa rota_agenda.espacos, plano_base.inserir_stories etc.)
+  - devolve: rascunho {dias: {data: plano}}, nao_coube[], julgar[]
+        |
+        v
+[revisor_ia.py]  UMA chamada (Claude ou Codex, preferencias.provedor_ia), entrada compacta <= ~15k tokens
+  - recebe: rascunho resumido, julgar[], nao_coube[], regras em texto curto, perfil resumido
+  - devolve SÓ JSON de instruções:
+    {"acao":"estimar","id":..,"minutos":N}
+    {"acao":"desdobrar","id":..,"pop":"nome"} | {"acao":"desdobrar","id":..,"subtarefas":[{"titulo","minutos","tipo","dias_antes"}]}
+    {"acao":"janela","id":..,"preferir":"manha|tarde|nobre"}
+    {"acao":"prioridade","id":..,"nivel":1-4}
+    {"acao":"perguntar","texto":"..."}   (estender x renegociar, decisão de campanha)
+    {"acao":"explicar","texto":"..."}    (o "aviso" do plano, em linguagem dela)
+        |
+        v
+motor aplica as instruções e recalcula (no máximo 1 vez) -> proposta (status "sugerido") -> tela -> ela aprova -> ClickUp
+```
+
+Portas que passam a chamar o motor: `gerar_plano.ps1` (manhã), `manter_planos.py` (só propõe), pedido por voz de plano (`rodar_completo` quando o pedido é de plano), supervisor (só pergunta) e onboarding/semana/mês.
+
+O que sai:
+- os ciclos de correção de `gerar_plano.ps1`;
+- o revisor sem contexto (`voz/revisor.py`), cujos itens viram regra do motor ou parte do prompt do revisor de IA;
+- o prompt gigante do guardião completo para pedidos de plano.
+
+A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua como teste do motor: a saída do motor tem que passar nela.
+
+## 5. Etapas
+
+### Etapa 0: guardião usável (FEITA nesta sessão; ver Estado)
+- Modo sessão desligado nas preferências dela (`voz/preferencias.json`, `"sessao": false`).
+- O supervisor de atraso pergunta antes de replanejar.
+- `manter_planos` não chama mais IA sozinho: só monta a base por código e avisa.
+- Botão Parar no cartão de progresso. Codex registrado como trabalho em segundo plano para o Esc e o botão pararem.
+- PENDENTE de investigação: às 15h31 do dia 16, o plano gravado pelo Codex apareceu na tela com blocos da manhã ("Abrir a caixinha 09:26" como tarefa de agora) e a fala disse "Plano aprovado". Conferir se `plano_do_dia.json` tinha blocos no passado, se `_aplicar_planos` gravou `planos/plano_2026-10-16.json` e `plano_do_dia.json` de forma divergente, e quem aprovou.
+
+### Etapa 1: motor_agenda.py
+- Função pura `montar_semana(inicio, oper, cfg, hoje)`. Reusa `plano_base.montar`, `rota_agenda`, `preparos`, `etapas_post`, `gordura`, `inserir_stories` e `inserir_blocos_diarios`.
+- Ordem de alocação:
+  1. fixos;
+  2. stories (meta) e consumo (antes da copy);
+  3. entregas por prazo, de trás para frente, respeitando janela por tipo (copy e decisão no nobre, design à tarde, leve na zona morta);
+  4. preparo da live;
+  5. etapas de post em lote;
+  6. preencher buraco adiantando tarefa de dia cheio;
+  7. só então o 2º consumo ou descanso.
+- Quando não cabe:
+  - mover o que não precisa ser naquele dia;
+  - usar a válvula (dia de captação);
+  - encolher stories;
+  - hora extra até 2h, marcada como pergunta;
+  - acima disso, `nao_coube` com o prazo a renegociar.
+- Estimativa: média de `tempos.json` com 3 registros ou mais. Sem histórico, vai para `julgar[]`.
+- POP: se existe POP estruturado (mãe, subtarefas, prazo relativo), o código desdobra. Se não existe, vai para `julgar[]`.
+- Testes: `voz/testes/teste_motor_agenda.py` com os casos reais de 13 a 16/10 (Estrateclass sem tema, 2 consumos, stories 30 x 45, copy/design alternados, consumo em dois dias, semana apertada usando a captação). A saída tem que passar em `plano_base.conferir_plano` sem graves.
+
+### Etapa 2: revisor_ia.py
+- Monta a entrada compacta e chama o provedor uma vez. Claude com `-p`, sem ferramentas, `--output-format json`. Codex com `exec --sandbox read-only`, sem precisar ler.
+- Valida o JSON de instruções e devolve ao motor. Instrução inválida é ignorada e registrada no log.
+- Registra o uso em `logs/modelos.jsonl` (Codex também).
+- Teste: provedor falso que devolve instruções. O motor aplica e a conferência passa.
+
+### Etapa 3: mês
+- No dia 1 (ou no onboarding), a pergunta "quais ações e campanhas vamos fazer este mês?". A resposta vira prioridades nas notas de campanha (`campanhas/*.md`, cabeçalho `prioridade:`).
+- `motor_agenda.carga_do_mes()`: horas por semana contra a capacidade. Semana estourada gera a pergunta "estender ou renegociar?" com antecedência.
+
+### Etapa 4: semana e dia
+- A semana é gerada no onboarding. `config.rotina.dia_planejar_semana` = dia da semana do onboarding.
+- `manter_planos` passa a chamar o motor e, se o resultado difere do aprovado, grava como proposta (`planos/proposta_AAAA-MM-DD.json`) e avisa na tela. Nunca troca o aprovado.
+- Aprovação diária na tela. A tela mostra exatamente o plano aprovado, com tarefa de agora pelo horário atual.
+
+### Etapa 5: uma porta só
+- `gerar_plano.ps1`: motor, revisor de IA, proposta. Sem ciclos.
+- Pedido por voz de plano: o motor recebe o pedido e o revisor de IA traduz o pedido em instruções.
+- Aposentar `revisor.py` e as correções de `gerar_plano.ps1`.
+- Medir: tokens por evento no log e um resumo semanal do custo.
+
+## 6. Testes (regra da Milena)
+
+- Os testes são feitos por um agente independente (Sonnet, esforço médio), sem o contexto da conversa. Rodam só no fim de cada etapa, agrupados numa rodada única.
+- Python: `Guardiao-do-dia\voz\.venv\Scripts\python.exe`, rodando de dentro de `guardiao-triwer\voz`.
+- Nunca usar a porta 8767 nem matar os processos python do guardião dela.
+- Falhas conhecidas, de ambiente: `teste_versao` (caminho com parêntese e "ao aprovar... criadas 2") e `teste_rota_agenda` (nível 3).
+
+## 7. Instalação (regra)
+
+- Commitar na branch `milena/motor-agenda`. Rodar `Guardiao-do-dia\atualizar.ps1 -Origem <clone> -Local -Forcar -SemReiniciar`.
+- Reiniciar: parar os `pythonw` com `guardiao_voz.py` e rodar `Start-ScheduledTask -TaskName "Guardiao Triwer - voz"`.
+- Conferir: http://127.0.0.1:8767 responde e o log mostra "Pronto".
+- NÃO clicar "Nova versão" no painel: ele baixa a main do Paulo e perde estas mudanças.
+- Não enviar ao GitHub sem ela pedir.
+
+## 8. Estado
+
+- [x] PRD escrito (16/10).
+- [ ] Etapa 0 (atualizar abaixo ao terminar).
+- [ ] Etapa 1
+- [ ] Etapa 2
+- [ ] Etapa 3
+- [ ] Etapa 4
+- [ ] Etapa 5
