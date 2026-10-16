@@ -250,3 +250,6 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 - Cópia da versão anterior: `guardiao-triwer-workspace/skill-snapshot/`.
 - REGRA DA MILENA: evitar excesso de testes. Testar só quando necessário, agrupado, pelo agente Sonnet médio.
 - PRÓXIMO: Etapa 3 (mês) e Etapa 4 (semana no onboarding); reescrever os testes desatualizados listados acima; aposentar `revisor.py` e os ciclos do `gerar_plano -Data`.
+
+### [FEITO] v0.10.7 (16/10)
+- `montar_semana`: item com limite tenta os dias da véspera do limite para trás e deixa o dia do limite por último. Caso real: a thumb da #105 (limite qua 21) caía na sexta 16, no primeiro espaço livre.
