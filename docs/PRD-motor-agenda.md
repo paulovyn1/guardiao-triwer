@@ -238,3 +238,7 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 - `revisor_ia.REGRAS`: "explicar" é falado à pessoa, em 1 ou 2 frases e na primeira pessoa, sem instruções ao sistema; no máximo 1 pergunta. Caso real: a IA escreveu "preserve os compromissos..." e isso foi lido para ela.
 - `_planejar_pelo_motor` responde em parágrafos. `dizer` preserva os parágrafos no texto escrito e no texto final. O CSS `.m-g p{white-space:pre-line}` mostra as quebras.
 - REGRA: sempre rodar `py_compile` antes de `atualizar.ps1`. Em 16/10, um arquivo com erro de sintaxe foi instalado e o painel caiu por alguns minutos.
+
+### [FEITO] v0.10.5 (16/10)
+- `_chamar_completo` manda ao motor todo pedido que não bate em `NAO_E_AGENDA` (destrinchar, configuração, onboarding, instalação). Caso real 17h37: "pode jogar ela mais pra frente, precisa estar pronta antes do dia 27" não bateu em `PEDE_PLANO` e ficou 6 min no Codex lendo a pasta.
+- Instrução nova `{"acao":"limite","titulo","ate"}`: o motor tira o bloco de onde estava e reencaixa até a data. Limite: ainda não tira de dia aprovado (o `rascunho` só recebe os aprovados depois desse passo).
