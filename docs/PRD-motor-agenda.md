@@ -264,3 +264,13 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
   - (d) Substack de segunda: `prazo_final` antigo de 18/10 e já está no plano de sábado 17/10. Ignorar planos de dia não útil, ou tratar o sábado.
   - (e) "Decidir composição... Halloween" (prazo máximo 16/10) é reencaixado em 19/10. Se o prazo máximo passou e não coube hoje, o certo é a pergunta de renegociar.
   - (f) Etapas de post vencidas (limite 18/10, post de segunda) entram em `nao_coube`, mas a conferência repete "chegou ao limite" em todos os dias. Deduplicar na fala.
+
+### [FEITO] v0.10.9 (16/10): 7 correções relatadas pela Milena
+1. Conclusão de compromisso fixo: `rota_agenda.fixos_do_dia` dá ids `fN`; `concluir_bloco` acha o fixo pelo id ou título; `_gravar_registro` inclui os fixos.
+2. Cancelar é diferente de tirar: a instrução `cancelar` vai para `plano["cancelar"]` (ids), e `_levar_ao_clickup` fecha no ClickUp ao aprovar.
+3. Ao aprovar hoje, `_avisar_proximos_sugeridos` avisa os dias futuros sugeridos com mudanças que o ClickUp ainda não recebeu. Aprovar a semana de uma vez, se ela quiser, ainda é decisão em aberto.
+4. `_perguntas_de_atraso`: tarefa vencida há 2 dias ou mais vira pergunta "ainda vale?" no aviso de hoje.
+5. `sincronizacao_pendente`: aprovação com erro avisa, e aprovar de novo tenta outra vez.
+6. O resumo da conversa (`memoria_conversa`): o que ela confirmou por último substitui o anterior.
+7. `revisor_ia`: dono só quando a fonte diz. Nunca por dedução.
+- Testes: agente Sonnet reescreveu os testes desatualizados (commit e237dab) e acrescentou casos novos. `teste_motor_agenda` 0 falhas. Falha conhecida e anterior: `teste_rota_agenda:77` (nível 3, depende da data).
