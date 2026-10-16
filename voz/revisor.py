@@ -144,7 +144,8 @@ def _chamar_claude(prompt, oper=OPER):
     modelo = os.environ.get("GUARDIAO_MODELO") or "claude-sonnet-5-5"
     env = dict(os.environ)
     env.pop("CLAUDECODE", None)
-    r = subprocess.run([*base, "-p", prompt, "--model", modelo, "--allowedTools", "Read", "--max-turns", "3", "--output-format", "json"],
+    # o prompt vai pelo stdin: com tudo dentro (regras, campanhas, horizonte) ele passa do limite da linha de comando do Windows
+    r = subprocess.run([*base, "-p", "--model", modelo, "--allowedTools", "Read", "--max-turns", "3", "--output-format", "json"], input=prompt,
                        capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, cwd=oper, timeout=TEMPO_REVISAO,
                        creationflags=getattr(guardiao_sessao, "FLAGS_CLAUDE", 0))
     return str((json.loads(r.stdout) or {}).get("result") or "")
