@@ -186,22 +186,30 @@ confere("stories em lote (bloco de 3h) é barrado; vários blocos curtos passam"
         and cp.conferir_blocos_diarios({"blocos": [b_("10:00", "10:30", "Stories 1"), b_("15:00", "15:30", "Stories 2")], "fixos": []}, segunda_, cfg_d) == [])
 confere("sábado não cobra, e sem a regra no config nada é cobrado", cp.conferir_blocos_diarios({"blocos": [], "fixos": []}, date(2026, 10, 17), cfg_d) == []
         and cp.conferir_blocos_diarios({"blocos": [], "fixos": []}, segunda_, {"rotina": {}}) == [])
-# stories: mínimo de 10 telas por dia; 3 telas só no dia de captação (1 por semana)
+# stories: o tipo do dia define o tempo (normal 30, caixinha 45, captação 15), quebrável em blocos curtos
 cfg_s2 = {"rotina": {"dias_trabalho": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], "stories": {"ativo": True}}}
 st_ = lambda ini, fim, tit: {"id": "s", "inicio": ini, "fim": fim, "titulo": tit}
-sex = date(2026, 10, 16)
-so_replay = {"blocos": [st_("17:10", "17:25", "Stories do replay da sala secreta: 3 telas")], "fixos": []}
-confere("sexta só com 3 telas de divulgação (caso real 16/10) é barrada", len(cp.conferir_stories(so_replay, sex, cfg_s2)) == 1)
-dez = {"blocos": [st_("10:00", "10:15", "Stories: respostas da caixinha (4 telas)"), st_("14:00", "14:15", "Stories: respostas da caixinha (4 telas)"), st_("17:10", "17:25", "Stories do replay da sala secreta: 3 telas")], "fixos": []}
-confere("2 caixinhas (8 telas) + replay (3) = 11 telas passa", cp.conferir_stories(dez, sex, cfg_s2) == [])
-normal = {"blocos": [st_("14:00", "14:30", "Stories: sequência normal (8 a 10 telas)")], "fixos": []}
-confere("sequência normal de 30 min (8 a 10 telas) sozinha: 10 telas, passa", cp.conferir_stories(normal, sex, cfg_s2) == [])
-cap = {"blocos": [st_("14:00", "14:15", "Stories de captação de leads (3 telas)")], "fixos": []}
-confere("dia de captação com só 3 telas passa; um segundo dia de captação na mesma semana é barrado",
-        cp.conferir_stories(cap, date(2026, 10, 15), cfg_s2) == []
-        and len(cp.conferir_stories(cap, sex, cfg_s2, {"2026-10-15": cap})) == 1)
-confere("telas de caixinha sem número no título saem da conta (15 min = 4 telas); bloco de 3h é barrado como lote",
-        cp.telas_do_bloco(st_("10:00", "10:15", "Responder a caixinha"), cp.config_stories(cfg_s2)) == 4
-        and any("blocos menores" in x for x in cp.conferir_stories({"blocos": [st_("14:00", "17:00", "Stories do dia")], "fixos": []}, sex, cfg_s2)))
-confere("sem rotina.stories no config nada é cobrado; sábado não cobra", cp.conferir_stories(so_replay, sex, {"rotina": {}}) == [] and cp.conferir_stories({"blocos": []}, date(2026, 10, 17), cfg_s2) == [])
+cx_ = lambda ini, dur=15: st_(ini, f"{int(ini[:2]) + (int(ini[3:]) + dur) // 60:02d}:{(int(ini[3:]) + dur) % 60:02d}", "Stories: respostas da caixinha (parte)")
+nm_ = lambda ini, dur=15: st_(ini, f"{int(ini[:2]) + (int(ini[3:]) + dur) // 60:02d}:{(int(ini[3:]) + dur) % 60:02d}", "Stories: sequência normal (parte)")
+sex = date(2026, 10, 16)  # sexta = caixinha pelo padrão
+replay = st_("17:10", "17:25", "Stories do replay da sala secreta: 3 telas")
+confere("sexta (caixinha) só com o replay de divulgação (caso real 16/10) é barrada", len(cp.conferir_stories({"blocos": [replay], "fixos": []}, sex, cfg_s2)) == 1)
+confere("sexta com 45 min de caixinha em 3 blocos passa; quebrada em blocos de 10 e 5 min também", cp.conferir_stories({"blocos": [cx_("10:00"), cx_("13:00"), cx_("16:00"), replay], "fixos": []}, sex, cfg_s2) == []
+        and cp.conferir_stories({"blocos": [cx_("10:00", 10), cx_("11:00", 10), cx_("13:00", 10), cx_("15:00", 10), cx_("16:00", 5)], "fixos": []}, sex, cfg_s2) == [])
+confere("30 min de caixinha é pouco em dia com folga (pede 45)", len(cp.conferir_stories({"blocos": [cx_("10:00"), cx_("15:00")], "fixos": []}, sex, cfg_s2)) == 1)
+cheio = [{"id": "x", "inicio": "08:40", "fim": "19:00", "titulo": "tudo"}]
+confere("em dia apertado a caixinha cai para 15 min", cp.dia_apertado({"blocos": cheio, "fixos": []}, sex) is True
+        and cp.conferir_stories({"blocos": cheio + [cx_("15:00")], "fixos": []}, sex, cfg_s2) == [])
+qua_ = date(2026, 10, 21)  # quarta = sequência normal (30 min)
+confere("quarta (sequência normal): 30 min em 2 blocos passa; 15 min é pouco", cp.conferir_stories({"blocos": [nm_("10:00"), nm_("15:00")], "fixos": []}, qua_, cfg_s2) == []
+        and len(cp.conferir_stories({"blocos": [nm_("10:00")], "fixos": []}, qua_, cfg_s2)) == 1)
+qui_ = date(2026, 10, 15)  # quinta = captação
+cap = {"blocos": [st_("14:00", "14:15", "Stories de captação de leads (3 telas)")], "fixos": [], "stories_tipo": "captacao"}
+confere("dia de captação com 15 min passa; um segundo dia de captação na mesma semana é barrado", cp.conferir_stories(cap, qui_, cfg_s2) == []
+        and any("só em 1 dia por semana" in x for x in cp.conferir_stories(dict(cap, stories_tipo="captacao"), sex, cfg_s2, {"2026-10-15": cap})))
+confere("o plano pode declarar o tipo do dia (stories_tipo) no lugar do padrão", cp.tipo_do_dia({"stories_tipo": "normal"}, sex, cp.config_stories(cfg_s2)) == "normal"
+        and cp.tipo_do_dia({}, sex, cp.config_stories(cfg_s2)) == "caixinha")
+confere("bloco de 3h é lote e é barrado; cronograma de stories não conta", any("blocos curtos" in x for x in cp.conferir_stories({"blocos": [st_("14:00", "17:00", "Stories do dia")], "fixos": []}, qua_, cfg_s2))
+        and len(cp.conferir_stories({"blocos": [st_("09:45", "10:45", "Cronograma de stories da semana")], "fixos": []}, sex, cfg_s2)) == 1)
+confere("sem rotina.stories no config nada é cobrado; sábado não cobra", cp.conferir_stories({"blocos": [replay], "fixos": []}, sex, {"rotina": {}}) == [] and cp.conferir_stories({"blocos": []}, date(2026, 10, 17), cfg_s2) == [])
 sys.exit(1 if falhas else 0)

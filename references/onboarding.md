@@ -110,7 +110,7 @@ Vai para: `perfil.md` (Como cobrar, Decisão e interrupções); `config.json` (r
 - Quanto tempo leva cada etapa de uma entrega (escrever, produzir, revisar)? Chute honesto.
 - Em que dias e horários isso é publicado ou entregue?
 - Quantas entregas devem ficar prontas à frente, como colchão?
-- Você vende de um jeito em que stories (ou outro bloco diário de conteúdo curto) puxa gente todos os dias? Se sim, quantas telas por dia? Para quem faz, o padrão é no mínimo 10 telas por dia de trabalho: respostas da caixinha (4 telas em 15 min), sequência normal (8 a 10 telas em 30 min, pelo menos 2 vezes por semana) e um dia por semana só com 3 telas de captação de leads (15 min). Se a pessoa NÃO vende assim, ou não consegue manter, NÃO ligar: deixar `rotina.stories` fora do config. Nunca ligar sem ela confirmar.
+- Você vende de um jeito em que stories (ou outro bloco diário de conteúdo curto) puxa gente todos os dias? Se sim, quantas telas por dia? Para quem faz, cada dia de trabalho tem um tipo, definido antes: sequência normal (30 min, 10 telas, pelo menos 2 dias por semana), respostas da caixinha (45 min, 12 telas; 15 min em dia apertado) ou captação de leads (15 min, 3 telas, um dia por semana). O tempo pode ser quebrado em blocos curtos espalhados pelo dia. Se a pessoa NÃO vende assim, ou não consegue manter, NÃO ligar: deixar `rotina.stories` fora do config. Nunca ligar sem ela confirmar.
 - Em que dias da semana você posta (para a "gordura": quantos posts prontos à frente você quer ter)?
 Vai para: `perfil.md` (Frente de receita); `equipe.md` (Tempos); `config.json` (`rotina.stories` e `rotina.posts`, só se a pessoa confirmou).
 
