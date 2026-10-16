@@ -1,4 +1,4 @@
-{
+﻿{
   "versao": 1,
   "observacao": "Modelo. O onboarding gera o config.json de verdade a partir das respostas da pessoa. Nenhum valor abaixo é real.",
   "pessoa": {
@@ -84,6 +84,7 @@
     "token_variavel": "CLICKUP_API_TOKEN",
     "workspace_id": "0000000",
     "user_id": "0000000",
+    "eventos": [],
     "status_abertos": [
       "to do"
     ],

@@ -363,7 +363,7 @@ def _dias_de_trabalho(rot):
 # (15 min ou menos) espalhados pelo dia, não precisa ser feito de uma vez. Em dia apertado a caixinha cai para 1 bloco.
 STORIES_TIPOS_PADRAO = {
     "normal": {"telas": 10, "minutos": 30, "minutos_apertado": 30},
-    "caixinha": {"telas": 12, "minutos": 45, "minutos_apertado": 15, "palavras": ["caixinha"]},
+    "caixinha": {"telas": 12, "minutos": 45, "minutos_apertado": 45, "palavras": ["caixinha"]},  # 45 sempre: só encolhe se nada puder ser remanejado (o motor decide)
     "captacao": {"telas": 3, "minutos": 15, "minutos_apertado": 15, "palavras": ["captacao", "leads", "isca"]},
 }
 STORIES_DIVULGACAO = ("replay", "convite", "divulg", "lembrete", "aviso")  # divulgação não conta para o tipo do dia

@@ -400,6 +400,14 @@ def executar(pedido, operacional, memoria="", pode_escrever=False, timeout=600, 
     return resposta, uso
 
 
+def executar_sem_arquivos(pedido, timeout=120, progresso=None):
+    """Turno sem leitura: o Codex roda numa pasta temporária vazia, porque tudo que ele precisa já vai no pedido.
+    Na pasta do guardião ele carregava skill e arquivos e chegava a 200 mil tokens por chamada (medido em 16/10)."""
+    with tempfile.TemporaryDirectory(prefix="guardiao_codex_") as vazia:
+        return executar(pedido + "\n\nNão execute comandos nem leia arquivos: tudo de que você precisa está acima.", vazia,
+                        timeout=timeout, progresso=progresso)
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--prompt-file", required=True)

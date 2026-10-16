@@ -82,10 +82,8 @@ def chamar(prompt, oper=OPER):
     """Texto da resposta. Uma chamada, sem ferramentas. Registra o uso em logs/modelos.jsonl."""
     t0 = time.time()
     if _provedor(oper) == "codex":
-        import tempfile
         import guardiao_codex
-        with tempfile.TemporaryDirectory(prefix="guardiao_revisao_") as vazia:  # pasta vazia: nada para ler (dentro da operacional ele lia 200 mil tokens)
-            texto, uso = guardiao_codex.executar(prompt + "\n\nNão execute comandos nem leia arquivos: tudo está acima.", vazia, timeout=TEMPO)
+        texto, uso = guardiao_codex.executar_sem_arquivos(prompt, timeout=TEMPO)
         _registrar(oper, "codex", {"entrada": uso.get("input_tokens", 0), "saida": uso.get("output_tokens", 0)}, int((time.time() - t0) * 1000))
         return texto
     import guardiao_sessao

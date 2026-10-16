@@ -912,9 +912,9 @@ def _chamar_resumo(pedido):
     """O resumo do dia: uma chamada curta ao modelo leve, sem ferramentas, sem conectores e sem pensamento. Devolve o texto ou None."""
     if provedor_ia() == "codex":
         try:
-            return guardiao_codex.executar(
+            return guardiao_codex.executar_sem_arquivos(
                 "Resuma de forma curta e fiel, sem inventar fatos. Responda só com o resumo.\n\n" + pedido,
-                OPER, pasta_memoria(), timeout=90)[0]
+                timeout=90)[0]
         except RuntimeError:
             return None
     base = guardiao_sessao.comando_do_claude()
@@ -1315,9 +1315,9 @@ def comando_claude(pergunta, streaming, modelo=None):
 def perguntar_claude(pergunta, modelo=None):
     t0 = time.time()
     if provedor_ia() == "codex":
-        resposta, _ = guardiao_codex.executar(
+        resposta, _ = guardiao_codex.executar_sem_arquivos(
             prompt_sistema() + "\n\n" + mensagem_do_turno(pergunta),
-            OPER, pasta_memoria(), timeout=120)
+            timeout=120)
         return resposta, time.time() - t0
     cmd, env = comando_claude(pergunta, streaming=False, modelo=modelo)
     saida = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env, cwd=OPER, timeout=90, creationflags=guardiao_sessao.FLAGS_CLAUDE)
@@ -1376,9 +1376,9 @@ def frases_do_claude(pergunta, modelo=None, motivo=""):
         inicio = time.time()
         bus.emitir("progresso", modo="conversa", ativo=True, rotulo="Iniciando o Codex", inicio=inicio)
         try:
-            resposta, _ = guardiao_codex.executar(
+            resposta, _ = guardiao_codex.executar_sem_arquivos(
                 prompt_sistema() + "\n\n" + mensagem_do_turno(pergunta),
-                OPER, pasta_memoria(), timeout=120,
+                timeout=120,
                 progresso=lambda rotulo: bus.emitir("progresso", modo="conversa", ativo=True,
                                                     rotulo=rotulo, inicio=inicio))
         finally:

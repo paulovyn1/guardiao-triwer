@@ -110,9 +110,13 @@ Vai para: `perfil.md` (Como cobrar, Decisão e interrupções); `config.json` (r
 - Quanto tempo leva cada etapa de uma entrega (escrever, produzir, revisar)? Chute honesto.
 - Em que dias e horários isso é publicado ou entregue?
 - Quantas entregas devem ficar prontas à frente, como colchão?
-- Você vende de um jeito em que stories (ou outro bloco diário de conteúdo curto) puxa gente todos os dias? Se sim, quantas telas por dia? Para quem faz, cada dia de trabalho tem um tipo, definido antes: sequência normal (30 min, 10 telas, pelo menos 2 dias por semana), respostas da caixinha (45 min, 12 telas; 15 min em dia apertado) ou captação de leads (15 min, 3 telas, um dia por semana). O tempo pode ser quebrado em blocos curtos espalhados pelo dia. Se a pessoa NÃO vende assim, ou não consegue manter, NÃO ligar: deixar `rotina.stories` fora do config. Nunca ligar sem ela confirmar.
+- Você vende de um jeito em que stories (ou outro bloco diário de conteúdo curto) puxa gente todos os dias? Se sim, quantas telas por dia? Para quem faz, cada dia de trabalho tem um tipo, definido antes: sequência normal (30 min, 10 telas, pelo menos 2 dias por semana), respostas da caixinha (45 min, 12 telas) ou captação de leads (15 min, 3 telas, um dia por semana). A meta do dia não encolhe por o dia estar cheio: o guardião primeiro move o que não precisa ser naquele dia; o dia de captação é a válvula da semana apertada. O tempo pode ser quebrado em blocos curtos espalhados pelo dia. Se a pessoa NÃO vende assim, ou não consegue manter, NÃO ligar: deixar `rotina.stories` fora do config. Nunca ligar sem ela confirmar.
 - Em que dias da semana você posta (para a "gordura": quantos posts prontos à frente você quer ter)?
 Vai para: `perfil.md` (Frente de receita); `equipe.md` (Tempos); `config.json` (`rotina.stories` e `rotina.posts`, só se a pessoa confirmou).
+
+- Você tem um evento recorrente que precisa de preparo antes (live semanal, aula ao vivo, webinar)? Se sim: qual dia e hora, e o que precisa estar pronto quantos dias antes e por quem (ex.: tema e thumb 6 dias antes, por ela; agendar 6 dias antes, pelo sócio; aviso no grupo 5 dias antes, pelo sócio). No ClickUp, a tarefa mãe de cada edição precisa ter uma tag própria (ex.: "live semanal") e a data do evento; as etapas são subtarefas.
+
+Vai para: `config.json` (`clickup.eventos` com a tag; `rotina.preparos` com uma regra por etapa: `palavras` do título da subtarefa, `dias_antes`, `rotulo`). Sem evento recorrente, não criar.
 
 **Revisão de padrões (depois do bloco 6, antes da etapa 3).**
 1. Reler todas as respostas e listar de 3 a 6 padrões que aparecem em mais de um bloco (ex: "trava quando decidir e executar vêm juntos", "rende depois de consumir conteúdo", "dia pesado destrói o dia seguinte"). Cada padrão leva as duas situações reais que o sustentam, nas palavras da pessoa.
