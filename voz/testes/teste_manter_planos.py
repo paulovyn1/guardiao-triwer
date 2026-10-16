@@ -74,13 +74,19 @@ def resumo2(tarefas):
         json.dump({"tarefas": tarefas}, f)
 
 
-def plano2(d, status=None):
-    with open(os.path.join(oper2, "planos", f"plano_{d}.json"), "w", encoding="utf-8") as f:
-        json.dump({"data": d, "status": status} if status else {"data": d}, f)
+def plano2(d, status=None, origem=None, pasta=None):
+    dados = {"data": d}
+    if status:
+        dados["status"] = status
+    if origem:
+        dados["origem"] = origem
+    with open(os.path.join(pasta or oper2, "planos", f"plano_{d}.json"), "w", encoding="utf-8") as f:
+        json.dump(dados, f)
 
 
+# terça: base por código (semana combinada); quarta: aprovado; quinta: sugerido refinado (sem origem de base)
 for d in ("2026-10-20", "2026-10-21", "2026-10-22"):
-    plano2(d, "aprovado" if d == "2026-10-21" else None)
+    plano2(d, "aprovado" if d == "2026-10-21" else "sugerido", "semana combinada (montado sem Claude)" if d == "2026-10-20" else ("refinado pela IA" if d == "2026-10-22" else None))
 resumo2([{"id": "a", "nome": "X", "prazo": "2026-10-20", "inicio": "09:00", "fim": "10:00", "status": "pendente"}])
 refeitos = []
 
@@ -94,13 +100,31 @@ mp.rodar_uma_vez(oper2, cfg, seg, ger2, agora=10000)
 confere("primeira vez que vê planos que já existiam: só marca o ponto de partida, não refaz", refeitos == [], refeitos)
 resumo2([{"id": "a", "nome": "X", "prazo": "2026-10-20", "inicio": "09:00", "fim": "10:00", "status": "pendente"},
          {"id": "b", "nome": "Nova", "prazo": "2026-10-20", "inicio": "11:00", "fim": "12:00", "status": "pendente"},
-         {"id": "c", "nome": "Nova de qua", "prazo": "2026-10-21", "inicio": "11:00", "fim": "12:00", "status": "pendente"}])
+         {"id": "c", "nome": "Nova de qua", "prazo": "2026-10-21", "inicio": "11:00", "fim": "12:00", "status": "pendente"},
+         {"id": "d", "nome": "Nova de qui", "prazo": "2026-10-22", "inicio": "11:00", "fim": "12:00", "status": "pendente"}])
 mp.rodar_uma_vez(oper2, cfg, seg, ger2, agora=10000 + 600)
 confere("mudou, mas ainda dentro das 3 h da última revisão: espera", refeitos == [], refeitos)
 mp.rodar_uma_vez(oper2, cfg, seg, ger2, agora=10000 + mp.REVISAO_PAUSA + 1)
-confere("mudou e passou a pausa: refaz o plano sugerido de terça, com refazer", ("2026-10-20", True) in refeitos, refeitos)
+confere("mudou e passou a pausa: refaz o plano de origem 'semana combinada' de terça, com refazer (sem IA: o gerador é o do código)", ("2026-10-20", True) in refeitos, refeitos)
 confere("plano aprovado (quarta) nunca é refeito sozinho, mesmo com mudança", all(d != "2026-10-21" for d, _ in refeitos), refeitos)
-confere("o que não mudou (quinta) não é refeito", all(d != "2026-10-22" for d, _ in refeitos), refeitos)
+confere("plano sugerido refinado (quinta, mesmo com mudança) não é refeito sozinho", all(d != "2026-10-22" for d, _ in refeitos), refeitos)
+# plano de origem 'motor da agenda' também é refeito; sugerido sem origem não
+oper5 = tempfile.mkdtemp()
+os.makedirs(os.path.join(oper5, "planos"))
+plano2("2026-10-20", "sugerido", "motor da agenda", oper5)
+plano2("2026-10-21", "sugerido", None, oper5)
+plano2("2026-10-22", "sugerido", "semana combinada (montado sem Claude)", oper5)
+with open(os.path.join(oper5, "resumo_clickup.json"), "w", encoding="utf-8") as f:
+    json.dump({"tarefas": [{"id": "a", "nome": "X", "prazo": "2026-10-20", "inicio": "09:00", "fim": "10:00", "status": "pendente"}]}, f)
+r5 = []
+mp.rodar_uma_vez(oper5, cfg, seg, lambda d, o, refazer=False: r5.append((d.isoformat(), refazer)) or True, agora=70000)
+with open(os.path.join(oper5, "resumo_clickup.json"), "w", encoding="utf-8") as f:
+    json.dump({"tarefas": [{"id": "a", "nome": "X", "prazo": "2026-10-20", "inicio": "09:00", "fim": "10:00", "status": "pendente"},
+                           {"id": "n", "nome": "N20", "prazo": "2026-10-20", "inicio": "11:00", "fim": "12:00", "status": "pendente"},
+                           {"id": "m", "nome": "N21", "prazo": "2026-10-21", "inicio": "11:00", "fim": "12:00", "status": "pendente"},
+                           {"id": "o", "nome": "N22", "prazo": "2026-10-22", "inicio": "11:00", "fim": "12:00", "status": "pendente"}]}, f)
+mp.rodar_uma_vez(oper5, cfg, seg, lambda d, o, refazer=False: r5.append((d.isoformat(), refazer)) or True, agora=70000 + mp.REVISAO_PAUSA + 1)
+confere("só origem 'semana combinada' ou 'motor da agenda' é refeita; sugerido sem origem fica", sorted(r5) == [("2026-10-20", True), ("2026-10-22", True)], r5)
 n = len(refeitos)
 mp.rodar_uma_vez(oper2, cfg, seg, ger2, agora=10000 + 2 * mp.REVISAO_PAUSA + 5)
 confere("sem nova mudança não refaz de novo", len(refeitos) == n, refeitos)

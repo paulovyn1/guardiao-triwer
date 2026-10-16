@@ -127,7 +127,7 @@ confere("depois de aprovado, mover pela voz vale (imprevisto) e o plano continua
 g.AVISOS_AO_MODELO.clear()
 gravar_plano()
 
-# ---- abertura do dia: o guardião monta (se preciso), lê o plano tarefa a tarefa e pede o ok; nas outras aberturas, execução com incentivo
+# ---- abertura do dia: o guardião monta (se preciso), vai para a aba Dia e diz numa frase para aprovar na barra de baixo; nas outras aberturas, execução com incentivo
 import controle_fala  # noqa: E402
 import guardiao_v2 as v2  # noqa: E402
 a = argparse.Namespace(cerebro=True, voz="kokoro", voz_kokoro="pm_santa", voz_nome="", sem_preview=True, previa_local=True, sem_escuta_aberta=False)
@@ -148,27 +148,27 @@ h.bus.portao_saudacao.set()  # a animação de abertura já terminou
 eventos()
 r = g.abrir_o_dia(a, primeira=True)
 ev = eventos()
-leitura = next((t for t, m in ditas if m), "")
+leitura = ditas[0][0] if ditas else ""
 confere("primeira abertura com plano sugerido: vai para a aba Dia", any(e["t"] == "ui" and e.get("cmd") == "tela" and e.get("id") == "dia" for e in ev), [e["t"] for e in ev])
-confere("e lê cada tarefa, com a marca que destaca a da vez", "{{foco:b1}}Primeiro, das 09:00 às 09:30, Primeira." in leitura and "{{foco:b2}}Por último, das 10:00 às 11:00, Segunda." in leitura, leitura)
-confere("cumprimenta pelo nome e diz quantas tarefas são", leitura.startswith(g.saudacao_local()) and "2 tarefas" in leitura, leitura[:120])
-confere("no fim pede o ok, com a proposta de aprovar na tela, e espera resposta", r is True and g.PROPOSTA and g.PROPOSTA["tipo"] == "aprovar"
-        and any(e["t"] == "proposta" and e.get("tipo") == "aprovar" for e in ev) and "Posso aprovar o plano?" in ditas[-1][0], (r, ditas[-1]))
-confere("a revisão fica aberta: dá para pedir mudança antes de aprovar", g.revisao_ativa())
+confere("diz numa frase só, sem ler tarefa por tarefa (sem marca de foco) e sem abrir proposta nem revisão", len(ditas) == 1 and not ditas[0][1] and "{{foco" not in leitura
+        and "Primeira" not in leitura and r is False and g.PROPOSTA is None and not any(e["t"] == "proposta" for e in ev) and not g.revisao_ativa(), (r, ditas, [e["t"] for e in ev]))
+confere("cumprimenta pelo nome, diz quantas tarefas são e manda aprovar na barra de baixo", leitura.startswith(g.saudacao_local()) and "2 tarefas" in leitura
+        and "aprove na barra de baixo" in leitura and "Posso aprovar" not in leitura, leitura)
 confere("sem o ok, nada de execução", not v2.estado_exec()["ativo"])
-confere("a leitura não fica marcada depois que termina", not controle_fala.LEITURA.is_set())
+confere("a leitura em voz antiga não fica ligada", not controle_fala.LEITURA.is_set())
 g.PROPOSTA = None
 g.encerrar_revisao()
 ditas.clear()
 r = g.abrir_o_dia(a, primeira=False)
-confere("reaberta no mesmo dia com o plano ainda sem ok: não lê de novo, só pede o ok", r is True and len(ditas) == 1 and "ainda espera o seu ok" in ditas[0][0] and g.PROPOSTA, ditas)
+confere("reaberta no mesmo dia com o plano ainda sem ok: não repete o plano, só lembra de aprovar na barra de baixo", r is False and len(ditas) == 1 and "ainda espera o seu ok" in ditas[0][0]
+        and "barra de baixo" in ditas[0][0] and g.PROPOSTA is None, ditas)
 g.PROPOSTA = None
 ditas.clear()
 g.ABERTURA["leu"] = ""
 pular_na_leitura[0] = True
 g.abrir_o_dia(a, primeira=True)
-confere("Esc na leitura: pula direto para o pedido de ok", ditas[-1][0].startswith("Pulei a leitura.") and "Posso aprovar" in ditas[-1][0] and g.PROPOSTA, ditas[-1])
-confere("e o Esc da leitura não desliga a voz nem corta a próxima fala", h.preferencias()["voz_guardiao"] is True and not controle_fala.PULAR_LEITURA.is_set())
+confere("primeira abertura de novo (mesmo com Esc armado): continua uma frase, sem leitura para pular nem 'Pulei a leitura'", len(ditas) == 1 and not ditas[0][1] and "Pulei" not in ditas[0][0] and g.PROPOSTA is None, ditas)
+confere("e o Esc armado não desliga a voz nem deixa marca pendente", h.preferencias()["voz_guardiao"] is True and not controle_fala.PULAR_LEITURA.is_set())
 pular_na_leitura[0] = False
 g.PROPOSTA = None
 g.encerrar_revisao()
@@ -193,7 +193,8 @@ confere("sem plano: pede para montar sem perguntar e avisa que está montando", 
 gravar_plano()
 ditas.clear()
 r = g.plano_montado_na_abertura(a, {"pedido": g.PEDIDO_PLANO_DO_DIA, "mudou": True, "fala": "Montei."})
-confere("plano montado: lê tarefa a tarefa e pede o ok", r is True and not g.ABERTURA["esperando_plano"] and any(m for _, m in ditas) and "Posso aprovar" in ditas[-1][0], ditas)
+confere("plano montado: diz numa frase para aprovar na barra de baixo (sem ler tarefa a tarefa, sem pedir ok falado)", r is False and not g.ABERTURA["esperando_plano"] and len(ditas) == 1
+        and not ditas[0][1] and ditas[0][0].startswith("Pronto.") and "aprove na barra de baixo" in ditas[0][0] and g.PROPOSTA is None, (r, ditas))
 g.PROPOSTA = None
 g.encerrar_revisao()
 g.iniciar_completo = iniciar_original

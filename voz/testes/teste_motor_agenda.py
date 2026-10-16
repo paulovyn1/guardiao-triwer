@@ -90,14 +90,17 @@ confere("copy até terça, design e tarefa até quarta: cada uma no dia até o l
 confere("o prazo final do bloco guarda o limite", bool(bc and bc.get("prazo_final") == "2026-10-20"))
 
 # 4. não coube: pergunta com estender ou renegociar (falta até 120 min)
-nobre_ter = max([y - x for x, y in ra.espacos(r["dias"][iso(1)], date.fromisoformat(iso(1)), "pesado", memoria=memoria)] or [0])
-grande = {"id": "g1", "titulo": "Escrever a página de vendas inteira", "limite": date(2026, 10, 20), "origem": "sem_hora", "lista": "Conteúdos", "minutos": nobre_ter + 60}
+# Com o fallback "qualquer horário livre antes do limite", só não cabe o que passa do maior vão contínuo de QUALQUER janela até o limite.
+vao_max = max([y - x for i in (iso(0), iso(1)) for x, y in pb._vaos_do_dia(r["dias"][i], date.fromisoformat(i), memoria, ma._a_partir(date.fromisoformat(i)))] or [0])
+nobre_ter = vao_max
+grande = {"id": "g1", "titulo": "Escrever a página de vendas inteira", "limite": date(2026, 10, 20), "origem": "sem_hora", "lista": "Conteúdos", "minutos": vao_max + 60}
 EXTRA[:] = [copy1, design1, leve1, grande]
 r = ma.montar_semana(oper, cfg, segunda, 5, incluir_hoje=True)
 nc = next((n for n in r["nao_coube"] if n["id"] == "g1"), None)
 confere("o que não cabe até o limite vai para nao_coube com 'estender ... ou renegociar'", bool(nc and "estender o dia" in nc["pergunta"] and "renegociar o prazo" in nc["pergunta"]),
         (nc, nobre_ter, r["nao_coube"]))
-confere("a pergunta diz quanto falta e o dia", bool(nc and "em 60 min" in nc["pergunta"] and "/10" in nc["pergunta"]), nc)
+livre_tipo = max([y - x for x, y in ra.espacos(r["dias"][iso(1)], date.fromisoformat(iso(1)), ma._tipo_janela(grande, None), memoria=memoria)] or [0])  # a falta é medida na janela do tipo
+confere("a pergunta diz quanto falta e o dia", bool(nc and f"em {grande['minutos'] - livre_tipo} min" in nc["pergunta"] and "20/10" in nc["pergunta"]), nc)
 confere("a pergunta vai no aviso do dia até o limite", "estender" in r["dias"][iso(1)]["aviso"], r["dias"][iso(1)]["aviso"])
 enorme = dict(grande, id="g2", titulo="Escrever o livro inteiro", minutos=nobre_ter + 400)
 EXTRA[:] = [enorme]
@@ -188,6 +191,18 @@ confere("o que não bate no imprevisto fica", "b4" in ids and "b5" in ids)
 p, fila = plano_hoje(), {}
 ma._refazer_hoje(p, segunda, oper, {"tirar": ["Escrever manifesto da semana"]}, fila)
 confere("o que ela mandou tirar sai e fica em removidos", "b1" not in [b["id"] for b in p["blocos"]] and p.get("removidos") == ["Escrever manifesto da semana"])
+
+import revisor_ia as rev
+aj = rev.ajustes([{"acao": "cancelar", "titulo": "Escrever manifesto da semana"}])
+confere("revisor_ia.ajustes aceita a ação 'cancelar' e guarda o título", aj.get("cancelar") == ["Escrever manifesto da semana"], aj)
+p, fila = plano_hoje(), {}
+p["blocos"].append(bl("b6", "16:30", "17:00", "Gravar replay da live", clickup_id="cid6"))
+ma._refazer_hoje(p, segunda, oper, rev.ajustes([{"acao": "cancelar", "titulo": "Gravar replay da live"}]), fila)
+confere("cancelar ao refazer hoje: o bloco sai, vai para removidos e o clickup_id vai para plano['cancelar'] (sem voltar à fila)",
+        "b6" not in [b["id"] for b in p["blocos"]] and p.get("cancelar") == ["cid6"] and "Gravar replay da live" in p.get("removidos", []) and "cid6" not in fila, (p.get("cancelar"), fila))
+p, fila = plano_hoje(), {}
+ma._refazer_hoje(p, segunda, oper, {"tirar": ["Revisar proposta do cliente"]}, fila)
+confere("tirar (sem cancelar) não fecha nada no ClickUp", not p.get("cancelar"), p.get("cancelar"))
 ma.datetime = datetime
 
 # 9. planejar sem IA
@@ -195,6 +210,59 @@ EXTRA[:] = [copy1]
 r = ma.planejar(oper, cfg, segunda, 5, incluir_hoje=True, ia=False)
 confere("planejar(ia=False) devolve o rascunho com perguntas e explicação vazia (sem chamar IA)", bool(r["dias"]) and "perguntas" in r and r["explicacao"] == "")
 pb.montar = montar_real
+
+# 10. novidades do commit f197014
+# 10a. fixos do dia ganham id estável f1, f2...
+fx = ra.fixos_do_dia(segunda, {"rotina": {"fixos_semana": [{"dias": [0], "inicio": "09:00", "fim": "09:30", "titulo": "WhatsApp"},
+                                                            {"dias": [0], "inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}]}})
+confere("rota_agenda.fixos_do_dia devolve ids f1, f2...", [f.get("id") for f in fx] == ["f1", "f2"], fx)
+
+# 10b/c. servidor com pasta temporária e ClickUp falso (nenhuma chamada de rede)
+import limpeza_teste  # noqa: F401,E402
+import hud_servidor as h  # noqa: E402
+limpeza_teste.fixar_relogio(h)
+tmp = tempfile.mkdtemp(prefix="gv_oper_motor_")
+h.OPER = tmp
+hoje_txt = date.today().isoformat()
+caminho = os.path.join(tmp, "plano_do_dia.json")
+with open(os.path.join(tmp, "config.json"), "w", encoding="utf-8") as f:
+    json.dump({"agente": {"nome": "Guardião"}, "clickup": {"user_id": "1", "listas": [], "membros": []}}, f)
+with open(caminho, "w", encoding="utf-8") as f:
+    json.dump({"data": hoje_txt, "status": "aprovado", "fixos": [{"id": "f1", "inicio": "09:00", "fim": "09:30", "titulo": "WhatsApp"},
+                                                              {"id": "f2", "inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}],
+               "blocos": [{"id": "b1", "inicio": "10:00", "fim": "11:00", "titulo": "Copy"}]}, f)
+try:
+    r = h.concluir_bloco({"id": "f1", "concluido": True, "inicio": "09:00", "fim": "09:30"})
+except KeyError as erro:  # DEFEITO DO CÓDIGO: _gravar_registro (hud_servidor.py:328) só semeia o registro com plano["blocos"], não com fixos
+    r = {"ok": False, "erro": f"KeyError {erro} em _gravar_registro"}
+confere("hud_servidor.concluir_bloco acha o compromisso fixo pelo id 'f1'", r.get("ok") is True, r)
+confere("e um id que não existe em blocos nem em fixos continua recusado", h.concluir_bloco({"id": "f9", "concluido": True})["ok"] is False)
+
+# aprovar com erro de sincronização deixa pendência; a segunda aprovação tenta de novo
+chamadas = []
+saidas = [(0, 0, ["Copy: ClickUp fora do ar"]), (0, 0, [])]
+h._levar_ao_clickup = lambda plano: (chamadas.append(1), saidas[min(len(chamadas) - 1, 1)])[1]
+h._v2 = lambda: type("V", (), {"entrar": staticmethod(lambda: None)})()
+with open(caminho, "w", encoding="utf-8") as f:
+    json.dump({"data": hoje_txt, "status": "sugerido", "fixos": [], "blocos": [{"id": "b1", "inicio": "10:00", "fim": "11:00", "titulo": "Copy"}]}, f)
+lido_plano = lambda: json.load(open(caminho, encoding="utf-8"))
+r1 = h.aprovar_plano()
+confere("aprovar com erro de sincronização: aprova, mas deixa sincronizacao_pendente no plano", r1["ok"] and lido_plano()["status"] == "aprovado"
+        and lido_plano().get("sincronizacao_pendente") == ["Copy: ClickUp fora do ar"], (r1, lido_plano()))
+r2 = h.aprovar_plano()
+confere("a segunda aprovação chama _levar_ao_clickup de novo e limpa a pendência", len(chamadas) == 2 and "sincronizacao_pendente" not in lido_plano(), (chamadas, lido_plano()))
+h.aprovar_plano()
+confere("sem pendência, aprovar de novo não chama mais nada", len(chamadas) == 2, chamadas)
+
+# 10e. pergunta de tarefa atrasada há 2 dias ou mais
+op2 = tempfile.mkdtemp()
+grava_op2 = {"tarefas": [{"id": "a1", "nome": "Replay da live", "prazo": "2026-10-17"},      # 2 dias de atraso em 19/10
+                         {"id": "a2", "nome": "Subir o PDF", "prazo": "2026-10-18"},          # 1 dia: não pergunta
+                         {"id": "a3", "nome": "Briefing antigo", "prazo": "2026-10-10"}]}     # cancelada pela IA: não pergunta
+json.dump(grava_op2, open(os.path.join(op2, "resumo_clickup.json"), "w", encoding="utf-8"))
+pq = ma._perguntas_de_atraso(op2, segunda, {"cancelar": ["Briefing antigo"]})
+confere("_perguntas_de_atraso pergunta da vencida há 2+ dias; não da de 1 dia nem da cancelada",
+        len(pq) == 1 and "Replay da live" in pq[0] and "17/10" in pq[0] and "cancela" in pq[0], pq)
 
 print(f"\n{'PASSOU' if not falhas else 'FALHOU'}: {falhas} falha(s)")
 sys.exit(1 if falhas else 0)

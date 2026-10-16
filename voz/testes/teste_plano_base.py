@@ -53,10 +53,16 @@ confere("buraco grande no expediente chama o Claude", any("livres no expediente"
 resumo(cheio + [t("z7", "APROVAR | post do Carlos", "2026-10-20", aprovar=True)])
 confere("aprovação com data falsa não chama o Claude (vai para o bloco de aprovações)", pb.montar(dia, oper, cfg, dia)[1] == [])
 
+# sem bloco às 14h: o almoço vai para o fim do compromisso (14h às 15h)
+resumo([t("h1", "Hotseat", "2026-10-21", "09:00", "14:00")] + cheio[:2] + cheio[3:])
+plano, motivos = pb.montar(dia, oper, cfg, dia)
+almoco = next(f for f in plano["fixos"] if f["titulo"] == "Almoço")
+confere("compromisso que cobre o almoço empurra o almoço para depois dele (14h às 15h, sem bloco no caminho)", almoco["inicio"] == "14:00" and almoco["fim"] == "15:00", almoco)
+# com bloco às 14h (Aula gravada 14h-16h): empurra além das 15h, então volta ao horário original
 resumo([t("h1", "Hotseat", "2026-10-21", "09:00", "14:00")] + cheio[2:])
 plano, motivos = pb.montar(dia, oper, cfg, dia)
 almoco = next(f for f in plano["fixos"] if f["titulo"] == "Almoço")
-confere("compromisso que cobre o almoço empurra o almoço para depois dele", almoco["inicio"] == "14:00" and almoco["fim"] == "15:00", almoco)
+confere("sem lugar até 15h (bloco às 14h), o almoço volta ao horário original", almoco["inicio"] == "13:00" and almoco["fim"] == "14:00", almoco)
 
 with open(os.path.join(mem, "estado.md"), "w", encoding="utf-8") as f:
     f.write("# Estado\n## Do guardião (x)\n- **Lista do evento** | status: a fazer | início: seg 19/10 | condição: x\n- **Outro** | status: a fazer | início: sex 30/10 | x\n## Outra\n")
