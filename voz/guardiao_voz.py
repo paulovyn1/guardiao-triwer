@@ -1962,12 +1962,12 @@ def supervisionar(agora=None):
     pedido = (f"Replanejar o resto de hoje. A tarefa \"{titulo}\" passou {av['atraso']} minutos do horário previsto e o que falta não cabe até {av['fim_do_dia']} "
               f"(faltam {-av['folga']} minutos). Monte o plano do resto do dia a partir de agora: mantenha o que já foi feito e os compromissos fixos, "
               "siga a matriz de prioridade, passe para outros dias o que pode esperar e diga o que ficou de fora.")
-    if not iniciar_completo(pedido):
-        return False
+    # Decisão da Milena (16/10): nada mexe no plano sem perguntar. O supervisor só avisa e pergunta; quem pede o replanejamento é ela.
     SUPERVISOR["vezes"] += 1
     SUPERVISOR["ultimo"] = agora
-    v2.registrar_evento("replanejamento_automatico", av["bloco"], atraso=av["atraso"], folga=av["folga"])
-    bus.emitir("aviso", texto=f"{titulo} passou {av['atraso']} minutos do previsto e o resto do dia não cabe. Estou montando uma proposta para o resto do dia.", erro=False)
+    v2.registrar_evento("replanejamento_sugerido", av["bloco"], atraso=av["atraso"], folga=av["folga"])
+    bus.emitir("aviso", texto=f"{titulo} passou {av['atraso']} minutos do previsto e o resto do dia não cabe até {av['fim_do_dia']}. "
+                              "Quer que eu replaneje o resto do dia? É só pedir.", erro=False)
     return True
 
 

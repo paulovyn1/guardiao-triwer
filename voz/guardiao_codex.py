@@ -308,6 +308,11 @@ def executar(pedido, operacional, memoria="", pode_escrever=False, timeout=600, 
                                     creationflags=SEM_JANELA)
         except OSError as erro:
             raise RuntimeError("Não consegui iniciar o Codex: " + str(erro)) from erro
+        try:  # o Esc e o botão Parar do painel encerram o Codex (controle_fala.cancelar_fundo); fora do painel não existe
+            import controle_fala
+            controle_fala.registrar_fundo(proc)
+        except Exception:
+            controle_fala = None
         relogio = threading.Timer(timeout, lambda: (expirou.set(), proc.kill()))
         relogio.daemon = True
         relogio.start()
@@ -349,6 +354,8 @@ def executar(pedido, operacional, memoria="", pode_escrever=False, timeout=600, 
             proc.wait()
         finally:
             relogio.cancel()
+            if controle_fala:
+                controle_fala.esquecer_fundo(proc)
             if proc.poll() is None:
                 proc.kill()
                 proc.wait()
@@ -360,6 +367,8 @@ def executar(pedido, operacional, memoria="", pode_escrever=False, timeout=600, 
         detalhe_stderr = stderr.read().strip()
     if expirou.is_set():
         raise RuntimeError("O Codex demorou demais para responder.")
+    if proc.returncode and controle_fala and controle_fala.FUNDO_CANCELADO.is_set():
+        raise InterruptedError("cancelado pelo botão Parar ou pelo Esc")
     if proc.returncode or not resposta:
         detalhe = (erros[-1] if erros else detalhe_stderr or "sem resposta")[:400]
         if any(marcador in detalhe.lower() for marcador in ("usage limit", "rate limit", "insufficient_quota")):

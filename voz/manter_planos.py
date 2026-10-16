@@ -62,7 +62,22 @@ def faltando(hoje=None, oper=OPER, cfg=None, n=DIAS_A_FRENTE):
 
 
 def gerar(dia, oper=OPER, refazer=False):
-    """Gera (ou, com refazer, regera) o plano de um dia com o gerar_plano.ps1. Devolve True se o arquivo existe depois."""
+    """Monta o plano de um dia futuro SÓ por código (plano_base), sem IA. Decisão da Milena (16/10): a manutenção não gasta IA nem mexe no plano
+    sozinha; o refinamento acontece quando ela pede ou aprova. Devolve True se o arquivo existe depois."""
+    destino = os.path.join(oper, "planos", f"plano_{dia.isoformat()}.json")
+    os.makedirs(os.path.dirname(destino), exist_ok=True)
+    try:
+        plano, motivos = pb.montar(dia, oper)  # direto, sem pb.main: no pythonw do painel não existe stdout
+        plano["aviso"] = ("Montei por código a partir da semana combinada. " + ("Ainda falta decidir: " + " ".join(m.splitlines()[0] for m in motivos[:4]) if motivos else "Confira e aprove."))
+        with open(destino, "w", encoding="utf-8") as f:
+            json.dump(plano, f, ensure_ascii=False, indent=2)
+    except Exception as erro:
+        _log(oper, f"plano base de {dia.isoformat()} falhou: {erro}")
+    return os.path.exists(destino)
+
+
+def gerar_com_ia(dia, oper=OPER, refazer=False):
+    """O caminho antigo (gerar_plano.ps1 com IA). Fica para quando ela pedir; a manutenção automática não usa."""
     destino = os.path.join(oper, "planos", f"plano_{dia.isoformat()}.json")
     os.makedirs(os.path.dirname(destino), exist_ok=True)
     comando = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", os.path.join(oper, "gerar_plano.ps1"),
@@ -189,9 +204,11 @@ def revisar(oper=OPER, cfg=None, hoje=None, gerador=gerar, agora=None):
             except Exception:
                 problemas = []
             _log(oper, f"plano aprovado de {iso}: o ClickUp mudou desde a aprovação" + (f"; a conferência aponta: {' | '.join(problemas)}" if problemas else "; a conferência não aponta nada"))
-        elif gerador(d, oper, True):
-            _log(oper, f"plano sugerido de {iso} refeito: o que o alimenta mudou")
+        elif str(plano.get("origem") or "").startswith("semana combinada") and gerador(d, oper, True):  # só a base por código; plano refinado não é trocado sem ela
+            _log(oper, f"plano base de {iso} refeito: o que o alimenta mudou")
             refeitos.append(d)
+        else:
+            _log(oper, f"plano sugerido de {iso}: o que o alimenta mudou; fica como está até ela pedir para refazer")
         estado[iso] = {"assinatura": assinatura(d, oper, cfg, hoje), "em": agora}
     _guardar(oper, estado)
     return refeitos

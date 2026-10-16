@@ -7,6 +7,12 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.0 - 2026-10-16
+- Nada mexe no plano sem perguntar: o supervisor de atraso só avisa e pergunta; a manutenção dos próximos dias monta só por código, sem IA, e não troca plano refinado.
+- Botão Parar na conversa: interrompe a resposta ou o trabalho em segundo plano (Claude ou Codex).
+- Conversa fora do modo sessão nas preferências da Milena (o modo sessão gastava ~300 mil tokens por fala).
+- PRD do motor de agenda em docs/PRD-motor-agenda.md (código monta, IA revisa).
+
 ## 0.9.15 - 2026-10-16
 - Conferência conserta em vez de recusar: stories e blocos diários que faltam, consumo repetido, rotina com a mesma tarefa em dois dias, `agenda_impoe` e preparo da live vencido são resolvidos por código antes de conferir.
 - Regras de preferência (copy/design alternados, minutos de stories, alavanca, nobre) viram aviso no plano em vez de barrar; só o grave (sobreposição, tarefa que some, prazo, fixa, duplicada) reprova.

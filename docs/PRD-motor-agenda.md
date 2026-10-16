@@ -149,7 +149,17 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 ## 8. Estado
 
 - [x] PRD escrito (16/10).
-- [ ] Etapa 0 (atualizar abaixo ao terminar).
+- [x] Etapa 0 (16/10, v0.10.0, instalada). Feito:
+  - `sessao: false` nas preferências dela.
+  - O supervisor só avisa e pergunta (`guardiao_voz.supervisionar`).
+  - `manter_planos.gerar` usa só código (`pb.montar`) e plano refinado não é trocado sozinho. O caminho antigo ficou em `gerar_com_ia`.
+  - Botão Parar na coluna da conversa (`col.parar` no `Main.dc.html`, chama `esc()`). O Codex registra o processo em `controle_fala.registrar_fundo` e lança `InterruptedError` ao ser parado.
+  - NÃO testado pelo agente (sessão da Milena acabando). Primeiro passo de quem continuar: rodar a bateria agrupada (seção 6). Mudança proposital que pode quebrar teste antigo: `teste_manter_planos` (plano sugerido não é mais refeito por IA).
+  - Plano "errado na tela" das 15h31 do dia 16, investigado: não é bug de exibição. O replanejamento gravou um bloco no passado ("Abrir a caixinha e publicar 3 stories" 09:26, que ela já tinha feito) sem `status: feito`, e por isso a tela mostra esse bloco como a tarefa de agora. Também pôs blocos até 21h54 (hora de parar 19h20). Regras que faltam no motor (Etapa 1):
+    - (a) o que ela diz que já fez entra como bloco feito ou não entra;
+    - (b) nada passa da hora de parar, exceto hora extra até 2h aprovada por ela;
+    - (c) as cobranças do preparo (`preparos.inserir_cobrancas`) respeitam a hora de parar.
+  - Ainda automático sem pergunta: `guardiao_voz` na abertura sem plano chama `iniciar_completo(PEDIDO_PLANO_DO_DIA)`, e `gerar_plano.ps1` roda pela tarefa agendada de manhã (um por dia, gera "sugerido"). Avaliar na Etapa 5.
 - [ ] Etapa 1
 - [ ] Etapa 2
 - [ ] Etapa 3
