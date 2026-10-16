@@ -34,6 +34,7 @@ import controle_fala
 import guardiao_sessao
 import guardiao_v2 as v2
 import instancia
+import manter_planos
 import janela_painel
 import latencia
 import checar_config
@@ -3093,6 +3094,7 @@ def main():
             return
         print("Tela do guardião:", url)
         threading.Thread(target=vigiar_avisos, daemon=True).start()
+        manter_planos.iniciar()  # os planos dos próximos 3 dias úteis estão sempre gerados
 
     voz_ok = a.voz
     if a.cerebro and a.voz == "kokoro":

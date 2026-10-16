@@ -357,6 +357,11 @@ def texto_realizado(real, nota=""):
 
 def concluir_bloco(dados):
     """Conclui (ou reabre) um bloco do plano de hoje. Com tarefa no ClickUp: comenta, assinando, e muda o status."""
+    try:
+        import manter_planos
+        manter_planos.pedir()  # concluir pode fechar o dia: a janela dos próximos planos anda
+    except Exception:
+        pass
     plano = _plano_de_hoje()
     bloco = next((b for b in (plano or {}).get("blocos", []) if b.get("id") == dados.get("id")), None)
     if not bloco:
