@@ -110,7 +110,9 @@ Vai para: `perfil.md` (Como cobrar, Decisão e interrupções); `config.json` (r
 - Quanto tempo leva cada etapa de uma entrega (escrever, produzir, revisar)? Chute honesto.
 - Em que dias e horários isso é publicado ou entregue?
 - Quantas entregas devem ficar prontas à frente, como colchão?
-Vai para: `perfil.md` (Frente de receita); `equipe.md` (Tempos).
+- Você vende de um jeito em que stories (ou outro bloco diário de conteúdo curto) puxa gente todos os dias? Se sim, quantas telas por dia? Para quem faz, o padrão é no mínimo 10 telas por dia de trabalho: respostas da caixinha (4 telas em 15 min), sequência normal (8 a 10 telas em 30 min, pelo menos 2 vezes por semana) e um dia por semana só com 3 telas de captação de leads (15 min). Se a pessoa NÃO vende assim, ou não consegue manter, NÃO ligar: deixar `rotina.stories` fora do config. Nunca ligar sem ela confirmar.
+- Em que dias da semana você posta (para a "gordura": quantos posts prontos à frente você quer ter)?
+Vai para: `perfil.md` (Frente de receita); `equipe.md` (Tempos); `config.json` (`rotina.stories` e `rotina.posts`, só se a pessoa confirmou).
 
 **Revisão de padrões (depois do bloco 6, antes da etapa 3).**
 1. Reler todas as respostas e listar de 3 a 6 padrões que aparecem em mais de um bloco (ex: "trava quando decidir e executar vêm juntos", "rende depois de consumir conteúdo", "dia pesado destrói o dia seguinte"). Cada padrão leva as duas situações reais que o sustentam, nas palavras da pessoa.

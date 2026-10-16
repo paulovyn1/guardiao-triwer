@@ -186,4 +186,22 @@ confere("stories em lote (bloco de 3h) é barrado; vários blocos curtos passam"
         and cp.conferir_blocos_diarios({"blocos": [b_("10:00", "10:30", "Stories 1"), b_("15:00", "15:30", "Stories 2")], "fixos": []}, segunda_, cfg_d) == [])
 confere("sábado não cobra, e sem a regra no config nada é cobrado", cp.conferir_blocos_diarios({"blocos": [], "fixos": []}, date(2026, 10, 17), cfg_d) == []
         and cp.conferir_blocos_diarios({"blocos": [], "fixos": []}, segunda_, {"rotina": {}}) == [])
+# stories: mínimo de 10 telas por dia; 3 telas só no dia de captação (1 por semana)
+cfg_s2 = {"rotina": {"dias_trabalho": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], "stories": {"ativo": True}}}
+st_ = lambda ini, fim, tit: {"id": "s", "inicio": ini, "fim": fim, "titulo": tit}
+sex = date(2026, 10, 16)
+so_replay = {"blocos": [st_("17:10", "17:25", "Stories do replay da sala secreta: 3 telas")], "fixos": []}
+confere("sexta só com 3 telas de divulgação (caso real 16/10) é barrada", len(cp.conferir_stories(so_replay, sex, cfg_s2)) == 1)
+dez = {"blocos": [st_("10:00", "10:15", "Stories: respostas da caixinha (4 telas)"), st_("14:00", "14:15", "Stories: respostas da caixinha (4 telas)"), st_("17:10", "17:25", "Stories do replay da sala secreta: 3 telas")], "fixos": []}
+confere("2 caixinhas (8 telas) + replay (3) = 11 telas passa", cp.conferir_stories(dez, sex, cfg_s2) == [])
+normal = {"blocos": [st_("14:00", "14:30", "Stories: sequência normal (8 a 10 telas)")], "fixos": []}
+confere("sequência normal de 30 min (8 a 10 telas) sozinha: 10 telas, passa", cp.conferir_stories(normal, sex, cfg_s2) == [])
+cap = {"blocos": [st_("14:00", "14:15", "Stories de captação de leads (3 telas)")], "fixos": []}
+confere("dia de captação com só 3 telas passa; um segundo dia de captação na mesma semana é barrado",
+        cp.conferir_stories(cap, date(2026, 10, 15), cfg_s2) == []
+        and len(cp.conferir_stories(cap, sex, cfg_s2, {"2026-10-15": cap})) == 1)
+confere("telas de caixinha sem número no título saem da conta (15 min = 4 telas); bloco de 3h é barrado como lote",
+        cp.telas_do_bloco(st_("10:00", "10:15", "Responder a caixinha"), cp.config_stories(cfg_s2)) == 4
+        and any("blocos menores" in x for x in cp.conferir_stories({"blocos": [st_("14:00", "17:00", "Stories do dia")], "fixos": []}, sex, cfg_s2)))
+confere("sem rotina.stories no config nada é cobrado; sábado não cobra", cp.conferir_stories(so_replay, sex, {"rotina": {}}) == [] and cp.conferir_stories({"blocos": []}, date(2026, 10, 17), cfg_s2) == [])
 sys.exit(1 if falhas else 0)

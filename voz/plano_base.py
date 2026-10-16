@@ -89,8 +89,9 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     if etapas:
         motivos.append(f"ETAPAS DE POST A ENCAIXAR ({len(etapas)}): decida o dia e o horário de cada uma, dentro do limite. O prazo do ClickUp é só sugestão.\n"
                        + "\n".join(_linha_etapa(e) for e in etapas[:15]))
+    inserir_stories(plano, dia, cfg, nome)
     inserir_blocos_diarios(plano, dia, cfg, nome)
-    faltam_diarios = cp.conferir_blocos_diarios(plano, dia, cfg)
+    faltam_diarios = cp.conferir_blocos_diarios(plano, dia, cfg) + cp.conferir_stories(plano, dia, cfg)
     if faltam_diarios:
         motivos.append("BLOCO DIÁRIO OBRIGATÓRIO: " + " ".join(faltam_diarios))
     folga = gd.situacao(maes, cfg, hoje)
@@ -122,6 +123,55 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     for item in trabalhos_do_guardiao(memoria, dia):
         motivos.append(f"Trabalho do guardião com data chegada (estado.md, seção \"Do guardião\"): {item}")
     return plano, motivos
+
+
+def inserir_stories(plano, dia, cfg, nome="Eu"):
+    """Completa os stories do dia pelo padrão da semana (rotina.stories.padrao_semana): sequência normal (30 min, 8 a 10 telas), respostas da caixinha (15 min, 4 telas,
+    quantos blocos faltarem para chegar ao mínimo) ou captação de leads (15 min, 3 telas, o dia permitido só com elas). Os blocos vão para a tarde, espalhados (pelo menos
+    1 h entre um e outro). Devolve os blocos criados; sem espaço não cria (a conferência acusa)."""
+    s = cp.config_stories(cfg)
+    rot = (cfg or {}).get("rotina") or {}
+    if not s or dia.weekday() not in cp._dias_de_trabalho(rot):
+        return []
+    existentes = [b for b in (plano.get("blocos") or []) + (plano.get("fixos") or []) if cp._eh_stories(b)]
+    total = sum(cp.telas_do_bloco(b, s) for b in existentes)
+    tipo_dia = s["padrao"].get(str(dia.weekday())) or "normal"
+    modelos = {"normal": ("Stories: sequência normal (8 a 10 telas)", 30), "caixinha": ("Stories: respostas da caixinha (4 telas)", 15),
+               "captacao": ("Stories de captação de leads (3 telas)", 15)}
+    a_criar = []
+    if tipo_dia == "captacao":
+        if not any(cp.tipo_stories(b.get("titulo"), s) == "captacao" for b in existentes):
+            a_criar.append("captacao")
+    else:
+        t = s["tipos"][tipo_dia]
+        faltam = s["minimo"] - total
+        while faltam > 0 and len(a_criar) < 6:
+            a_criar.append(tipo_dia)
+            faltam -= t["telas"]
+    memoria = _memoria(cfg or {})
+    pref = (vs.hm("14:00"), vs.hm("18:00"))
+    criados, ultimo_fim = [], None
+    for tipo in a_criar:
+        titulo, minutos = modelos[tipo]
+        escolha = None
+        for exigir_folga in (True, False):
+            for x, y in ra.espacos(plano, dia, "leve", memoria=memoria):
+                ini = max(x, pref[0] if exigir_folga else x, (ultimo_fim + 60) if (exigir_folga and ultimo_fim) else x)
+                if ini + minutos <= y and (not exigir_folga or ini + minutos <= pref[1]):
+                    escolha = ini
+                    break
+            if escolha is not None:
+                break
+        if escolha is None:
+            continue
+        bloco = {"id": f"b{len(plano.get('blocos') or []) + 1}", "inicio": vs.fmt(escolha), "fim": vs.fmt(escolha + minutos), "titulo": titulo, "dono": nome,
+                 "frente": "Conteúdo", "descricao": "Stories todo dia de trabalho: mínimo de 10 telas por dia (um dia por semana pode ter só as 3 telas de captação de leads).",
+                 "primeiro_passo": "Abra o cronograma da semana e poste a primeira tela.", "por_que_agora": "Stories é prioridade e entra todos os dias."}
+        plano.setdefault("blocos", []).append(bloco)
+        plano["blocos"].sort(key=lambda b: b.get("inicio") or "")
+        criados.append(bloco)
+        ultimo_fim = escolha + minutos
+    return criados
 
 
 def inserir_blocos_diarios(plano, dia, cfg, nome="Eu"):
@@ -309,7 +359,8 @@ def main(argv=None):
     if a.completar:
         arquivo = vs._json(a.completar)
         dia = cp.data_do_plano(a.completar, arquivo)
-        criados = inserir_blocos_diarios(arquivo, dia, _cfg(), ((_cfg().get("pessoa") or {}).get("nome")) or "Eu")
+        nome_p = ((_cfg().get("pessoa") or {}).get("nome")) or "Eu"
+        criados = inserir_stories(arquivo, dia, _cfg(), nome_p) + inserir_blocos_diarios(arquivo, dia, _cfg(), nome_p)
         if criados:
             with open(a.completar, "w", encoding="utf-8") as f:
                 json.dump(arquivo, f, ensure_ascii=False, indent=2)

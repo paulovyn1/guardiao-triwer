@@ -112,4 +112,17 @@ confere("com o bloco inserido não há motivo de bloco diário faltando", not an
 confere("o bloco inserido não cria tarefa no ClickUp (sem clickup_id nem lista_id)", not st[0].get("clickup_id") and not st[0].get("lista_id"))
 plano_sab, _ = pb.montar(date(2026, 10, 24), oper, cfg_s, date(2026, 10, 24))
 confere("sábado não ganha stories", all("Stories" not in b["titulo"] for b in plano_sab["blocos"]))
+# stories: o plano base completa o dia pelo padrão da semana (quarta = sequência normal; sexta = caixinha até 10 telas; quinta = captação)
+cfg_st = dict(cfg, rotina=dict(cfg.get("rotina") or {}, dias_trabalho=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], stories={"ativo": True}))
+resumo([])
+qua_, _ = pb.montar(date(2026, 10, 21), oper, cfg_st, date(2026, 10, 21))
+sq = [b for b in qua_["blocos"] if "Stories" in b["titulo"]]
+confere("quarta (sequência normal): um bloco de 30 min na tarde, 10 telas, sem tarefa no ClickUp", len(sq) == 1 and "sequência normal" in sq[0]["titulo"] and sq[0]["inicio"] >= "14:00"
+        and not sq[0].get("clickup_id") and not sq[0].get("lista_id"), qua_["blocos"])
+sex_, mot_sex = pb.montar(date(2026, 10, 23), oper, cfg_st, date(2026, 10, 23))
+cx = [b for b in sex_["blocos"] if "caixinha" in b["titulo"]]
+confere("sexta (caixinha): três blocos de 15 min (12 telas), espalhados (1 h entre eles)", len(cx) == 3 and all(int(cx[i + 1]["inicio"][:2]) * 60 + int(cx[i + 1]["inicio"][3:]) - (int(cx[i]["fim"][:2]) * 60 + int(cx[i]["fim"][3:])) >= 60 for i in range(2)), cx)
+qui_, _ = pb.montar(date(2026, 10, 22), oper, cfg_st, date(2026, 10, 22))
+confere("quinta (captação): um bloco de 3 telas, 15 min", [b["titulo"] for b in qui_["blocos"] if "Stories" in b["titulo"]] == ["Stories de captação de leads (3 telas)"])
+confere("o plano base nasce sem pendência de stories", not any("BLOCO DIÁRIO" in m for m in mot_sex), mot_sex)
 sys.exit(1 if falhas else 0)

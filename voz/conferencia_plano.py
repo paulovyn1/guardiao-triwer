@@ -358,6 +358,78 @@ def _dias_de_trabalho(rot):
     return {_DIAS_EN[n] for n in rot.get("dias_trabalho") or [] if n in _DIAS_EN} or {0, 1, 2, 3, 4}
 
 
+# Stories todo dia de trabalho (decisão da Milena, 2026-10-16). Liga com rotina.stories no config.json; sem a chave, desligado (cada negócio decide: nem todo
+# mundo vende de um jeito que precise de stories). Mínimo de telas por dia, 3 tipos de sequência e um dia por semana que pode ter só as 3 telas de captação.
+STORIES_TIPOS_PADRAO = {
+    "captacao": {"palavras": ["captacao", "leads", "isca"], "telas": 3, "minutos": 15},
+    "caixinha": {"palavras": ["caixinha"], "telas": 4, "minutos": 15},
+    "normal": {"palavras": [], "telas": 10, "minutos": 30},
+}
+PADRAO_SEMANA_STORIES = {"0": "normal", "1": "caixinha", "2": "normal", "3": "captacao", "4": "caixinha"}
+TELAS_NO_TITULO = re.compile(r"(\d+)\s*(?:telas|stories)\b", re.I)
+
+
+def config_stories(cfg):
+    s = ((cfg or {}).get("rotina") or {}).get("stories")
+    if not isinstance(s, dict) or s.get("ativo") is False:
+        return None
+    tipos = {k: dict(v, **(s.get("tipos") or {}).get(k, {})) for k, v in STORIES_TIPOS_PADRAO.items()}
+    return {"minimo": int(s.get("telas_minimas_dia") or 10), "captacao_por_semana": int(s.get("dias_captacao_por_semana", 1)),
+            "bloco_max_min": int(s.get("bloco_max_min") or 40), "tipos": tipos, "padrao": s.get("padrao_semana") or PADRAO_SEMANA_STORIES}
+
+
+def _eh_stories(b):
+    t = _norm(b.get("titulo"))
+    return ("stories" in t or "story" in t or "caixinha" in t) and "cronograma" not in t
+
+
+def tipo_stories(titulo, s):
+    t = _norm(titulo)
+    for nome in ("captacao", "caixinha"):
+        if any(_norm(p) in t for p in s["tipos"][nome]["palavras"]):
+            return nome
+    return "normal"
+
+
+def telas_do_bloco(b, s):
+    """Telas de um bloco de stories: o número escrito no título ("4 telas", "8 a 10 telas") ou a conta pelo tipo (telas por minuto)."""
+    achados = TELAS_NO_TITULO.findall(str(b.get("titulo") or ""))
+    if achados:
+        return int(achados[-1])
+    t = s["tipos"][tipo_stories(b.get("titulo"), s)]
+    return round(_minutos(b) / t["minutos"] * t["telas"])
+
+
+def conferir_stories(plano, dia, cfg, outros=None):
+    """Stories: no mínimo `telas_minimas_dia` por dia de trabalho (padrão 10); um dia por semana pode ter só as 3 telas de captação de leads; cada bloco curto e espalhado."""
+    s = config_stories(cfg)
+    rot = (cfg or {}).get("rotina") or {}
+    if not s or dia.weekday() not in _dias_de_trabalho(rot):
+        return []
+    blocos = [b for b in (plano.get("blocos") or []) + (plano.get("fixos") or []) if _eh_stories(b)]
+    total = sum(telas_do_bloco(b, s) for b in blocos)
+    problemas = []
+    semana = dia.isocalendar()[:2]
+    usadas = 0
+    for d, p in (outros or {}).items():
+        try:
+            dd = date.fromisoformat(d)
+        except ValueError:
+            continue
+        if dd != dia and dd.isocalendar()[:2] == semana:
+            bs = [b for b in (p.get("blocos") or []) if _eh_stories(b)]
+            if bs and sum(telas_do_bloco(b, s) for b in bs) < s["minimo"] and any(tipo_stories(b.get("titulo"), s) == "captacao" for b in bs):
+                usadas += 1
+    excecao = any(tipo_stories(b.get("titulo"), s) == "captacao" for b in blocos) and total >= 3 and usadas < s["captacao_por_semana"]
+    if total < s["minimo"] and not excecao:
+        problemas.append(f"Stories: este dia tem {total} telas e o mínimo é {s['minimo']} por dia de trabalho (só {s['captacao_por_semana']} dia por semana pode ter apenas as 3 telas de "
+                         "captação de leads). Respostas da caixinha: 4 telas em 15 min. Sequência normal: 8 a 10 telas em 30 min. Espalhe os blocos pelo dia.")
+    for b in blocos:
+        if _minutos(b) > s["bloco_max_min"]:
+            problemas.append(f"\"{b.get('titulo')}\" tem {_minutos(b)} min, acima de {s['bloco_max_min']}: divida os stories em blocos menores espalhados pelo dia, nunca em lote.")
+    return problemas
+
+
 def conferir_blocos_diarios(plano, dia, cfg):
     """Blocos que TODO dia de trabalho precisa ter (decisão da Milena, 2026-10-15: stories é prioridade e entra todos os dias). Vem de config.json:
     rotina.blocos_diarios = [{"nome": "stories", "palavras": ["stories", "story"], "excluir": ["cronograma"], "minutos_minimos": 15, "bloco_max_min": 40}].
@@ -499,4 +571,4 @@ def conferir_regras_da_pasta(plano, dia, outros, oper):
                             bool(regras.get("ideia_depois_de_consumo"))) + conferir_alavancas(plano, dia, memoria)
             + conferir_consumo(plano) + conferir_duplicadas(plano, dia, outros) + conferir_prazos(plano, dia, tarefas)
             + conferir_etapas(plano, dia, tarefas, maes, outros) + conferir_travas(plano, dia, tarefas, cfg_completo, memoria)
-            + conferir_blocos_diarios(plano, dia, cfg_completo))
+            + conferir_blocos_diarios(plano, dia, cfg_completo) + conferir_stories(plano, dia, cfg_completo, outros))

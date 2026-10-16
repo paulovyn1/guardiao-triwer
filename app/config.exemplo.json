@@ -15,7 +15,8 @@
     "memoria_em_obsidian": false
   },
   "rotina": {
-    "blocos_diarios": [{ "nome": "stories", "palavras": ["stories", "story"], "excluir": ["cronograma"], "minutos_minimos": 15, "bloco_max_min": 40 }],
+    "stories": { "ativo": true, "telas_minimas_dia": 10, "dias_captacao_por_semana": 1, "bloco_max_min": 40,
+                 "padrao_semana": { "0": "normal", "1": "caixinha", "2": "normal", "3": "captacao", "4": "caixinha" } },
     "posts": { "dias_semana": [0, 2, 4], "gordura_meta": 2, "gordura_minima": 1 },
     "travas": {
       "listas_fixas": ["Reuniões Gerais"],

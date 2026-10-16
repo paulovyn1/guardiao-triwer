@@ -39,7 +39,8 @@ ITENS = [
     "Campanha pública de venda a até 3 dias do fim tem bloco que traga gente (stories, aviso no grupo, convite)?",
     "O tempo livre ou extra foi para o que move o objetivo das campanhas ativas, e não para tarefa que pode esperar?",
     "O horizonte de 14 dias mostra algum marco crítico que este plano deveria começar a preparar e não preparou?",
-    "Os blocos diários obrigatórios (stories, em rotina.blocos_diarios do config) estão no plano, espalhados pelo dia e antes de tarefa que dispute o horário?",
+    "Stories: o dia chega a 10 telas (caixinha 4 telas em 15 min, sequência normal 8 a 10 em 30 min), com os blocos espalhados pelo dia e antes de tarefa que dispute o horário? "
+    "Divulgação sozinha (replay, convite) não basta; só um dia por semana pode ter apenas as 3 telas de captação de leads.",
 ]
 
 
