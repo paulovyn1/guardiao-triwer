@@ -35,8 +35,15 @@ def _norm(t):
     return cp._norm(t)
 
 
-def estimar(item, oper=OPER):
-    """(minutos, medido). Usa o tempo informado, a média medida em tempos.json (3 registros confirmados ou mais) ou um padrão por tipo."""
+def _chave(item):
+    return str(item.get("id") or _norm(item.get("titulo")))
+
+
+def estimar(item, oper=OPER, ajustes=None):
+    """(minutos, medido). Usa o tempo informado, o que a IA estimou, a média medida em tempos.json (3 registros confirmados ou mais) ou um padrão."""
+    m = ((ajustes or {}).get("minutos") or {}).get(str(item.get("id") or "")) or ((ajustes or {}).get("minutos") or {}).get(str(item.get("titulo") or ""))
+    if m:
+        return int(m), True
     if item.get("minutos"):
         return int(item["minutos"]), True
     chave = item.get("etapa") or ra.tipo_de(item.get("titulo"), item.get("lista") or "")
@@ -49,7 +56,10 @@ def estimar(item, oper=OPER):
     return PADRAO_MIN.get(chave, 45), False
 
 
-def _tipo_janela(item):
+def _tipo_janela(item, ajustes=None):
+    forcado = item.get("tipo_forcado") or ((ajustes or {}).get("janela") or {}).get(str(item.get("id") or ""))
+    if forcado in ("pesado", "design", "leve"):
+        return forcado
     if item.get("etapa") == "design":
         return "design"
     if item.get("etapa") in ("copy",) or item.get("origem") == "preparo" and "tema" in _norm(item.get("titulo")):
@@ -90,6 +100,10 @@ def _colocar(plano, d, item, minutos, tipo, nome, memoria):
                 bloco["reagendado"] = True
             if item.get("limite"):
                 bloco["prazo_final"] = item["limite"].isoformat()
+            if not item.get("id") and item.get("lista_id"):  # subtarefa nova (desdobrada pela IA): o servidor cria no ClickUp ao aprovar
+                bloco["lista_id"] = item["lista_id"]
+                if item.get("pai"):
+                    bloco["pai"] = item["pai"]
             plano.setdefault("blocos", []).append(bloco)
             plano["blocos"].sort(key=lambda b: b.get("inicio") or "")
             return bloco
@@ -124,7 +138,33 @@ def _inserir_consumo(plano, d, cfg, nome, memoria):
     return None
 
 
-def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False):
+def _desdobrar(fila, desdobrar, cfg, delegar=None):
+    """Troca a entrega pelas subtarefas que a IA propôs. Entrega que não está na fila (marco sem tarefa, "dd/mm slug: nome") ganha o limite do texto."""
+    import re
+    listas = {_norm(l.get("nome")): l.get("id") for l in ((cfg.get("clickup") or {}).get("listas") or [])}
+    padrao = next((l.get("id") for l in ((cfg.get("clickup") or {}).get("listas") or []) if "conteud" in _norm(l.get("nome"))), None)
+    for chave, subs in (desdobrar or {}).items():
+        item = fila.pop(chave, None) or fila.pop(_norm(chave), None)
+        limite = item.get("limite") if item else None
+        if not item:
+            m = re.match(r"\s*(\d{1,2})/(\d{1,2})", chave)
+            if m:
+                hoje = date.today()
+                limite = date(hoje.year + (1 if int(m.group(2)) < hoje.month else 0), int(m.group(2)), int(m.group(1)))
+        eu = _norm(((cfg.get("pessoa") or {}).get("nome")) or "").split(" ")[0]
+        for s in subs:
+            if s.get("dono") and eu and eu not in _norm(s["dono"]):  # de outra pessoa: delegação, fora da agenda dela
+                if delegar is not None:
+                    delegar.append({"titulo": s["titulo"], "dono": s["dono"], "pai": (item or {}).get("id")})
+                continue
+            lim = limite - timedelta(days=int(s.get("dias_antes") or 0)) if limite else None
+            novo = {"id": None, "titulo": str(s["titulo"])[:120], "limite": lim, "origem": "desdobrado pela IA", "minutos": int(s.get("minutos") or 45),
+                    "tipo_forcado": s.get("tipo"), "pai": (item or {}).get("id"), "lista": (item or {}).get("lista"),
+                    "lista_id": listas.get(_norm((item or {}).get("lista"))) or padrao}
+            fila[_norm(novo["titulo"])] = novo
+
+
+def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ajustes=None):
     """{"dias": {iso: plano}, "aprovados": [iso], "nao_coube": [...], "julgar": [...], "problemas": {iso: [graves]}}."""
     cfg = cfg if cfg is not None else pb._cfg()
     hoje = hoje or date.today()
@@ -151,21 +191,26 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False):
             chave = item.get("id") or _norm(item.get("titulo"))
             if chave and chave not in fila:
                 fila[chave] = item
+    delegar = []
+    _desdobrar(fila, (ajustes or {}).get("desdobrar"), cfg, delegar)
+    prioridade = (ajustes or {}).get("prioridade") or {}
     ja = {b.get("clickup_id") for p in acrescimo.values() for b in p.get("blocos") or [] if b.get("clickup_id")}
     fila = {k: v for k, v in fila.items() if not v.get("id") or v["id"] not in ja}
     rascunho.update(acrescimo)
     rascunho = dict(sorted(rascunho.items()))
     ordem = {"copy": 0, "pesado": 1, "manychat": 2, "design": 3, "leve": 4, "relatorio": 5}
-    itens = sorted(fila.values(), key=lambda i: (i.get("limite") or date.max, ordem.get(i.get("etapa") or _tipo_janela(i), 4), str(i.get("titulo"))))
+    itens = sorted(fila.values(), key=lambda i: (i.get("limite") or date.max, prioridade.get(str(i.get("id") or ""), 4),
+                                                 ordem.get(i.get("etapa") or _tipo_janela(i, ajustes), 4), str(i.get("titulo"))))
     for iso, plano in rascunho.items():
         if any(i.get("etapa") == "copy" for i in itens):
             _inserir_consumo(plano, date.fromisoformat(iso), cfg, nome, memoria)
-    nao_coube, julgar = [], []
+    nao_coube, julgar, adiados = [], [], []
+    ultimo_dia = max(rascunho) if rascunho else hoje.isoformat()
     for item in itens:
-        minutos, medido = estimar(item, oper)
+        minutos, medido = estimar(item, oper, ajustes)
         if not medido:
             julgar.append({"id": item.get("id"), "titulo": item.get("titulo"), "minutos_padrao": minutos})
-        tipo = _tipo_janela(item)
+        tipo = _tipo_janela(item, ajustes)
         validos = [iso for iso in rascunho if (not item.get("limite") or iso <= item["limite"].isoformat())
                    and (not item.get("abre") or iso >= item["abre"].isoformat())]
         posto = None
@@ -176,6 +221,9 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False):
         while not posto and validos and _encolher_stories(rascunho[validos[-1]], date.fromisoformat(validos[-1]), cfg):  # stories só encolhe se não há para onde mover
             posto = _colocar(rascunho[validos[-1]], date.fromisoformat(validos[-1]), item, minutos, tipo, nome, memoria)
         if posto:
+            continue
+        if not item.get("limite") or item["limite"].isoformat() > ultimo_dia:  # vence depois do horizonte: fica para os próximos dias, não é "não coube"
+            adiados.append({"id": item.get("id"), "titulo": item.get("titulo"), "limite": item["limite"].isoformat() if item.get("limite") else None})
             continue
         ultimo = validos[-1] if validos else None
         livre = max([y - x for x, y in ra.espacos(rascunho[ultimo], date.fromisoformat(ultimo), tipo, memoria=memoria)] or [0]) if ultimo else 0  # o maior espaço contínuo
@@ -206,7 +254,34 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False):
         plano["aviso"] = ("Montei pelo motor da agenda, sem IA. " + (" ".join(dele[:3]) + " " if dele else "") + str(plano.get("aviso") or "")).strip()
         plano["status"] = "sugerido"
         plano["gerado_em"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return {"dias": rascunho, "aprovados": aprovados, "nao_coube": nao_coube, "julgar": julgar, "problemas": problemas}
+    return {"dias": rascunho, "aprovados": aprovados, "nao_coube": nao_coube, "julgar": julgar, "problemas": problemas, "adiados": adiados, "delegar": delegar}
+
+
+def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True):
+    """O fluxo inteiro: o motor monta; se há o que julgar (tempo sem medida, não coube, marco sem tarefa), a IA revisa UMA vez e o motor remonta
+    com as instruções. Devolve o resultado com "perguntas" (para a pessoa) e "explicacao"."""
+    cfg = cfg if cfg is not None else pb._cfg()
+    hoje = hoje or date.today()
+    r = montar_semana(oper, cfg, hoje, dias, incluir_hoje)
+    marcos = []
+    try:
+        marcos = pb.marcos_sem_lugar(hoje, oper, cfg)
+    except Exception:
+        pass
+    aj = None
+    if ia and (r["julgar"] or r["nao_coube"] or marcos):
+        import revisor_ia
+        try:
+            aj = revisor_ia.ajustes(revisor_ia.interpretar(revisor_ia.chamar(revisor_ia.montar_prompt(r, cfg, marcos), oper)))
+            r = montar_semana(oper, cfg, hoje, dias, incluir_hoje, aj)
+        except Exception as erro:  # sem IA o rascunho do motor continua valendo
+            print(f"(motor: a revisão da IA falhou, fica o rascunho: {erro})", file=sys.stderr)
+    r["perguntas"] = list(dict.fromkeys(((aj or {}).get("perguntas") or []) + [n["pergunta"] for n in r["nao_coube"]]))
+    r["explicacao"] = " ".join((aj or {}).get("explicar") or [])
+    if r["explicacao"]:
+        for plano in r["dias"].values():
+            plano["aviso"] = r["explicacao"] + " " + str(plano.get("aviso") or "")
+    return r
 
 
 def gravar(resultado, oper=OPER, hoje=None):
@@ -233,6 +308,8 @@ def resumo(resultado):
     linhas += [f"não coube: {n['pergunta']}" for n in resultado["nao_coube"]]
     linhas += [f"julgar (tempo padrão {j['minutos_padrao']} min): {j['titulo']}" for j in resultado["julgar"]]
     linhas += [f"aprovado, não mexi: {iso}" for iso in resultado["aprovados"]]
+    linhas += [f"fica para depois (vence {a['limite']}): {a['titulo']}" for a in resultado.get("adiados") or []]
+    linhas += [f"delegar a {d['dono']}: {d['titulo']}" for d in resultado.get("delegar") or []]
     return "\n".join(linhas)
 
 
@@ -243,9 +320,12 @@ def main(argv=None):
     ap.add_argument("--dias", type=int, default=5)
     ap.add_argument("--gravar", action="store_true")
     ap.add_argument("--hoje", action="store_true")
+    ap.add_argument("--ia", action="store_true")  # a IA revisa o rascunho (uma chamada)
     a = ap.parse_args(argv)
-    r = montar_semana(dias=a.dias, incluir_hoje=a.hoje)
+    r = planejar(dias=a.dias, incluir_hoje=a.hoje, ia=a.ia)
     print(resumo(r))
+    for p in r.get("perguntas") or []:
+        print("pergunta: " + p)
     if a.gravar:
         print("gravei: " + "; ".join(gravar(r)))
     return 0
