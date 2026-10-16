@@ -28,7 +28,11 @@ REGRAS = """REGRAS DA AGENDA (o código já aplica as de horário; você só jul
 - Tarefa sem tempo medido (lista JULGAR): estime pelo título e pelo perfil. Entrega ou marco de campanha sem tarefa: desdobre em subtarefas com tempo e quantos dias antes do prazo cada uma termina.
 - Subtarefa de outra pessoa (Paulo, Vitor) leva "dono" com o nome dela: vira delegação, não entra na agenda da pessoa.
 - Use "prioridade" quando a ordem por prazo não reflete o que importa (campanha de venda perto do fim vem antes de tarefa interna).
-- Não invente fato, número nem tarefa que não decorra do que está aqui."""
+- Não invente fato, número nem tarefa que não decorra do que está aqui.
+- "explicar" é FALADO À PESSOA: 1 ou 2 frases curtas, na primeira pessoa do guardião ("Coloquei a thumb antes da live", "Deixei o design para segunda"),
+  sem repetir horários (a lista na tela já mostra) e NUNCA com instruções ao sistema ou ao código ("preserve", "registre", "use as tarefas...").
+- "perguntar": no máximo UMA, e só "estender o dia ou renegociar o prazo" ou decisão de campanha que só ela toma. Não pergunte o que ela já fez:
+  se ela não disse, não marque como feito."""
 
 
 def _perfil(memoria):

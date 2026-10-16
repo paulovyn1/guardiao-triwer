@@ -1792,9 +1792,13 @@ def _planejar_pelo_motor(pedido):
     resto = "; ".join(f"{b['inicio'].replace(':', 'h')} {str(b['titulo'])[:45]}" for b in blocos[:6])
     partes = [r.get("explicacao") or "Refiz o plano a partir de agora."] + ([f"Para o resto de hoje: {resto}."] if resto else [])
     if r.get("delegar"):
-        partes.append("Para delegar: " + "; ".join(f"{d['titulo']} ({d['dono']})" for d in r["delegar"][:3]) + ".")
-    perguntas = (r.get("perguntas") or [])[:2]
-    return " ".join(partes + perguntas + ([] if perguntas else ["O plano novo já está na lista: confira e aprove na barra de baixo."]))
+        donos = {}
+        for d in r["delegar"][:4]:
+            donos.setdefault(str(d["dono"]).split()[0], []).append(str(d["titulo"])[:50])
+        partes.append(" ".join(f"Para o {dono}: {'; '.join(t)}." for dono, t in donos.items()))
+    perguntas = (r.get("perguntas") or [])[:1]  # uma pergunta por vez: a próxima vem depois da resposta dela
+    partes += perguntas or ["O plano novo já está na lista: confira e aprove na barra de baixo."]
+    return "\n\n".join(partes)  # um parágrafo por assunto (a conversa mostra as quebras)
 
 
 def _chamar_completo(pedido, arquivo_plano, retomar=False):
@@ -2253,14 +2257,20 @@ def dizer(texto, a, marcas=False):
     na hora em que a frase dela começa (a leitura do plano usa). Devolve o texto dito, sem as marcas."""
     controle_fala.comecar()
     bus.emitir("estado", v="falando")
-    itens = [extrair_diretivas(f) if marcas else (f, []) for f in dividir_frases(texto)]
-    falado = " ".join(limpo for limpo, _ in itens if limpo)
+    itens, inicio_par = [], set()  # "\n\n" no texto separa parágrafos: a conversa escrita mostra a quebra
+    for par in [x for x in str(texto).split("\n\n") if x.strip()]:
+        if itens:
+            inicio_par.add(len(itens))
+        itens += [extrair_diretivas(f) if marcas else (f, []) for f in dividir_frases(par)]
+    falado = "".join(("\n\n" if i in inicio_par else " ") + limpo for i, (limpo, _) in enumerate(itens) if limpo).strip()
     try:
         if not voz_ligada() or controle_fala.SO_TEXTO.is_set():
             acumulado = ""
-            for limpo, diretivas in itens:
+            for i, (limpo, diretivas) in enumerate(itens):
                 if interromper_lote():
                     break
+                if i in inicio_par:
+                    acumulado = acumulado.rstrip() + "\n\n"
                 if diretivas:
                     executar_diretivas(diretivas, "", acoes=False)
                 if limpo:

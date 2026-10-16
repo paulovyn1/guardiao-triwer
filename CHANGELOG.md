@@ -7,6 +7,10 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.4 - 2026-10-16
+- Resposta do replanejamento em parágrafos (explicação, resto do dia, delegação, uma pergunta) e a conversa escrita mostra as quebras.
+- A explicação da IA é dita à pessoa, em até 2 frases, sem instruções ao sistema; no máximo uma pergunta por vez.
+
 ## 0.10.3 - 2026-10-16
 - Plano novo esperando o ok: o guardião vai para a lista do Hoje e diz numa frase; a aprovação é só na barra de baixo da lista. Sem ler tarefa por tarefa e sem cartões de aprovação por cima da tela.
 
