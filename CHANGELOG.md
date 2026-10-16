@@ -12,6 +12,7 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - Regras de preferência (copy/design alternados, minutos de stories, alavanca, nobre) viram aviso no plano em vez de barrar; só o grave (sobreposição, tarefa que some, prazo, fixa, duplicada) reprova.
 - Correções retomam a mesma sessão (Claude `--session-id`/`--resume`, Codex `exec resume`) e pedem para reler só o plano; se a correção do revisor estragar o plano, volta o plano já conferido, não a base.
 - Replanejamento por voz lê um dossiê calculado por código em vez de reler ClickUp, planos, campanhas e memória.
+- Bloco de rotina (consumo, stories, almoço) pode repetir em vários dias da proposta do Codex; só o id do ClickUp identifica a mesma tarefa.
 - Preparo de evento recorrente (`rotina.preparos` + `clickup.eventos`): a Estrateclass passa a ter tema, thumb e agendamento até a quarta anterior e a antecipação no grupo até a quinta; etapas de outra pessoa viram cobrança no plano.
 
 ## 0.9.14 - 2026-10-16

@@ -104,6 +104,19 @@ def _gravar_atomico(caminho, dados):
             os.remove(temporario)
 
 
+ROTINA = re.compile(r"consumo|recarga|stor(y|ies)|caixinha|almo[cç]o|pausa|whatsapp|respiro|descanso", re.I)
+
+
+def _chave(bloco):
+    """Identidade de uma tarefa entre dias: o id do ClickUp; sem id, o título, menos para bloco de rotina, que se repete todo dia
+    (caso real 16/10: "Consumo" e "Stories (parte 1)" em dois dias derrubaram a proposta como "mesma tarefa em dois dias")."""
+    cid = str(bloco.get("clickup_id") or "").strip().casefold()
+    titulo = str(bloco.get("titulo") or "").strip()
+    if cid:
+        return cid, True
+    return ("" if ROTINA.search(titulo) else titulo.casefold()), False
+
+
 def _completar_origens(planos, operacional):
     """Inclui o dia futuro de origem quando a resposta moveu um bloco e omitiu esse dia."""
     futuros = glob.glob(os.path.join(operacional, "planos", "plano_????-??-??.json"))
@@ -117,12 +130,14 @@ def _completar_origens(planos, operacional):
             for bloco in item["conteudo"]["blocos"]:
                 if not isinstance(bloco, dict):
                     raise RuntimeError("O Codex entregou um bloco inválido; nada foi alterado.")
-                chave = str(bloco.get("clickup_id") or bloco.get("titulo") or "").strip().casefold()
+                chave, do_clickup = _chave(bloco)
                 if not chave:
                     continue
                 rel = str(item["arquivo"]).replace("\\", "/")
                 if chave in destinos and destinos[chave] != rel:
-                    raise RuntimeError("A mesma tarefa aparece em dois dias da proposta; nada foi alterado.")
+                    if do_clickup:
+                        raise RuntimeError(f"A tarefa \"{bloco.get('titulo')}\" aparece em dois dias da proposta; deixe-a em um só.")
+                    continue
                 destinos[chave] = rel
         novos = 0
         for caminho in futuros:
@@ -141,7 +156,7 @@ def _completar_origens(planos, operacional):
                 if not isinstance(bloco, dict):
                     manter.append(bloco)
                     continue
-                chave = str(bloco.get("clickup_id") or bloco.get("titulo") or "").strip().casefold()
+                chave = _chave(bloco)[0]
                 if chave and chave in destinos and destinos[chave] != rel and bloco.get("status") not in ("feito", "concluido"):
                     continue
                 manter.append(bloco)
