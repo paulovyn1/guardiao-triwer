@@ -138,13 +138,14 @@ $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>
 if ($LASTEXITCODE -ne 0) {
     "--- conferência reprovou ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
     $correcao = "O plano que voce gravou em $planoCaminho foi reprovado na conferencia. Corrija so isto e grave de novo, sem mexer no resto:`n$($conf | Out-String)"
-    $saida2 = & $exeClaude @preClaude -p $correcao --model $modelo --add-dir $memoria --allowedTools "Read,Write" --max-turns 10 --output-format text 2>&1
+    $saida2 = & $exeClaude @preClaude -p $correcao --model $modelo --add-dir $memoria --allowedTools "Read,Write" --max-turns 25 --output-format text 2>&1
     $saida2 | Out-String | Out-File $log -Append -Encoding utf8
     $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
     if ($LASTEXITCODE -ne 0 -and (Test-Path $copiaBase)) {
         "--- reprovou de novo: volta o plano base ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
         $base = [System.IO.File]::ReadAllText($copiaBase, $utf8) | ConvertFrom-Json
         $base | Add-Member -NotePropertyName aviso -NotePropertyValue "O plano automático não passou na conferência e voltei para a semana combinada. Ainda falta decidir: $((Get-Content $dossie -Encoding UTF8 | Select-Object -First 6) -join ' ')" -Force
+        $base | Add-Member -NotePropertyName refazer_motivo -NotePropertyValue 'conferencia reprovou duas vezes' -Force
         [System.IO.File]::WriteAllText($planoCaminho, ($base | ConvertTo-Json -Depth 6), $utf8)
     }
 }
@@ -158,11 +159,17 @@ $rev = & $py (Join-Path $pasta 'voz\revisor.py') @argsRev 2>&1
 if ($LASTEXITCODE -eq 1) {
     "--- revisor reprovou ---`r`n$($rev | Out-String)" | Out-File $log -Append -Encoding utf8
     $correcaoRev = "Um revisor independente apontou problemas no plano que voce gravou em $planoCaminho. Corrija SO isto e grave de novo, sem mexer no resto, mantendo o formato e o status sugerido:`n$($rev | Out-String)"
-    $saidaRev = & $exeClaude @preClaude -p $correcaoRev --model $modelo --add-dir $memoria --allowedTools "Read,Write" --max-turns 10 --output-format text 2>&1
+    $saidaRev = & $exeClaude @preClaude -p $correcaoRev --model $modelo --add-dir $memoria --allowedTools "Read,Write" --max-turns 25 --output-format text 2>&1
     $saidaRev | Out-String | Out-File $log -Append -Encoding utf8
     $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
     if ($LASTEXITCODE -ne 0 -and (Test-Path $copiaBase)) {
         "--- depois do revisor o plano reprovou na conferência: volta o plano base ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
         Copy-Item $copiaBase $planoCaminho -Force
+        try {  # a base não tem as etapas de post nem o que o Claude decidiria: marca o plano para ser refeito e avisa a pessoa
+            $pb = [System.IO.File]::ReadAllText($planoCaminho, $utf8).TrimStart([char]0xFEFF) | ConvertFrom-Json
+            $pb | Add-Member -NotePropertyName refazer_motivo -NotePropertyValue 'conferencia reprovou depois da correcao' -Force
+            $pb | Add-Member -NotePropertyName aviso -NotePropertyValue 'Este plano está só com a semana combinada: o plano refinado não passou na conferência. Faltam as etapas de post e outras decisões; ele será refeito sozinho.' -Force
+            [System.IO.File]::WriteAllText($planoCaminho, ($pb | ConvertTo-Json -Depth 8), $utf8)
+        } catch { "não consegui marcar o plano base para refazer: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
     }
 }
