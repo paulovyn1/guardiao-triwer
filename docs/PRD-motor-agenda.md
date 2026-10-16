@@ -228,3 +228,8 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 - O botão Parar agora troca o botão de enviar (`snd-parar`, `col.parar` e `col.enviar` no `Main.dc.html`). O botão abaixo do texto de status não aparecia na tela.
 - `controle_fala.ENCERRADOS` (pids encerrados pelo Esc ou pelo Parar): o Codex só diz "cancelado" se o próprio processo foi encerrado. Caso real às 16h54: a revisão da IA "cancelou" 1 s depois de começar e o motivo real se perdeu.
 - `_planejar_pelo_motor` fala os blocos do resto de hoje.
+
+### [FEITO] v0.10.3 (16/10)
+- `ler_o_plano` (abertura e plano pronto) só vai para a aba Dia e diz numa frase que há plano para aprovar na barra de baixo. A leitura antiga ficou em `ler_o_plano_em_voz`, sem uso. "Ainda espera o seu ok" também não abre mais `propor_aprovacao`.
+- `_planejar_pelo_motor` leva a tela para a aba Dia e termina com "confira e aprove na barra de baixo".
+- Teste desatualizado de propósito: `teste_revisao` ("plano montado: lê tarefa a tarefa e pede o ok", "sem plano...", "Esc pula a leitura").
