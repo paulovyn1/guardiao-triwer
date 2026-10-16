@@ -1786,7 +1786,10 @@ def _planejar_pelo_motor(pedido):
     r = motor_agenda.planejar(OPER, incluir_hoje=True, ia=True, pedido=pedido)
     motor_agenda.gravar(r, OPER, hoje_mesmo_aprovado=True)
     PELO_MOTOR["ultimo"] = True
-    partes = [r.get("explicacao") or "Refiz o plano a partir de agora."]
+    hoje = time.strftime("%Y-%m-%d")
+    blocos = [b for b in ((r.get("dias") or {}).get(hoje) or {}).get("blocos") or [] if b.get("status") != "feito"]
+    resto = "; ".join(f"{b['inicio'].replace(':', 'h')} {str(b['titulo'])[:45]}" for b in blocos[:6])
+    partes = [r.get("explicacao") or "Refiz o plano a partir de agora."] + ([f"Para o resto de hoje: {resto}."] if resto else [])
     if r.get("delegar"):
         partes.append("Para delegar: " + "; ".join(f"{d['titulo']} ({d['dono']})" for d in r["delegar"][:3]) + ".")
     perguntas = (r.get("perguntas") or [])[:2]

@@ -367,7 +367,8 @@ def executar(pedido, operacional, memoria="", pode_escrever=False, timeout=600, 
         detalhe_stderr = stderr.read().strip()
     if expirou.is_set():
         raise RuntimeError("O Codex demorou demais para responder.")
-    if proc.returncode and controle_fala and controle_fala.FUNDO_CANCELADO.is_set():
+    if proc.returncode and controle_fala and proc.pid in controle_fala.ENCERRADOS:
+        controle_fala.ENCERRADOS.discard(proc.pid)
         raise InterruptedError("cancelado pelo botão Parar ou pelo Esc")
     if proc.returncode or not resposta:
         detalhe = (erros[-1] if erros else detalhe_stderr or "sem resposta")[:400]

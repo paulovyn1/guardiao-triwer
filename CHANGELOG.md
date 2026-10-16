@@ -7,6 +7,11 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.2 - 2026-10-16
+- Enquanto o guardião pensa, fala ou trabalha em segundo plano, o botão de enviar vira o botão Parar (quadrado), no mesmo lugar; Enter continua enviando.
+- "Parado" só quando o processo foi mesmo encerrado pelo Parar ou pelo Esc; outra falha do Codex aparece com o motivo real.
+- Depois de refazer o plano, o guardião diz o que ficou para o resto do dia, além do que não coube.
+
 ## 0.10.1 - 2026-10-16
 - Motor da agenda: o código monta hoje e os próximos dias (fila por limite, consumo antes da copy, stories na meta, nada depois da hora de parar) e a IA revisa uma vez, devolvendo instruções em vez de horário (cerca de 16 mil tokens e 40 s por plano).
 - "Refaça meu plano" e o plano da manhã passam pelo motor: a IA só traduz o que a pessoa disse (já fiz, tira, almoço às 14h) e o que não cabe vira a pergunta "estender o dia ou renegociar o prazo?".
