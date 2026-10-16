@@ -165,3 +165,15 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 - [ ] Etapa 3
 - [ ] Etapa 4
 - [ ] Etapa 5
+
+### [FEITO] Etapa 1 (16/10, commit seguinte a 4ceb40e)
+- `voz/motor_agenda.py`: `montar_semana(oper, cfg, hoje, dias=5, incluir_hoje=False)` devolve `dias`, `aprovados`, `nao_coube` (com a pergunta pronta), `julgar` (tempo padrão, a IA estima) e `problemas` (graves). Também tem `gravar()`, `resumo()` e a CLI `python motor_agenda.py [--dias N] [--gravar] [--hoje]`.
+- Usa `plano_base.montar(..., so_aprovados=True)`, que agora expõe a fila estruturada em `plano_base.PENDENCIAS[iso]` (atrasada, etapa, prazo_hora com `ate`, sem_hora, preparo).
+- Dia aprovado: o motor só ACRESCENTA em espaço livre e o dia volta para aprovação com aviso. Hoje fica fora, salvo com `--hoje`.
+- Consertos junto:
+  - `_mover_almoco` roda antes dos stories e empurra até não bater em nenhum bloco;
+  - `preparos.inserir_cobrancas` cobra só no dia do limite (ou hoje) e só para live que ainda não passou;
+  - `manter_planos.gerar` usa o motor.
+- Verificado nos dados reais de 16/10: a thumb da #105 entra na seg 19 antes do limite (21); o Substack e as entregas de seg 19 viram pergunta de estender ou renegociar; consumo antes da copy; designs juntos.
+- NÃO testado por agente ainda: rodar a bateria (seção 6) e criar `teste_motor_agenda.py` com os casos da Etapa 1.
+- Falta no motor: (a) bloco do que ela já fez entra como feito; (b) 2º consumo ou descanso para preencher buraco só sem tarefa para adiantar; (c) válvula do dia de captação na semana apertada; (d) a POP desdobrando entrega.
