@@ -44,11 +44,16 @@ def _data(txt):
         return None
 
 
-def _post_pela_mae(tarefa, maes):
+def _mae_da_etapa(tarefa, maes):
     for m in maes or []:
         if any(e.get("id") == tarefa.get("id") for e in m.get("etapas") or []):
-            return _data(m.get("prazo"))
+            return m
     return None
+
+
+def _post_pela_mae(tarefa, maes):
+    m = _mae_da_etapa(tarefa, maes)
+    return _data(m.get("prazo")) if m else None
 
 
 def _post_pelo_titulo(tarefa):
@@ -80,18 +85,49 @@ def info(tarefa, maes=()):
         abre = post + timedelta(days=1) if post else None
     else:
         limite = post - timedelta(days=1) if post else sugestao
-    return {"id": tarefa.get("id"), "titulo": tarefa.get("nome"), "tipo": tipo, "post": post, "limite": limite, "abre": abre, "sugestao": sugestao}
+    mae = _mae_da_etapa(tarefa, maes)
+    return {"id": tarefa.get("id"), "titulo": tarefa.get("nome"), "tipo": tipo, "post": post, "limite": limite, "abre": abre, "sugestao": sugestao,
+            "mae": mae.get("id") if mae else None}
 
 
-def replanejar(e, classe, tarefa):
-    """A etapa é do guardião replanejar? Sempre quando o prazo do ClickUp é só sugestão; e também quando o guardião já a tinha marcado (ESTABELECIDA)
-    mas a data passa do limite da postagem (caso real 15/10: design de um post de 21/10 marcado para 22/10)."""
+def datas_por_mae(tarefas, maes=()):
+    """{id da mãe: {"copy": data, "design": data}} com as datas que o ClickUp tem hoje (para achar copy depois do design do mesmo post)."""
+    saida = {}
+    for t in tarefas or []:
+        e = info(t, maes)
+        d = _data(t.get("prazo"))
+        if e and e["mae"] and e["tipo"] in ("copy", "design") and d:
+            saida.setdefault(e["mae"], {})[e["tipo"]] = d
+    return saida
+
+
+def violacao(e, tarefa, por_mae=None):
+    """Por que a data de uma etapa não serve (texto) ou None. Vale para o que o guardião marcou ANTES de existirem estas regras: a data dele não é prova de que está certa."""
+    if not e:
+        return None
+    prazo = _data(tarefa.get("prazo"))
+    if not prazo:
+        return None
+    if e["limite"] and prazo > e["limite"]:
+        return f"passa do limite da postagem (post de {e['post']:%d/%m}, terminar até {e['limite']:%d/%m})" if e["post"] else f"passa do limite ({e['limite']:%d/%m})"
+    if e["abre"] and prazo < e["abre"]:
+        return f"relatório antes de 24h da postagem (só a partir de {e['abre']:%d/%m})"
+    pares = (por_mae or {}).get(e["mae"]) or {}
+    if e["tipo"] == "copy" and pares.get("design") and pares["design"] < prazo:
+        return f"a copy ({prazo:%d/%m}) vem depois do design do mesmo post ({pares['design']:%d/%m})"
+    if e["tipo"] == "design" and pares.get("copy") and pares["copy"] > prazo:
+        return f"o design ({prazo:%d/%m}) vem antes da copy do mesmo post ({pares['copy']:%d/%m})"
+    return None
+
+
+def replanejar(e, classe, tarefa, por_mae=None):
+    """A etapa é do guardião replanejar? Sempre quando o prazo do ClickUp é só sugestão; e também quando a data que o guardião já tinha marcado (ESTABELECIDA)
+    quebra uma regra (violacao): ele marcou antes das travas existirem, então a data dele passa pela mesma conferência."""
     if not e:
         return False
     if classe == "sugestao":
         return True
-    prazo = _data(tarefa.get("prazo"))
-    return classe == "estabelecida" and bool(e["limite"]) and bool(prazo) and prazo > e["limite"]
+    return classe == "estabelecida" and violacao(e, tarefa, por_mae) is not None
 
 
 def pendentes(tarefas, maes=()):

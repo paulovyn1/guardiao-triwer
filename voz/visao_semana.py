@@ -136,12 +136,13 @@ def pre_planos_do_clickup(oper, planos, hoje=None):
     cfg = _json(os.path.join(oper, "config.json")) or {}
     marcos_travados = travas.ids_de_marcos((cfg.get("pastas") or {}).get("memoria"))
     agendadas = travas.carregar_agendadas(oper)
+    por_mae = etapas_post.datas_por_mae(resumo.get("tarefas") or [], maes)
     pre = {}
     for t in resumo.get("tarefas") or []:
         dia = str(t.get("prazo") or "")
         if t.get("aprovar") or (dia, t.get("id")) in em_plano or dia in planos or not (hoje.isoformat() <= dia <= limite):
             continue
-        if etapas_post.replanejar(etapas_post.info(t, maes), travas.classe(t, cfg, marcos_travados, agendadas), t):  # prazo é sugestão: o guardião decide (plano_base)
+        if etapas_post.replanejar(etapas_post.info(t, maes), travas.classe(t, cfg, marcos_travados, agendadas), t, por_mae):  # prazo é sugestão: o guardião decide (plano_base)
             continue
         p = pre.setdefault(dia, {"data": dia, "status": "pré-planejado no ClickUp", "origem": "clickup", "blocos": [], "sem_hora": []})
         bloco = {"id": t.get("id"), "titulo": t.get("nome"), "clickup_id": t.get("id"), "frente": t.get("lista") or "?"}

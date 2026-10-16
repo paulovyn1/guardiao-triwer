@@ -16,6 +16,7 @@ from datetime import date, datetime, timedelta
 
 import conferencia_plano as cp
 import etapas_post as ep
+import gordura as gd
 import rota_agenda as ra
 import travas as tv
 import visao_semana as vs
@@ -47,6 +48,7 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     maes = (vs._json(os.path.join(oper, "posts_maes.json")) or {}).get("maes") or []
     marcos_travados = tv.ids_de_marcos(_memoria(cfg))
     agendadas = tv.carregar_agendadas(oper)
+    por_mae = ep.datas_por_mae(resumo, maes)
     for t in resumo:
         prazo = str(t.get("prazo") or "")
         if t.get("aprovar"):
@@ -54,7 +56,7 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
                 aprovar.append(t)
             continue
         e = ep.info(t, maes)
-        if ep.replanejar(e, tv.classe(t, cfg, marcos_travados, agendadas), t):  # etapa de post sem trava: o prazo do ClickUp é sugestão, o guardião encaixa
+        if ep.replanejar(e, tv.classe(t, cfg, marcos_travados, agendadas), t, por_mae):  # etapa de post sem trava: o prazo do ClickUp é sugestão, o guardião encaixa
             etapas.append(e)
             continue
         if prazo < min(iso, hoje.isoformat()):
@@ -87,6 +89,9 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     if etapas:
         motivos.append(f"ETAPAS DE POST A ENCAIXAR ({len(etapas)}): decida o dia e o horário de cada uma, dentro do limite. O prazo do ClickUp é só sugestão.\n"
                        + "\n".join(_linha_etapa(e) for e in etapas[:15]))
+    folga = gd.situacao(maes, cfg, hoje)
+    if folga and folga["gordura"] < folga["meta"]:  # a gordura de posts está abaixo da meta: a criação à frente entra no plano
+        motivos.append(gd.texto(folga))
     if com_prazo_hora:
         motivos.append(f"{len(com_prazo_hora)} entrega(s) com horário limite neste dia e sem horário de trabalho: "
                        + "; ".join(f"{t.get('nome')} (até {t.get('fim')}, id {t.get('id')})" for t in com_prazo_hora[:6])
@@ -222,6 +227,8 @@ def dossie(dia, plano, motivos, oper=OPER, cfg=None):
     planos = vs.planos_da_semana(oper, dia)
     partes = ["POR QUE O PLANO PRECISA DE VOCÊ (resolva só isto; o resto já está decidido):", *[f"- {m}" for m in motivos],
               *(["", ep.regras_texto()] if any("ETAPAS DE POST" in m for m in motivos) else []),
+              *(["", gd.texto(gd.situacao((vs._json(os.path.join(oper, "posts_maes.json")) or {}).get("maes") or [], cfg, dia))]
+                if gd.configuracao(cfg) and not any(m.startswith("GORDURA DE POSTS") for m in motivos) else []),
               "", "PLANO BASE (a semana combinada; mantenha estes blocos e horários, salvo conflito):", json.dumps(plano, ensure_ascii=False, indent=1),
               "", vs.texto(oper, memoria, hoje=dia, incluir_hoje=False),
               "", ra.horizonte(dia, dia + timedelta(days=HORIZONTE_DIAS), planos, cfg, memoria, oper)]

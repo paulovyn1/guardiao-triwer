@@ -15,6 +15,7 @@
     "memoria_em_obsidian": false
   },
   "rotina": {
+    "posts": { "dias_semana": [0, 2, 4], "gordura_meta": 2, "gordura_minima": 1 },
     "travas": {
       "listas_fixas": ["Reuniões Gerais"],
       "tags_fixas": ["fixo"],
