@@ -7,6 +7,10 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.5 - 2026-10-16
+- Todo pedido de agenda ao guardião completo (mover, adiar, "pronta até dia 27") vai para o motor, em segundos; só destrinchar e configuração seguem para a IA completa (que lia a pasta inteira e levava minutos).
+- A IA entende prazo novo dado pela pessoa (instrução "limite") e o motor reencaixa a tarefa até essa data.
+
 ## 0.10.4 - 2026-10-16
 - Resposta do replanejamento em parágrafos (explicação, resto do dia, delegação, uma pergunta) e a conversa escrita mostra as quebras.
 - A explicação da IA é dita à pessoa, em até 2 frases, sem instruções ao sistema; no máximo uma pergunta por vez.

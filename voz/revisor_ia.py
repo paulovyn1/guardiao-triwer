@@ -19,8 +19,8 @@ from datetime import date
 
 OPER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPO = 240
-ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar", "feito", "tirar", "imprevisto"}
-SO_TITULO = {"feito", "tirar", "imprevisto"}
+ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar", "feito", "tirar", "imprevisto", "limite"}
+SO_TITULO = {"feito", "tirar", "imprevisto", "limite"}
 
 REGRAS = """REGRAS DA AGENDA (o código já aplica as de horário; você só julga):
 - Quem decide a agenda é o guardião. Pergunte à pessoa SÓ quando for impossível: até 2h de hora extra a pergunta é "você prefere estender o dia ou renegociar o prazo?"; acima disso, renegociar o prazo com quem combinou. Nunca pergunte onde colocar algo.
@@ -47,6 +47,8 @@ PEDIDO = """PEDIDO DA PESSOA (traduza em instruções; não monte horário, o c�
 - o que ela diz que já fez: {"acao":"feito","titulo":"..","minutos":N}
 - o que ela mandou tirar: {"acao":"tirar","titulo":".."}
 - compromisso, refeição ou imprevisto com horário que ela disse (ex.: almoço às 14h, reunião de emergência): {"acao":"imprevisto","titulo":"..","inicio":"HH:MM","fim":"HH:MM"}
+- tarefa que ela quer em outro momento ou com outro prazo ("joga mais pra frente", "pronta antes do dia 27"): {"acao":"limite","titulo":"..","ate":"AAAA-MM-DD"}
+  (o código acha o melhor dia até essa data; "mais pra frente" sem data: use a data da entrega ligada a ela, se houver, ou 7 dias depois de hoje)
 Use o título como aparece no plano atual quando for o mesmo item."""
 
 
@@ -140,6 +142,8 @@ def interpretar(texto):
             continue
         if i["acao"] in SO_TITULO and not i.get("titulo"):
             continue
+        if i["acao"] == "limite" and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(i.get("ate") or "")):
+            continue
         if i["acao"] == "imprevisto" and not all(re.fullmatch(r"\d{1,2}:\d{2}", str(i.get(k) or "")) for k in ("inicio", "fim")):
             continue
         if i["acao"] == "estimar" and not (isinstance(i.get("minutos"), (int, float)) and 5 <= i["minutos"] <= 480):
@@ -150,7 +154,8 @@ def interpretar(texto):
 
 def ajustes(instrucoes):
     """Instruções -> ajustes que o motor entende."""
-    a = {"minutos": {}, "janela": {}, "prioridade": {}, "desdobrar": {}, "perguntas": [], "explicar": [], "feitos": [], "tirar": [], "imprevistos": []}
+    a = {"minutos": {}, "janela": {}, "prioridade": {}, "desdobrar": {}, "perguntas": [], "explicar": [], "feitos": [], "tirar": [], "imprevistos": [],
+         "limites": {}}
     tipos = {"manha": "pesado", "nobre": "pesado", "tarde": "leve", "design": "design", "leve": "leve", "pesado": "pesado"}
     for i in instrucoes:
         acao, chave = i["acao"], str(i.get("id") or "")
@@ -170,6 +175,8 @@ def ajustes(instrucoes):
             a["feitos"].append({"titulo": str(i["titulo"]), "minutos": int(i.get("minutos") or 0)})
         elif acao == "tirar":
             a["tirar"].append(str(i["titulo"]))
+        elif acao == "limite":
+            a["limites"][str(i["titulo"])] = i["ate"]
         elif acao == "imprevisto":
             a["imprevistos"].append({"titulo": str(i["titulo"])[:80], "inicio": i["inicio"].zfill(5), "fim": i["fim"].zfill(5)})
     return a

@@ -268,6 +268,18 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
                                                                                 "lista": b.get("frente")})
     delegar = []
     _desdobrar(fila, (ajustes or {}).get("desdobrar"), cfg, delegar)
+    for titulo, ate in ((ajustes or {}).get("limites") or {}).items():  # ela deu outro prazo ("pronta antes do dia 27"): a tarefa sai de onde está e volta à fila
+        for iso, plano in rascunho.items():
+            for b in list(plano.get("blocos") or []):
+                if b.get("status") != "feito" and _parecido(b.get("titulo"), titulo):
+                    plano["blocos"].remove(b)
+                    fila.setdefault(b.get("clickup_id") or _norm(b.get("titulo")), {"id": b.get("clickup_id"), "titulo": b.get("titulo"),
+                                                                                    "origem": "prazo novo dela", "minutos": max(5, cp._minutos(b)),
+                                                                                    "lista": b.get("frente")})
+        for item in fila.values():
+            if _parecido(item.get("titulo"), titulo):
+                item["limite"] = date.fromisoformat(ate)
+                item.pop("ate", None)
     prioridade = (ajustes or {}).get("prioridade") or {}
     ja = {b.get("clickup_id") for p in acrescimo.values() for b in p.get("blocos") or [] if b.get("clickup_id")}
     fila = {k: v for k, v in fila.items() if not v.get("id") or v["id"] not in ja}

@@ -1775,6 +1775,7 @@ def prompt_completo(pedido, arquivo_plano):
 
 _SESSAO_COMPLETO = {"claude": None, "codex": None}  # a correção do revisor retoma a sessão do pedido, sem reler tudo
 PELO_MOTOR = {"ultimo": False}
+NAO_E_AGENDA = re.compile(r"destrinch|quebr\w* em (etapas|partes)|configura|onboarding|instala", re.I)
 
 
 def _planejar_pelo_motor(pedido):
@@ -1804,8 +1805,8 @@ def _planejar_pelo_motor(pedido):
 def _chamar_completo(pedido, arquivo_plano, retomar=False):
     memoria = pasta_memoria()
     PELO_MOTOR["ultimo"] = False
-    if not retomar and PEDE_PLANO.search(pedido or ""):
-        return _planejar_pelo_motor(pedido)
+    if not retomar and (PEDE_PLANO.search(pedido or "") or not NAO_E_AGENDA.search(pedido or "")):
+        return _planejar_pelo_motor(pedido)  # pedido de agenda (mover, adiar, "pronta até dia 27"): o motor, em segundos; só destrinchar e configuração vão à IA completa
     if provedor_ia() == "codex":
         inicio = COMPLETO["inicio"] if COMPLETO else time.time()
         exigir_plano = bool(re.search(r"plano|planej|reorganiz|organizar|encaix|agenda|horário", pedido, re.I))
