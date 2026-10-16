@@ -1785,6 +1785,7 @@ def _planejar_pelo_motor(pedido):
     bus.emitir("progresso", modo="completo", ativo=True, rotulo="Montando a agenda", inicio=inicio)
     r = motor_agenda.planejar(OPER, incluir_hoje=True, ia=True, pedido=pedido)
     motor_agenda.gravar(r, OPER, hoje_mesmo_aprovado=True)
+    bus.emitir("ui", cmd="tela", id="dia")  # a lista do Hoje mostra o plano novo; a aprovação é na barra de baixo
     PELO_MOTOR["ultimo"] = True
     hoje = time.strftime("%Y-%m-%d")
     blocos = [b for b in ((r.get("dias") or {}).get(hoje) or {}).get("blocos") or [] if b.get("status") != "feito"]
@@ -1793,7 +1794,7 @@ def _planejar_pelo_motor(pedido):
     if r.get("delegar"):
         partes.append("Para delegar: " + "; ".join(f"{d['titulo']} ({d['dono']})" for d in r["delegar"][:3]) + ".")
     perguntas = (r.get("perguntas") or [])[:2]
-    return " ".join(partes + perguntas + ([] if perguntas else ["Quer revisar e aprovar o plano?"]))
+    return " ".join(partes + perguntas + ([] if perguntas else ["O plano novo já está na lista: confira e aprove na barra de baixo."]))
 
 
 def _chamar_completo(pedido, arquivo_plano, retomar=False):
@@ -2127,7 +2128,17 @@ def propor_aprovacao():
 
 
 def ler_o_plano(a, abertura):
-    """Vai para a aba Dia, passa por cada tarefa (destacando a da vez) e pede o ok. Esc pula a leitura e vai direto ao pedido de ok."""
+    """Plano novo esperando o ok: vai para a aba Dia, onde a lista já mostra o plano novo, e diz numa frase. A aprovação é na barra de baixo da lista.
+    Decisão da Milena (16/10): nada de ler tarefa por tarefa nem abrir cartões de aprovação por cima da tela (eram três ao mesmo tempo)."""
+    n = len(blocos_pendentes())
+    bus.emitir("ui", cmd="tela", id="dia")
+    dizer(f"{abertura} Tem um plano novo para hoje com {n} {'tarefa' if n == 1 else 'tarefas'}, já na lista. Confira e aprove na barra de baixo, "
+          "ou me diga o que mudar.", a)
+    return False
+
+
+def ler_o_plano_em_voz(a, abertura):
+    """A leitura antiga, tarefa por tarefa, com o pedido de ok. Fica para quem pedir para ouvir o plano."""
     blocos = blocos_pendentes()
     n = len(blocos)
     controle_fala.PULAR_LEITURA.clear()
@@ -2193,9 +2204,9 @@ def abrir_o_dia(a, primeira):
         if primeira or ABERTURA["leu"] != hoje:
             ABERTURA["leu"] = hoje
             return ler_o_plano(a, f"{ola} Hoje é {data_falada()}.")
-        propor_aprovacao()
-        dizer(f"{ola} O seu plano de hoje ainda espera o seu ok. Posso aprovar?", a)
-        return True
+        bus.emitir("ui", cmd="tela", id="dia")
+        dizer(f"{ola} O seu plano de hoje ainda espera o seu ok. Confira a lista e aprove na barra de baixo.", a)
+        return False
     b = v2.bloco_atual(plano)
     if not b:
         dizer(f"{ola} O plano de hoje está todo feito. Bom trabalho.", a)

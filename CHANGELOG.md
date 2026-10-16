@@ -7,6 +7,9 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.3 - 2026-10-16
+- Plano novo esperando o ok: o guardião vai para a lista do Hoje e diz numa frase; a aprovação é só na barra de baixo da lista. Sem ler tarefa por tarefa e sem cartões de aprovação por cima da tela.
+
 ## 0.10.2 - 2026-10-16
 - Enquanto o guardião pensa, fala ou trabalha em segundo plano, o botão de enviar vira o botão Parar (quadrado), no mesmo lugar; Enter continua enviando.
 - "Parado" só quando o processo foi mesmo encerrado pelo Parar ou pelo Esc; outra falha do Codex aparece com o motivo real.
