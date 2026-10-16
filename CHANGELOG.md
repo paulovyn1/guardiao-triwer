@@ -7,6 +7,15 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.9 - 2026-10-16
+- Compromisso fixo (WhatsApp, aprovações) tem identificador e pode ser concluído pelo chat e pelo painel.
+- "Cancela X" fecha a tarefa no ClickUp ao aprovar; "tira X" só tira do dia.
+- Aprovação que não conseguiu levar tudo ao ClickUp fica com sincronização pendente e avisa; aprovar de novo tenta outra vez.
+- Ao aprovar hoje, o guardião avisa quais próximos dias também mudaram e ainda precisam de aprovação.
+- Tarefa vencida há 2 dias ou mais vira pergunta "ainda vale fazer?" no aviso do dia.
+- O resumo da conversa respeita o que a pessoa confirmou por último; a IA não atribui dono por dedução.
+- Testes desatualizados reescritos para o comportamento novo; testes novos do motor.
+
 ## 0.10.8 - 2026-10-16
 - Quem manda na data é o guardião: tarefa com horário no ClickUp que não é fixa volta para a fila e é reencaixada pelas regras; só reunião, aula e hora combinada ficam.
 - Tarefa com limite encaixa a partir do próprio limite, de trás para frente; preparo da live no primeiro horário livre do dia; sem espaço na janela ideal, qualquer horário livre antes de virar pergunta.

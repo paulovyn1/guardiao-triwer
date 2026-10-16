@@ -315,7 +315,7 @@ def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, stat
     caminho = os.path.join(pasta, f"registro_{hoje_txt}.json")
     registro = _ler_json(caminho) or {}
     por_id = {b.get("id"): b for b in registro.get("blocos", [])}
-    for b in plano.get("blocos", []):
+    for b in plano.get("blocos", []) + [f for f in plano.get("fixos", []) if f.get("id")]:  # compromisso fixo também se conclui
         if b.get("id") in por_id:
             continue
         minutos = _min(b["fim"]) - _min(b["inicio"])
