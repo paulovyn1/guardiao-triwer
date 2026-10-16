@@ -119,6 +119,19 @@ $saidaClaude = & $exeClaude @preClaude -p $prompt --model $modelo --add-dir $mem
 "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===" | Out-File $log -Append -Encoding utf8
 $saidaClaude | Out-String | Out-File $log -Append -Encoding utf8
 
+# Limite de uso do Claude (ou da conta): a chamada não fez o plano e o que está no arquivo é só a base. Antes isso passava em silêncio.
+# Marca o plano para ser refeito sozinho depois (manter_planos.py) e avisa a pessoa no próprio plano.
+if (($saidaClaude | Out-String) -match 'session limit|usage limit|rate limit|limit reached|hit your') {
+    "--- limite de uso do Claude: plano fica só com a base e será refeito ---" | Out-File $log -Append -Encoding utf8
+    try {
+        $pl = [System.IO.File]::ReadAllText($planoCaminho, $utf8) | ConvertFrom-Json
+        $pl | Add-Member -NotePropertyName refazer_motivo -NotePropertyValue 'limite de uso do Claude' -Force
+        $pl | Add-Member -NotePropertyName aviso -NotePropertyValue 'Este plano está só com a semana combinada: não consegui refiná-lo agora (limite de uso do Claude). Ele será refeito sozinho quando o limite voltar.' -Force
+        [System.IO.File]::WriteAllText($planoCaminho, ($pl | ConvertTo-Json -Depth 6), $utf8)
+    } catch { "não consegui marcar o plano para refazer: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
+    exit 3
+}
+
 # A mesma conferência da conversa (sobreposição, removidos, semana, prazo final): antes, o plano automático era gravado sem trava nenhuma.
 # Reprovado: uma correção com os problemas apontados. Reprovado de novo: volta o plano base, com aviso.
 $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1

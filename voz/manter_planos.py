@@ -68,7 +68,9 @@ def gerar(dia, oper=OPER, refazer=False):
     comando = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", os.path.join(oper, "gerar_plano.ps1"),
                "-Data", dia.isoformat(), "-Saida", destino] + (["-Forcar", "-Replanejar"] if refazer else [])
     try:
-        subprocess.run(comando, cwd=oper, timeout=TIMEOUT_GERAR, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        r = subprocess.run(comando, cwd=oper, timeout=TIMEOUT_GERAR, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if r.returncode == 3:  # o Claude bateu no limite de uso: o plano ficou só com a base e marcado para refazer
+            return False
     except (OSError, subprocess.SubprocessError):
         pass
     return os.path.exists(destino)
@@ -158,6 +160,16 @@ def revisar(oper=OPER, cfg=None, hoje=None, gerador=gerar, agora=None):
         caminho = os.path.join(oper, "planos", f"plano_{iso}.json")
         plano = vs._json(caminho)
         if not isinstance(plano, dict):
+            continue
+        if plano.get("refazer_motivo") and plano.get("status") != "aprovado":  # saiu só com a base (limite de uso): refaz depois da pausa
+            ultima = _TENTATIVAS.get(d)
+            if not (ultima is not None and agora - ultima < PAUSA_FALHA):
+                _TENTATIVAS[d] = agora
+                if gerador(d, oper, True):
+                    _log(oper, f"plano de {iso} refeito (tinha saído só com a base: {plano.get('refazer_motivo')})")
+                    refeitos.append(d)
+                    _TENTATIVAS.pop(d, None)
+                    estado[iso] = {"assinatura": assinatura(d, oper, cfg, hoje), "em": agora}
             continue
         sig = assinatura(d, oper, cfg, hoje)
         visto = estado.get(iso)

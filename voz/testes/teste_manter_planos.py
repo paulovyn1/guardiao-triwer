@@ -104,4 +104,33 @@ confere("o que não mudou (quinta) não é refeito", all(d != "2026-10-22" for d
 n = len(refeitos)
 mp.rodar_uma_vez(oper2, cfg, seg, ger2, agora=10000 + 2 * mp.REVISAO_PAUSA + 5)
 confere("sem nova mudança não refaz de novo", len(refeitos) == n, refeitos)
+# plano que saiu só com a base por limite de uso do Claude é refeito depois da pausa; o aprovado não
+oper4 = tempfile.mkdtemp()
+os.makedirs(os.path.join(oper4, "planos"))
+resumo_vazio = os.path.join(oper4, "resumo_clickup.json")
+with open(resumo_vazio, "w", encoding="utf-8") as f:
+    json.dump({"tarefas": []}, f)
+for d, status in (("2026-10-20", None), ("2026-10-21", "aprovado"), ("2026-10-22", None)):
+    with open(os.path.join(oper4, "planos", f"plano_{d}.json"), "w", encoding="utf-8") as f:
+        json.dump({"data": d, "status": status, "refazer_motivo": "limite de uso do Claude"} if d != "2026-10-22" else {"data": d}, f)
+chamadas = []
+
+
+def ger4(d, o, refazer=False):
+    chamadas.append((d.isoformat(), refazer))
+    with open(os.path.join(oper4, "planos", f"plano_{d.isoformat()}.json"), "w", encoding="utf-8") as f:  # o gerador real grava o plano sem a marca
+        json.dump({"data": d.isoformat()}, f)
+    return True
+
+
+mp.revisar(oper4, cfg, seg, ger4, agora=50000)
+confere("plano marcado para refazer é refeito; o aprovado e o sem marca não", chamadas == [("2026-10-20", True)], chamadas)
+with open(os.path.join(oper4, "planos", "plano_2026-10-22.json"), "w", encoding="utf-8") as f:
+    json.dump({"data": "2026-10-22", "refazer_motivo": "limite de uso do Claude"}, f)
+falhas4 = []
+mp.revisar(oper4, cfg, seg, lambda d, o, r=False: falhas4.append(d) or False, agora=60000)
+mp.revisar(oper4, cfg, seg, lambda d, o, r=False: falhas4.append(d) or False, agora=60000 + 60)
+confere("se a nova tentativa também falha, só tenta de novo depois da pausa de uma hora", len(falhas4) == 1, falhas4)
+mp.revisar(oper4, cfg, seg, lambda d, o, r=False: falhas4.append(d) or False, agora=60000 + mp.PAUSA_FALHA + 1)
+confere("e tenta de novo passada a pausa", len(falhas4) == 2, falhas4)
 sys.exit(1 if falhas else 0)
