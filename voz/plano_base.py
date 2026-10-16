@@ -125,11 +125,11 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     return plano, motivos
 
 
-def _vaos_do_dia(plano, dia, memoria):
+def _vaos_do_dia(plano, dia, memoria, a_partir=None):
     """Todos os espaços livres do expediente, de qualquer janela (leve, pesado ou design), unidos e em ordem."""
     todos = []
     for tipo in ("leve", "pesado", "design"):
-        todos += ra.espacos(plano, dia, tipo, memoria=memoria)
+        todos += ra.espacos(plano, dia, tipo, a_partir=a_partir, memoria=memoria)
     todos.sort()
     unidos = []
     for x, y in todos:
@@ -152,6 +152,8 @@ def inserir_stories(plano, dia, cfg, nome="Eu"):
     plano["stories_tipo"] = tipo
     t = s["tipos"][tipo]
     memoria = _memoria(cfg or {})
+    agora = datetime.now()
+    a_partir = agora.hour * 60 + agora.minute + 5 if dia == agora.date() else None  # hoje: só o que ainda não passou
     precisa = t["minutos_apertado"] if cp.dia_apertado(plano, dia, memoria) else t["minutos"]
     faltam = precisa - cp.minutos_stories_do_tipo(plano, tipo, s)
     existentes = [b for b in (plano.get("blocos") or []) + (plano.get("fixos") or []) if cp._eh_stories(b) and cp.tipo_stories(b.get("titulo"), s) == tipo]
@@ -163,7 +165,7 @@ def inserir_stories(plano, dia, cfg, nome="Eu"):
         escolha = None
         for exigir in (True, False):
             melhor = None
-            for x, y in (ra.espacos(plano, dia, "leve", memoria=memoria) if exigir else _vaos_do_dia(plano, dia, memoria)):
+            for x, y in (ra.espacos(plano, dia, "leve", a_partir=a_partir, memoria=memoria) if exigir else _vaos_do_dia(plano, dia, memoria, a_partir)):
                 ini = max(x, pref[0] if exigir else x, (ultimo_fim + 60) if (exigir and ultimo_fim is not None) else x)
                 if exigir and ini >= pref[1]:
                     continue
