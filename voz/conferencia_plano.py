@@ -343,6 +343,48 @@ def conferir_prazos(plano, dia, tarefas):
     return problemas
 
 
+_DIAS_EN = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}
+
+
+def _minutos(b):
+    try:
+        (h1, m1), (h2, m2) = [tuple(int(x) for x in str(b[k]).split(":")) for k in ("inicio", "fim")]
+        return (h2 * 60 + m2) - (h1 * 60 + m1)
+    except (KeyError, ValueError, TypeError):
+        return 0
+
+
+def _dias_de_trabalho(rot):
+    return {_DIAS_EN[n] for n in rot.get("dias_trabalho") or [] if n in _DIAS_EN} or {0, 1, 2, 3, 4}
+
+
+def conferir_blocos_diarios(plano, dia, cfg):
+    """Blocos que TODO dia de trabalho precisa ter (decisão da Milena, 2026-10-15: stories é prioridade e entra todos os dias). Vem de config.json:
+    rotina.blocos_diarios = [{"nome": "stories", "palavras": ["stories", "story"], "excluir": ["cronograma"], "minutos_minimos": 15, "bloco_max_min": 40}].
+    Falta bloco, ou soma abaixo do mínimo, ou bloco maior que o máximo (a pessoa pediu stories espalhados, nunca em lote): barra o plano."""
+    rot = (cfg or {}).get("rotina") or {}
+    regras = rot.get("blocos_diarios") or []
+    trabalho = {_DIAS_EN[n] for n in rot.get("dias_trabalho") or [] if n in _DIAS_EN} or {0, 1, 2, 3, 4}
+    if not regras or dia.weekday() not in trabalho:
+        return []
+    problemas = []
+    for r in regras:
+        palavras = [_norm(x) for x in r.get("palavras") or [r.get("nome")] if x]
+        excluir = [_norm(x) for x in r.get("excluir") or []]
+        itens = [b for b in (plano.get("blocos") or []) + (plano.get("fixos") or [])
+                 if any(p in _norm(b.get("titulo")) for p in palavras) and not any(e in _norm(b.get("titulo")) for e in excluir)]
+        total = sum(_minutos(b) for b in itens)
+        minimo = int(r.get("minutos_minimos") or 1)
+        nome = r.get("nome") or palavras[0]
+        if total < minimo:
+            problemas.append(f"Todo dia de trabalho tem {nome}, e este dia tem {total} min (mínimo {minimo}). Ponha um bloco de {nome} antes de qualquer item que dispute o horário.")
+        maximo = int(r.get("bloco_max_min") or 0)
+        for b in itens:
+            if maximo and _minutos(b) > maximo:
+                problemas.append(f"\"{b.get('titulo')}\" tem {_minutos(b)} min, acima de {maximo}: divida {nome} em blocos menores espalhados pelo dia, nunca em lote.")
+    return problemas
+
+
 def conferir_travas(plano, dia, tarefas, cfg, memoria):
     """Fixa: data e horário não mudam. Prazo máximo (entrega, cliente, marco de campanha): pode vir antes, nunca depois, porque mudar exige renegociar."""
     import travas as tv
@@ -456,4 +498,5 @@ def conferir_regras_da_pasta(plano, dia, outros, oper):
     return (conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool(regras.get("etapas_em_lote")),
                             bool(regras.get("ideia_depois_de_consumo"))) + conferir_alavancas(plano, dia, memoria)
             + conferir_consumo(plano) + conferir_duplicadas(plano, dia, outros) + conferir_prazos(plano, dia, tarefas)
-            + conferir_etapas(plano, dia, tarefas, maes, outros) + conferir_travas(plano, dia, tarefas, cfg_completo, memoria))
+            + conferir_etapas(plano, dia, tarefas, maes, outros) + conferir_travas(plano, dia, tarefas, cfg_completo, memoria)
+            + conferir_blocos_diarios(plano, dia, cfg_completo))

@@ -89,6 +89,10 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     if etapas:
         motivos.append(f"ETAPAS DE POST A ENCAIXAR ({len(etapas)}): decida o dia e o horário de cada uma, dentro do limite. O prazo do ClickUp é só sugestão.\n"
                        + "\n".join(_linha_etapa(e) for e in etapas[:15]))
+    inserir_blocos_diarios(plano, dia, cfg, nome)
+    faltam_diarios = cp.conferir_blocos_diarios(plano, dia, cfg)
+    if faltam_diarios:
+        motivos.append("BLOCO DIÁRIO OBRIGATÓRIO: " + " ".join(faltam_diarios))
     folga = gd.situacao(maes, cfg, hoje)
     if folga and folga["gordura"] < folga["meta"]:  # a gordura de posts está abaixo da meta: a criação à frente entra no plano
         motivos.append(gd.texto(folga))
@@ -118,6 +122,43 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     for item in trabalhos_do_guardiao(memoria, dia):
         motivos.append(f"Trabalho do guardião com data chegada (estado.md, seção \"Do guardião\"): {item}")
     return plano, motivos
+
+
+def inserir_blocos_diarios(plano, dia, cfg, nome="Eu"):
+    """Põe no plano os blocos diários obrigatórios (rotina.blocos_diarios) que faltarem, num espaço livre: primeiro na janela preferida da regra
+    (padrão 14h às 18h, a tarde de stories e tarefas leves), depois em qualquer espaço do dia. O bloco não tem clickup_id nem lista_id: fica só no plano.
+    Devolve os blocos criados. Se não houver espaço, não cria (a conferência acusa)."""
+    rot = (cfg or {}).get("rotina") or {}
+    memoria = _memoria(cfg or {})
+    criados = []
+    for r in rot.get("blocos_diarios") or []:
+        so_esta = {"rotina": dict(rot, blocos_diarios=[r])}
+        if not cp.conferir_blocos_diarios(plano, dia, so_esta) or dia.weekday() not in cp._dias_de_trabalho(rot):
+            continue
+        minutos = int(r.get("minutos_minimos") or 15)
+        pref = r.get("janela") or ["14:00", "18:00"]
+        pref = (vs.hm(pref[0]), vs.hm(pref[1]))
+        espacos = ra.espacos(plano, dia, "leve", memoria=memoria)
+        escolha = None
+        for x, y in espacos:  # primeiro na janela preferida
+            ini = max(x, pref[0])
+            if ini + minutos <= min(y, pref[1]):
+                escolha = ini
+                break
+        if escolha is None:
+            escolha = next((x for x, y in espacos if y - x >= minutos), None)
+        if escolha is None:
+            continue
+        nome_bloco = r.get("titulo_padrao") or f"{str(r.get('nome') or 'Bloco').capitalize()} do dia"
+        bloco = {"id": f"b{len(plano.get('blocos') or []) + 1}", "inicio": vs.fmt(escolha), "fim": vs.fmt(escolha + minutos), "titulo": nome_bloco,
+                 "dono": nome, "frente": "Conteúdo",
+                 "descricao": f"Bloco diário obrigatório: {r.get('nome')} todo dia de trabalho, antes de tarefa que dispute o horário.",
+                 "primeiro_passo": "Abra o cronograma da semana e poste a primeira tela.",
+                 "por_que_agora": f"{str(r.get('nome') or 'Isso').capitalize()} é prioridade e entra todos os dias."}
+        plano.setdefault("blocos", []).append(bloco)
+        plano["blocos"].sort(key=lambda b: b.get("inicio") or "")
+        criados.append(bloco)
+    return criados
 
 
 def _linha_etapa(e):
@@ -259,11 +300,21 @@ def main(argv=None):
     ap.add_argument("--saida")
     ap.add_argument("--dossie")
     ap.add_argument("--conferir")
+    ap.add_argument("--completar")  # insere no plano gravado os blocos diários que faltam (sem Claude)
     a = ap.parse_args(argv)
     if a.conferir:
         problemas = conferir_arquivo(a.conferir)
         print("\n".join(f"- {p}" for p in problemas) if problemas else "ok")
         return 1 if problemas else 0
+    if a.completar:
+        arquivo = vs._json(a.completar)
+        dia = cp.data_do_plano(a.completar, arquivo)
+        criados = inserir_blocos_diarios(arquivo, dia, _cfg(), ((_cfg().get("pessoa") or {}).get("nome")) or "Eu")
+        if criados:
+            with open(a.completar, "w", encoding="utf-8") as f:
+                json.dump(arquivo, f, ensure_ascii=False, indent=2)
+        print("; ".join(f"{b['titulo']} {b['inicio']} a {b['fim']}" for b in criados) or "nada a completar")
+        return 0
     dia = date.fromisoformat(a.data) if a.data else date.today()
     plano, motivos = montar(dia)
     if not motivos:

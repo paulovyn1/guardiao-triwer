@@ -39,6 +39,7 @@ ITENS = [
     "Campanha pública de venda a até 3 dias do fim tem bloco que traga gente (stories, aviso no grupo, convite)?",
     "O tempo livre ou extra foi para o que move o objetivo das campanhas ativas, e não para tarefa que pode esperar?",
     "O horizonte de 14 dias mostra algum marco crítico que este plano deveria começar a preparar e não preparou?",
+    "Os blocos diários obrigatórios (stories, em rotina.blocos_diarios do config) estão no plano, espalhados pelo dia e antes de tarefa que dispute o horário?",
 ]
 
 

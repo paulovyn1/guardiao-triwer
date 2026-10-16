@@ -15,6 +15,7 @@
     "memoria_em_obsidian": false
   },
   "rotina": {
+    "blocos_diarios": [{ "nome": "stories", "palavras": ["stories", "story"], "excluir": ["cronograma"], "minutos_minimos": 15, "bloco_max_min": 40 }],
     "posts": { "dias_semana": [0, 2, 4], "gordura_meta": 2, "gordura_minima": 1 },
     "travas": {
       "listas_fixas": ["Reuniões Gerais"],

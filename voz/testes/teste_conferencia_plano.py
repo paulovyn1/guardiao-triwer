@@ -173,4 +173,17 @@ confere("bloco depois do horário limite da tarefa (Substack às 9h, bloco às 1
 confere("o mesmo trabalho na sexta, antes do prazo, passa; e tarefa com início (movível) não é cobrada",
         cp.conferir_prazos({"blocos": [{"id": "a", "inicio": "14:00", "fim": "15:40", "titulo": "Rascunho", "clickup_id": "T2"}]}, date(2026, 10, 16), newsletter) == []
         and cp.conferir_prazos(plano_news, date(2026, 10, 19), {"T2": {"id": "T2", "prazo": "2026-10-19", "inicio": "09:00", "fim": "10:00"}}) == [])
+# blocos diários obrigatórios (stories em todo dia de trabalho)
+cfg_d = {"rotina": {"dias_trabalho": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                    "blocos_diarios": [{"nome": "stories", "palavras": ["stories", "story"], "excluir": ["cronograma"], "minutos_minimos": 15, "bloco_max_min": 40}]}}
+b_ = lambda ini, fim, tit: {"id": "x", "inicio": ini, "fim": fim, "titulo": tit}
+segunda_ = date(2026, 10, 19)
+confere("dia de trabalho sem stories é barrado", len(cp.conferir_blocos_diarios({"blocos": [b_("09:00", "10:00", "Copy do post")], "fixos": []}, segunda_, cfg_d)) == 1)
+confere("com stories de 15 min passa; cronograma de stories (planejar) não conta", cp.conferir_blocos_diarios({"blocos": [b_("17:10", "17:25", "Stories do replay: 3 telas")], "fixos": []}, segunda_, cfg_d) == []
+        and len(cp.conferir_blocos_diarios({"blocos": [b_("09:45", "10:45", "Cronograma de stories da semana")], "fixos": []}, segunda_, cfg_d)) == 1)
+confere("stories em lote (bloco de 3h) é barrado; vários blocos curtos passam",
+        any("blocos menores" in x for x in cp.conferir_blocos_diarios({"blocos": [b_("14:00", "17:00", "Stories do dia")], "fixos": []}, segunda_, cfg_d))
+        and cp.conferir_blocos_diarios({"blocos": [b_("10:00", "10:30", "Stories 1"), b_("15:00", "15:30", "Stories 2")], "fixos": []}, segunda_, cfg_d) == [])
+confere("sábado não cobra, e sem a regra no config nada é cobrado", cp.conferir_blocos_diarios({"blocos": [], "fixos": []}, date(2026, 10, 17), cfg_d) == []
+        and cp.conferir_blocos_diarios({"blocos": [], "fixos": []}, segunda_, {"rotina": {}}) == [])
 sys.exit(1 if falhas else 0)

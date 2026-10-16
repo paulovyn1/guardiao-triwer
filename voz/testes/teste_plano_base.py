@@ -101,4 +101,15 @@ texto_mot = " ".join(mot_seg)
 confere("plano de segunda, planejado na quinta: a tarefa de sexta NÃO é atrasada nem entra", "Reunião de sexta" not in texto_mot and all(b["clickup_id"] != "f1" for b in plano_seg["blocos"]), texto_mot)
 confere("o que venceu antes de hoje continua atrasada", "Atrasada de verdade" in texto_mot)
 confere("entrega só com horário limite (Substack 9h) não vira bloco e pede o trabalho ANTES", all(b["clickup_id"] != "f2" for b in plano_seg["blocos"]) and "ANTES do horário limite" in texto_mot, texto_mot)
+# blocos diários: o plano base já nasce com stories todo dia de trabalho, na tarde, sem chamar o Claude só por isso
+cfg_s = dict(cfg, rotina=dict(cfg.get("rotina") or {}, dias_trabalho=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+             blocos_diarios=[{"nome": "stories", "palavras": ["stories", "story"], "excluir": ["cronograma"], "minutos_minimos": 15, "bloco_max_min": 40, "titulo_padrao": "Stories do dia (3 telas ou mais)"}]))
+resumo([t("s1", "Reunião", "2026-10-21", "09:00", "11:00")])
+plano_s, mot_s = pb.montar(date(2026, 10, 21), oper, cfg_s, date(2026, 10, 21))
+st = [b for b in plano_s["blocos"] if "Stories" in b["titulo"]]
+confere("o plano base de dia útil nasce com o bloco de stories, de 15 min, na tarde (a partir das 14h)", len(st) == 1 and st[0]["inicio"] >= "14:00" and st[0]["fim"] > st[0]["inicio"], plano_s["blocos"])
+confere("com o bloco inserido não há motivo de bloco diário faltando", not any("BLOCO DIÁRIO" in m for m in mot_s), mot_s)
+confere("o bloco inserido não cria tarefa no ClickUp (sem clickup_id nem lista_id)", not st[0].get("clickup_id") and not st[0].get("lista_id"))
+plano_sab, _ = pb.montar(date(2026, 10, 24), oper, cfg_s, date(2026, 10, 24))
+confere("sábado não ganha stories", all("Stories" not in b["titulo"] for b in plano_sab["blocos"]))
 sys.exit(1 if falhas else 0)
