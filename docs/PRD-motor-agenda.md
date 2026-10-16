@@ -187,3 +187,28 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
 - Resultado novo: `adiados` (vence depois do horizonte, sem virar pergunta), `delegar`, `perguntas` e `explicacao`.
 - Medido nos dados reais: 44 s e 16 mil tokens de entrada (antes, de 1 a 1,6 milhão e de 3 a 6 min).
 - CLI: `python motor_agenda.py --dias 5 --ia [--hoje] [--gravar]`.
+
+### [FEITO] Etapa 5, portas principais (16/10, v0.10.1)
+- "Refaça meu plano" por voz ou texto: `guardiao_voz._chamar_completo` desvia para `_planejar_pelo_motor` quando o pedido bate em `PEDE_PLANO`. Ele chama `motor_agenda.planejar(incluir_hoje=True, ia=True, pedido=...)` e `gravar(..., hoje_mesmo_aprovado=True)`, e o plano de hoje volta para aprovação. `_revisar_completo` não roda no caminho do motor.
+- A IA traduz o pedido: `feito`, `tirar` e `imprevisto` (com horário).
+- `motor_agenda._refazer_hoje`:
+  - o feito (registro do dia ou dito por ela) fica como feito;
+  - stories feitos descontam minutos;
+  - o que passou sem ser feito, ou ficou por baixo de um fixo, volta para a fila (leva `prazo_final` como limite);
+  - o que ela mandou tirar vai para `removidos`.
+- Todo dia refeito: bloco que termina depois da hora de parar volta para a fila. Item sem limite que não coube vira pergunta.
+- Plano da manhã: `gerar_plano.ps1` sem `-Data`/`-Saida` roda `motor_agenda.py --hoje --ia --gravar --dias 5` e sai. O caminho antigo com IA ficou só para `-Data`.
+- Codex sem leitura (`guardiao_codex.executar_sem_arquivos`, pasta temporária vazia) na conversa, no resumo do dia e no revisor da agenda. Isso vale para qualquer instalação.
+- Instalação do zero:
+  - `config.exemplo.json` ganhou `clickup.eventos: []`;
+  - `references/onboarding.md` pergunta por evento recorrente com preparo e explica `rotina.preparos`;
+  - caixinha fica em 45 min (`minutos_apertado` 45).
+- Verificado em dados reais (16/10 16h40): o resto do dia saiu a partir de agora, até 19h20, com a thumb antes do limite. O que não coube virou pergunta.
+- FALTA:
+  - Etapa 3 (mês: pergunta das campanhas no dia 1 e carga por semana);
+  - Etapa 4 (semana gerada no onboarding, dia fixo `rotina.dia_planejar_semana`, proposta quando a agenda muda);
+  - aposentar `revisor.py`, os ciclos de `gerar_plano.ps1 -Data` e o supervisor chamando IA;
+  - válvula do dia de captação;
+  - POP estruturado desdobrando sem IA;
+  - `teste_motor_agenda.py`;
+  - rodar a bateria pelo agente Sonnet.
