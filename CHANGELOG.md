@@ -7,6 +7,11 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.8 - 2026-10-16
+- Quem manda na data é o guardião: tarefa com horário no ClickUp que não é fixa volta para a fila e é reencaixada pelas regras; só reunião, aula e hora combinada ficam.
+- Tarefa com limite encaixa a partir do próprio limite, de trás para frente; preparo da live no primeiro horário livre do dia; sem espaço na janela ideal, qualquer horário livre antes de virar pergunta.
+- Etapa de post que volta à fila mantém o limite do post; plano gravado depois do horizonte não é duplicado; a data do ClickUp do preparo da live não vale como prazo.
+
 ## 0.10.7 - 2026-10-16
 - Tarefa com limite vai o mais perto possível do limite (a partir da véspera, de trás para frente), não no primeiro espaço livre; atrasada continua indo o quanto antes.
 

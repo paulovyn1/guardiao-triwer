@@ -630,10 +630,20 @@ def _regras_da_pasta(plano, dia, outros, oper):
         cfg_completo = {}
     return (conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool(regras.get("etapas_em_lote")),
                             bool(regras.get("ideia_depois_de_consumo"))) + conferir_alavancas(plano, dia, memoria)
-            + conferir_consumo(plano) + conferir_duplicadas(plano, dia, outros) + conferir_prazos(plano, dia, tarefas)
+            + conferir_consumo(plano) + conferir_duplicadas(plano, dia, outros) + conferir_prazos(plano, dia, _sem_preparo(tarefas, cfg_completo, oper))
             + conferir_etapas(plano, dia, tarefas, maes, outros) + conferir_travas(plano, dia, tarefas, cfg_completo, memoria)
             + conferir_blocos_diarios(plano, dia, cfg_completo) + conferir_stories(plano, dia, cfg_completo, outros, memoria)
             + conferir_preparos(plano, dia, cfg_completo, oper, outros))
+
+
+def _sem_preparo(tarefas, cfg, oper):
+    """O prazo do ClickUp das etapas de preparo da live é da automação: o limite real vem de preparos.py, não do ClickUp."""
+    try:
+        import preparos
+        ids = preparos.ids(cfg, oper)
+    except Exception:
+        return tarefas
+    return {k: v for k, v in (tarefas or {}).items() if k not in ids}
 
 
 def conferir_preparos(plano, dia, cfg, oper, outros=None):
