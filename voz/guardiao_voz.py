@@ -1743,7 +1743,8 @@ def _leitura_completo(pedido, hoje):
                     "consumo repetido, agenda_impoe e preparo da live que venceu: não gaste voltas com isso.\n")
         except Exception as erro:
             print("  (dossiê do replanejamento falhou, a skill lê tudo:", erro, ")")
-    return ("Leia o que a skill manda carregar e, se o pedido tocar o plano de hoje, leia também o plano atual (plano_do_dia.json) e o registro de hoje "
+    return ("Siga o SKILL.md e leia só o que o mapa dele indica para este pedido, sob demanda: comece pelo que responde a pergunta e abra mais um "
+            "arquivo só se ainda faltar algo. Se o pedido tocar o plano de hoje, leia o plano atual (plano_do_dia.json) e o registro de hoje "
             f"({registro}, com os blocos já feitos ou adiados), os dois na pasta operacional.\n")
 
 

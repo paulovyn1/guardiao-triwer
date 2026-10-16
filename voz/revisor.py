@@ -87,8 +87,8 @@ def montar_prompt(plano, dia, motivo, oper=OPER, cfg=None):
     cfg = cfg if cfg is not None else (vs._json(os.path.join(oper, "config.json")) or {})
     memoria = (cfg.get("pastas") or {}).get("memoria") or ""
     skill = _pasta_skill(oper)
-    texto_skill = _ler(os.path.join(skill, "SKILL.md")) if skill else ""
-    regras = _secao(texto_skill, "## 3.1", "## 4.") or "(SKILL.md não encontrado)"
+    texto_skill = (_ler(os.path.join(skill, "references", "planejar.md")) or _ler(os.path.join(skill, "SKILL.md"))) if skill else ""  # 3.1 e 3.2 moraram no SKILL.md até a v0.10.6
+    regras = _secao(texto_skill, "## 3.1", "## 4.") or "(regras de planejamento não encontradas)"
     extensoes = "\n\n".join(_ler(c) for c in sorted(glob.glob(os.path.join(skill, "extensoes-*.md")))) if skill else ""
     campanhas = []
     for slug in cp.campanhas_ativas(memoria, dia):
