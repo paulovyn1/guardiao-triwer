@@ -751,7 +751,11 @@ AVISOS_AO_MODELO = []  # resultado dos últimos ajustes do plano, para o guardi�
 CONVERSA = []  # últimas trocas, para o guardião entender "e a da Marina?" ou o comentário que ele pediu
 VALIDADE_PROPOSTA = 180  # segundos
 INTENCAO = {  # a ação só acontece se o que a pessoa disse realmente pede aquilo
-    "concluir": re.compile(r"conclu|termin|finaliz|\bfiz\b|feito|fechei|fechar|acabei|marc"),
+    # também vale a pessoa contar que já está feito ("já revisei", "já foi para aprovação"), sem usar o verbo concluir
+    "concluir": re.compile(r"conclu|termin|finaliz|\bfiz\b|feito|fechei|fechar|acabei|marc"
+                           r"|(?<!nao )(?<!ainda nao )(?<!nunca )(revisei|mandei|enviei|entreguei|resolvi|publiquei|postei|subi\b)"
+                           r"|ja (foi|esta|ta) (pra |para |a |na |no |enviad|entregue|pront|feit|revisad|aprovad)"
+                           r"|\bfoi (pra|para) (a )?aprovac|\b(esta|ta) (pront|feit|revisad)[ao]"),
     "reabrir": re.compile(r"reabr|desfaz|desmarc|volt|ainda nao"),
     "comentar": re.compile(r"anot|coment|registr|escrev|adicion|inclu|coloc|\bpoe\b|bota|deix"),
     "criar": re.compile(r"cri[ae]|nova tarefa|adicion|lanc|cadastr|coloc|agend|abr[ae]|monta|faz uma tarefa|anota uma tarefa"),
