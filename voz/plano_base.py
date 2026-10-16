@@ -78,11 +78,31 @@ def montar(dia, oper=OPER, cfg=None):
         motivos.append(f"Sobram {vs.duracao(livre)} livres no expediente ({vs.duracao(nobre)} no nobre). Preencha até a hora de parar: primeiro adiantando "
                        "tarefa de um dia cheio" + (" (" + "; ".join(adiantar) + ")" if adiantar else " (nenhum dia cheio nos próximos dias)")
                        + "; sem isso, consumo com a pergunta, curso ou descanso programado. Não deixe um dia com hora extra e outro vazio, salvo pedido dela.")
+    sem_lugar = marcos_sem_lugar(dia, oper, cfg)
+    if sem_lugar:
+        motivos.append(f"{len(sem_lugar)} marco(s) das campanhas nos próximos {HORIZONTE_DIAS} dias ainda sem horário ou tarefa no ClickUp. Veja o HORIZONTE "
+                       "e, se o dia de hoje tem espaço, adiante o preparo deles (ou diga no aviso onde cabem): " + "; ".join(sem_lugar[:8]))
     if not blocos:
         motivos.append("Nada agendado para hoje no ClickUp: o dia precisa ser montado.")
     for item in trabalhos_do_guardiao(memoria, dia):
         motivos.append(f"Trabalho do guardião com data chegada (estado.md, seção \"Do guardião\"): {item}")
     return plano, motivos
+
+
+HORIZONTE_DIAS = 14  # quantos dias à frente o plano do dia olha as campanhas (o plano do mês), não só o ClickUp
+
+
+def marcos_sem_lugar(dia, oper=OPER, cfg=None):
+    """Marcos das campanhas ativas, dela ou sem dono, nos próximos HORIZONTE_DIAS dias, que não têm horário, tarefa ou ainda serão criados.
+    São as necessidades futuras que o ClickUp sozinho não mostra. 'fora do resumo' não entra: o marco pode estar numa lista que o resumo não traz."""
+    cfg = cfg if cfg is not None else _cfg()
+    memoria = _memoria(cfg)
+    eu = (ra._norm(((cfg.get("pessoa") or {}).get("nome")) or "").split() or [""])[0]
+    saida = []
+    for quando, slug, nome, dono, situacao, _imp in ra.marcos(oper, memoria, dia, dia + timedelta(days=HORIZONTE_DIAS)):
+        if situacao in ("sem horário", "a criar", "sem tarefa") and (not dono or not eu or eu in ra._norm(dono)):
+            saida.append(f"{quando:%d/%m} {slug}: {nome} ({situacao})")
+    return saida
 
 
 def candidatas_a_adiantar(dia, plano, oper=OPER, cfg=None, dias_uteis=5, cheio_min=60):
@@ -153,7 +173,8 @@ def dossie(dia, plano, motivos, oper=OPER, cfg=None):
     planos = vs.planos_da_semana(oper, dia)
     partes = ["POR QUE O PLANO PRECISA DE VOCÊ (resolva só isto; o resto já está decidido):", *[f"- {m}" for m in motivos],
               "", "PLANO BASE (a semana combinada; mantenha estes blocos e horários, salvo conflito):", json.dumps(plano, ensure_ascii=False, indent=1),
-              "", vs.texto(oper, memoria, hoje=dia, incluir_hoje=False)]
+              "", vs.texto(oper, memoria, hoje=dia, incluir_hoje=False),
+              "", ra.horizonte(dia, dia + timedelta(days=HORIZONTE_DIAS), planos, cfg, memoria, oper)]
     alertas = ra.alertas(planos, dia, cfg, memoria, oper)
     if alertas:
         partes += ["", "ALERTAS:", *[f"- {a}" for a in alertas]]
