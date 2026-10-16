@@ -212,3 +212,14 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
   - POP estruturado desdobrando sem IA;
   - `teste_motor_agenda.py`;
   - rodar a bateria pelo agente Sonnet.
+
+### [FEITO] Rodada de testes da v0.10.1 (16/10, agente Sonnet médio)
+- Teste novo `voz/testes/teste_motor_agenda.py`: 25/25.
+- Passaram 100%: codex_planos, preparos_conserto, revisao, v2_servidor, prompt_estavel, modelos, sessao, instalacao, preferencias, plano, controle_fala, memoria.
+- TESTES DESATUALIZADOS A REESCREVER (o comportamento novo é o certo, decidido pela Milena):
+  - `teste_conferencia_plano`, 2 testes: "em dia apertado a caixinha cai para 15 min" e "dia apertado continua apertado depois de reagendar". Agora a caixinha é 45 sempre.
+  - `teste_plano_base:59`: o almoço empurrado. Agora empurra até não bater e volta ao original se não houver lugar até 15h; o cenário do teste tem um bloco às 14h, trocar os dados.
+  - `teste_manter_planos`: "refaz o plano sugerido de terça". Agora só refaz plano de origem "semana combinada" ou "motor da agenda" e sem IA.
+  - `teste_acoes_rapidas`, 4 testes do supervisor. Agora o supervisor só avisa e pergunta, sem chamar `iniciar_completo`.
+- Ambiente (não é defeito): `teste_versao` "sem origem configurada", "ao aprovar... criadas 2" e "se o script falhar sem reiniciar... avisa" (espera de 6 s).
+- Ponto de atenção para o motor: quando um compromisso longo de manhã e um bloco às 14h impedem o almoço até 15h, o almoço volta ao horário e fica sobreposto. O melhor é o motor devolver à fila o bloco que está por baixo do almoço (como faz com imprevisto).
