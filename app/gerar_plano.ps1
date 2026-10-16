@@ -6,7 +6,8 @@ param(
     [string]$Data = "",
     [string]$Saida = "",
     [switch]$Forcar,
-    [switch]$Manual
+    [switch]$Manual,
+    [switch]$Replanejar
 )
 . (Join-Path $PSScriptRoot '_comum.ps1')
 $cfg     = Get-Config
@@ -49,6 +50,20 @@ $log = Join-Path $pastaLogs ("gerar_plano_" + $alvo + ".log")
 # Resumo do ClickUp fresco (sem Claude).
 try { & (Join-Path $pasta 'ler_clickup.ps1') | Out-Null } catch { "ler_clickup falhou: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
 
+# Plano da manhã pelo motor da agenda (docs/PRD-motor-agenda.md): o código monta hoje e os próximos dias e a IA revisa UMA vez, sem ler arquivos.
+# Grava como proposta (sugerido); nunca troca um plano aprovado. O caminho antigo abaixo fica só para -Data/-Saida (plano de um dia pedido à parte).
+if (-not $Data -and -not $Saida) {
+    $pyM = Join-Path $pasta 'voz\.venv\Scripts\python.exe'
+    if (-not (Test-Path $pyM)) { $pyM = 'python' }
+    $env:PYTHONIOENCODING = 'utf-8'
+    Push-Location (Join-Path $pasta 'voz')
+    try {
+        $saidaMotor = & $pyM 'motor_agenda.py' --hoje --ia --gravar --dias 5 2>&1
+        "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano pelo motor ===`r`n$($saidaMotor | Out-String)" | Out-File $log -Append -Encoding utf8
+    } finally { Pop-Location }
+    exit
+}
+
 # Plano base por código (voz\plano_base.py): a semana combinada (ClickUp com hora) mais os fixos. Se nada pede decisão, o plano está pronto
 # e o Claude NÃO é chamado. Se pede, o Claude parte de um dossiê curto (motivos, plano base, semana, alertas) em vez de reler tudo.
 $py = Join-Path $pasta 'voz\.venv\Scripts\python.exe'
@@ -73,12 +88,12 @@ foreach ($m in @($cfg.clickup.membros)) { $linhasDonos += "`n- $($m.nome): $($m.
 
 $leitura = if ($temDossie) {
 @"
-Leia PRIMEIRO o dossie ${dossie}. Ele ja traz o plano base (a semana combinada, que voce mantem), os motivos pelos quais o plano precisa de voce (resolva so eles), a semana dos proximos dias e os alertas. NAO leia resumo_clickup.json nem planos de outros dias: o que precisa deles ja esta no dossie. Da pasta de memoria $memoria leia so perfil.md, estado.md e aprendizados.md; nota de campanha em campanhas\ so se um motivo tocar nela. Pasta operacional: $pasta.
+Leia PRIMEIRO o dossie ${dossie}. Ele ja traz o plano base (a semana combinada, que voce mantem), os motivos pelos quais o plano precisa de voce (resolva so eles), a semana dos proximos dias e os alertas. NAO leia resumo_clickup.json nem planos de outros dias: o que precisa deles ja esta no dossie. Da pasta de memoria $memoria leia so perfil.md, estado.md e aprendizados.md, e da pasta operacional calibragem\regras.md se existir (tempos reais que ela confirmou: use ao estimar); nota de campanha em campanhas\ so se um motivo tocar nela. Pasta operacional: $pasta.
 Se tirar do dia algo que estava agendado no plano base, ponha o titulo em "removidos" e diga no campo aviso para onde sugere levar.
 "@
 } else {
 @"
-Leia, na pasta de memoria $memoria, perfil.md, semana-base.md, equipe.md, estado.md, o indice campanhas.md (abra com Read a nota de uma campanha em campanhas\ SOMENTE se o plano do dia tocar nela), o indice decisoes.md, resumo_clickup.json (na pasta operacional), o registro de ontem em registros\ (se existir). Pasta operacional (scripts, plano, registros, resumo): $pasta.
+Leia, na pasta de memoria $memoria, perfil.md, semana-base.md, equipe.md, estado.md, o indice campanhas.md (abra com Read a nota de uma campanha em campanhas\ SOMENTE se o plano do dia tocar nela), o indice decisoes.md, resumo_clickup.json (na pasta operacional), calibragem\regras.md (na pasta operacional, se existir: tempos reais que ela confirmou, use ao estimar), o registro de ontem em registros\ (se existir). Pasta operacional (scripts, plano, registros, resumo): $pasta.
 "@
 }
 
@@ -105,32 +120,106 @@ No fim, responda em ate 6 linhas: o que colocou, o que deixou de fora e por que.
 
 $env:CLAUDECODE = $null
 Set-Location $pasta
+$provedor = 'claude'
+$arqPrefs = Join-Path $pasta 'voz\preferencias.json'
+if (Test-Path $arqPrefs) {
+    try {
+        $pref = [System.IO.File]::ReadAllText($arqPrefs, $utf8) | ConvertFrom-Json
+        if ($pref.provedor_ia -eq 'codex') { $provedor = 'codex' }
+    } catch { "preferencias inválidas: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
+}
 # Achar o claude.exe de verdade (npm, instalador oficial ou extensão do VS Code) e fixar o modelo: sem isso o plano diário usaria o padrão
 # da conta de quem instalou, que pode ser um modelo várias vezes mais caro. GUARDIAO_MODELO troca (o painel usa a mesma variável).
-$claude = Get-ClaudeEstado
-if (-not $claude.Ok) {
-    "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===`r`nNão achei um Claude Code que execute: $($claude.Erro)" | Out-File $log -Append -Encoding utf8
-    exit 1
+$exeClaude = $null; $preClaude = @()
+if ($provedor -eq 'claude') {
+    $claude = Get-ClaudeEstado
+    if (-not $claude.Ok) {
+        "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===`r`nNão achei um Claude Code que execute: $($claude.Erro)" | Out-File $log -Append -Encoding utf8
+        exit 1
+    }
+    $exeClaude = $claude.Comando[0]
+    if ($claude.Comando.Count -gt 1) { $preClaude = @($claude.Comando[1..($claude.Comando.Count - 1)]) }
 }
-$exeClaude = $claude.Comando[0]; $preClaude = @(); if ($claude.Comando.Count -gt 1) { $preClaude = @($claude.Comando[1..($claude.Comando.Count - 1)]) }
 $modelo = if ($env:GUARDIAO_MODELO) { $env:GUARDIAO_MODELO } else { 'claude-sonnet-5-5' }
-$saidaClaude = & $exeClaude @preClaude -p $prompt --model $modelo --add-dir $memoria --allowedTools "Read,Write,Glob,Skill" --max-turns 25 --output-format text 2>&1
-"=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ===" | Out-File $log -Append -Encoding utf8
+# A correção (conferência ou revisor) RETOMA a sessão da primeira chamada: antes cada correção abria outra sessão, relia dossiê, skill e
+# memória, e ainda era barrada ao gravar um arquivo que "não tinha lido". Caso real 16/10: o plano de 20/10 foi refeito 4 vezes.
+$sessaoClaude = [guid]::NewGuid().ToString()
+$primeiraChamada = $true
+$arqSessaoCodex = Join-Path $pastaLogs ("codex_sessao_" + $sessaoClaude + ".txt")
+function Chamar-Provedor([string]$texto, [string]$ferramentas) {
+    if ($provedor -eq 'codex') {
+        $arqPrompt = Join-Path $pastaLogs ("codex_pedido_" + [guid]::NewGuid().ToString('N') + ".txt")
+        [System.IO.File]::WriteAllText($arqPrompt, $texto, $utf8)
+        try {
+            & $py (Join-Path $pasta 'voz\guardiao_codex.py') --prompt-file $arqPrompt --operacional $pasta --memoria $memoria --escrever --sessao-arquivo $arqSessaoCodex 2>&1
+        } finally {
+            Remove-Item -LiteralPath $arqPrompt -Force -ErrorAction SilentlyContinue
+        }
+    } else {
+        $sessao = if ($script:primeiraChamada) { @('--session-id', $sessaoClaude) } else { @('--resume', $sessaoClaude) }
+        $script:primeiraChamada = $false
+        & $exeClaude @preClaude -p $texto @sessao --model $modelo --add-dir $memoria --allowedTools $ferramentas --max-turns 25 --output-format text 2>&1
+    }
+}
+$saidaClaude = Chamar-Provedor $prompt "Read,Write,Glob,Skill"
+"=== $(Get-Date -Format 'yyyy-MM-dd HH:mm') plano de $alvo ($provedor) ===" | Out-File $log -Append -Encoding utf8
 $saidaClaude | Out-String | Out-File $log -Append -Encoding utf8
+
+# Limite de uso do Claude (ou da conta): a chamada não fez o plano e o que está no arquivo é só a base. Antes isso passava em silêncio.
+# Marca o plano para ser refeito sozinho depois (manter_planos.py) e avisa a pessoa no próprio plano.
+if (($saidaClaude | Out-String) -match 'session limit|usage limit|rate limit|limit reached|hit your|O Codex não concluiu|Não achei o Codex|falta entrar na conta') {
+    "--- $provedor indisponível: plano fica só com a base e será refeito ---" | Out-File $log -Append -Encoding utf8
+    try {
+        $pl = [System.IO.File]::ReadAllText($planoCaminho, $utf8) | ConvertFrom-Json
+        $pl | Add-Member -NotePropertyName refazer_motivo -NotePropertyValue "$provedor indisponível" -Force
+        $pl | Add-Member -NotePropertyName aviso -NotePropertyValue "Este plano está só com a semana combinada: não consegui refiná-lo agora ($provedor indisponível). Ele será refeito sozinho quando voltar." -Force
+        [System.IO.File]::WriteAllText($planoCaminho, ($pl | ConvertTo-Json -Depth 6), $utf8)
+    } catch { "não consegui marcar o plano para refazer: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
+    exit 3
+}
 
 # A mesma conferência da conversa (sobreposição, removidos, semana, prazo final): antes, o plano automático era gravado sem trava nenhuma.
 # Reprovado: uma correção com os problemas apontados. Reprovado de novo: volta o plano base, com aviso.
 $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
 if ($LASTEXITCODE -ne 0) {
     "--- conferência reprovou ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
-    $correcao = "O plano que voce gravou em $planoCaminho foi reprovado na conferencia. Corrija so isto e grave de novo, sem mexer no resto:`n$($conf | Out-String)"
-    $saida2 = & $exeClaude @preClaude -p $correcao --model $modelo --add-dir $memoria --allowedTools "Read,Write" --max-turns 10 --output-format text 2>&1
+    $correcao = "O plano que voce gravou em $planoCaminho foi reprovado na conferencia (o codigo ja consertou o que era mecanico). Releia o arquivo com Read, corrija so isto e grave de novo, sem mexer no resto e sem reler outros arquivos:`n$($conf | Out-String)"
+    $saida2 = Chamar-Provedor $correcao "Read,Write"
     $saida2 | Out-String | Out-File $log -Append -Encoding utf8
     $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
     if ($LASTEXITCODE -ne 0 -and (Test-Path $copiaBase)) {
         "--- reprovou de novo: volta o plano base ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
         $base = [System.IO.File]::ReadAllText($copiaBase, $utf8) | ConvertFrom-Json
         $base | Add-Member -NotePropertyName aviso -NotePropertyValue "O plano automático não passou na conferência e voltei para a semana combinada. Ainda falta decidir: $((Get-Content $dossie -Encoding UTF8 | Select-Object -First 6) -join ' ')" -Force
+        $base | Add-Member -NotePropertyName refazer_motivo -NotePropertyValue 'conferencia reprovou duas vezes' -Force
         [System.IO.File]::WriteAllText($planoCaminho, ($base | ConvertTo-Json -Depth 6), $utf8)
+    }
+}
+
+# Revisor sem contexto (voz\revisor.py): só roda em dia muito apertado ou replanejamento (tarefa nova, atraso, pedido). Aponta, não reescreve.
+# Reprovado: UMA rodada de correção pelo gerador; se ainda reprovar, o plano fica e os pontos abertos vão para o aviso.
+$argsRev = @('--plano', $planoCaminho, '--data', $alvo)
+if ($temDossie) { $argsRev += @('--dossie', $dossie) }
+if ($Replanejar) { $argsRev += '--replanejar' }
+$rev = & $py (Join-Path $pasta 'voz\revisor.py') @argsRev 2>&1
+if ($LASTEXITCODE -eq 1) {
+    # O plano que passou na conferência fica guardado: se a correção do revisor estragar algo, volta ESTE (refinado), não a base sem decisões.
+    $copiaBoa = Join-Path $pastaLogs ("plano_conferido_" + $alvo + ".json")
+    Copy-Item $planoCaminho $copiaBoa -Force
+    "--- revisor reprovou ---`r`n$($rev | Out-String)" | Out-File $log -Append -Encoding utf8
+    $correcaoRev = "Um revisor independente apontou problemas no plano que voce gravou em $planoCaminho. Releia o arquivo com Read (o codigo pode te-lo ajustado), corrija SO isto e grave de novo, sem mexer no resto, mantendo o formato e o status sugerido e sem reler outros arquivos:`n$($rev | Out-String)"
+    $saidaRev = Chamar-Provedor $correcaoRev "Read,Write"
+    $saidaRev | Out-String | Out-File $log -Append -Encoding utf8
+    $conf = & $py (Join-Path $pasta 'voz\plano_base.py') --conferir $planoCaminho 2>&1
+    if ($LASTEXITCODE -ne 0 -and (Test-Path $copiaBoa)) {
+        "--- depois do revisor o plano reprovou na conferência: volta o plano conferido antes da correção ---`r`n$($conf | Out-String)" | Out-File $log -Append -Encoding utf8
+        Copy-Item $copiaBoa $planoCaminho -Force
+        try {  # os pontos do revisor ficam no aviso para ela decidir; o plano não é refeito por isso (cada volta custava minutos e tokens)
+            $pb = [System.IO.File]::ReadAllText($planoCaminho, $utf8).TrimStart([char]0xFEFF) | ConvertFrom-Json
+            $pontos = (($rev | Out-String) -replace '\s+', ' ').Trim()
+            if ($pontos.Length -gt 600) { $pontos = $pontos.Substring(0, 600) + '...' }
+            $pb | Add-Member -NotePropertyName aviso -NotePropertyValue ("$($pb.aviso) Pontos do revisor que ficaram para você decidir: $pontos").Trim() -Force
+            [System.IO.File]::WriteAllText($planoCaminho, ($pb | ConvertTo-Json -Depth 8), $utf8)
+        } catch { "não consegui anotar os pontos do revisor: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8 }
     }
 }

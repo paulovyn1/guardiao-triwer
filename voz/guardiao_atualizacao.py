@@ -60,12 +60,16 @@ def origem():
     cfg = h._config().get("atualizacao") or {}
     onde = str(cfg.get("origem") or "").strip()
     if not onde:
-        marcador = os.path.join(h.OPER, ".claude", "skills", "guardiao-triwer", ".repo-path")
-        try:
-            with open(marcador, encoding="utf-8-sig") as f:
-                onde = f.read().strip()
-        except OSError:
-            onde = ""
+        for raiz in (os.path.join(h.OPER, ".claude", "skills", "guardiao-triwer"),
+                     os.path.join(os.path.expanduser("~"), ".claude", "skills", "guardiao-triwer"),
+                     os.path.join(os.path.expanduser("~"), ".codex", "skills", "guardiao-triwer")):
+            try:
+                with open(os.path.join(raiz, ".repo-path"), encoding="utf-8-sig") as f:
+                    onde = f.read().strip()
+            except OSError:
+                continue
+            if onde:
+                break
     pasta = cfg.get("pasta")
     return {"origem": onde, "ramo": str(cfg.get("ramo") or "main"), "pasta": "guardiao-triwer" if pasta is None else str(pasta).strip("/\\"),
             "verificar": cfg.get("verificar", True) is not False}

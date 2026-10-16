@@ -97,20 +97,40 @@ av = v2.avaliar_atraso()
 confere("o intervalo livre antes da próxima tarefa absorve o atraso", not av["precisa"] and av["folga"] >= 0, av)
 
 gravar(blocos, "16:30")
+# O supervisor só avisa e pergunta se ela quer replanejar (decisão de 16/10): nunca chama iniciar_completo.
 pedidos = []
 g.iniciar_completo = lambda pedido: pedidos.append(pedido) or True
+fila_av = g.bus.assinar()
+
+
+def avisos():
+    saida = []
+    while not fila_av.empty():
+        e = fila_av.get_nowait()
+        if e.get("t") == "aviso":
+            saida.append(e)
+    return saida
+
+
 g.SUPERVISOR.update(dia=None, vezes=0, ultimo=0.0)
-confere("o supervisor pede a proposta uma vez, dizendo o atraso e até quando o dia vai", g.supervisionar(agora=1000.0) is True and len(pedidos) == 1
-        and "passou 40 minutos" in pedidos[0] and "16:30" in pedidos[0] and eventos("replanejamento_automatico"), pedidos)
-confere("e não repete antes de 90 minutos", g.supervisionar(agora=1000.0 + 60 * 60) is False and len(pedidos) == 1)
-confere("depois de 90 minutos pode pedir de novo", g.supervisionar(agora=1000.0 + 91 * 60) is True and len(pedidos) == 2)
+ok1 = g.supervisionar(agora=1000.0)
+av1 = avisos()
+confere("o supervisor avisa uma vez, dizendo o atraso e até quando o dia vai, e pergunta se ela quer replanejar (sem chamar iniciar_completo)",
+        ok1 is True and pedidos == [] and len(av1) == 1 and "40 minutos" in av1[0]["texto"] and "16:30" in av1[0]["texto"] and "Quer que eu replaneje" in av1[0]["texto"]
+        and eventos("replanejamento_sugerido"), (pedidos, av1))
+confere("e não repete antes de 90 minutos", g.supervisionar(agora=1000.0 + 60 * 60) is False and avisos() == [] and g.SUPERVISOR["vezes"] == 1)
+confere("depois de 90 minutos avisa de novo", g.supervisionar(agora=1000.0 + 91 * 60) is True and len(avisos()) == 1 and g.SUPERVISOR["vezes"] == 2)
+g.SUPERVISOR.update(vezes=g.SUPERVISOR_MAX_DIA, ultimo=0.0)
+confere(f"o limite de {g.SUPERVISOR_MAX_DIA} avisos por dia vale", g.SUPERVISOR_MAX_DIA == 3 and g.supervisionar(agora=900000.0) is False and avisos() == [])
+confere("o intervalo é de 90 minutos", g.SUPERVISOR_INTERVALO == 90 * 60, g.SUPERVISOR_INTERVALO)
+confere("em nenhum momento o supervisor pediu o guardião completo", pedidos == [], pedidos)
 with open(os.path.join(tmp, "plano_do_dia.json"), encoding="utf-8") as f:
     p = json.load(f)
 p["status"] = "sugerido"
 with open(os.path.join(tmp, "plano_do_dia.json"), "w", encoding="utf-8") as f:
     json.dump(p, f, ensure_ascii=False)
 g.SUPERVISOR.update(dia=None, vezes=0, ultimo=0.0)
-confere("plano ainda não aprovado (por exemplo, a proposta esperando revisão): não pede outra", g.supervisionar(agora=50000.0) is False and len(pedidos) == 2)
+confere("plano ainda não aprovado (por exemplo, a proposta esperando revisão): não avisa de novo", g.supervisionar(agora=50000.0) is False and avisos() == [])
 
 # ---------------- modo rápido lê as regras locais (extensões e aprendizados), não só o perfil ----------------
 pasta_skill = os.path.join(tmp, ".claude", "skills", "guardiao-triwer")

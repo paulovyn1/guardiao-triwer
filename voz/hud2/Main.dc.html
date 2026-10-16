@@ -685,6 +685,8 @@ body{margin:0;background:#07080a}
 .gd .gc-zone{flex:none;height:232px}
 .gd .gcol.v-off .gc-zone{height:148px}
 .gd .gc-st{flex:none;text-align:center;color:var(--gold2);padding:0 18px}
+.gd .snd-parar svg{fill:currentColor;stroke:none}
+.gd .m-g p{white-space:pre-line}
 .gd .gc-hint{flex:none;margin:6px 0 0;padding:0 26px 12px;text-align:center;font-size:12.5px;color:var(--ivory3);min-height:32px;border-bottom:1px solid rgba(178,132,49,.14)}
 .gd .gc-log{flex:1;min-height:0;overflow-y:auto;padding:16px 20px 10px;display:flex;flex-direction:column;gap:14px}
 .gd .gc-empty{margin:auto 0;text-align:center;font-family:var(--f-display);font-style:italic;font-size:19px;line-height:1.3;color:var(--ivory3)}
@@ -880,7 +882,7 @@ body{margin:0;background:#07080a}
                 <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
                 <span>{{micLabel}}</span>
               </button>
-              <button class="snd" onClick="{{onSend}}" aria-label="Enviar" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24"><path d="M3 11.5 20.5 4 14 20l-3-6.5L3 11.5z"></path></svg></button>
+              <sc-if value="{{col.parar}}" hint-placeholder-val="{{false}}"><button class="snd snd-parar" onClick="{{col.onParar}}" aria-label="Parar" title="Parar"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg></button></sc-if><sc-if value="{{col.enviar}}" hint-placeholder-val="{{true}}"><button class="snd" onClick="{{onSend}}" aria-label="Enviar" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24"><path d="M3 11.5 20.5 4 14 20l-3-6.5L3 11.5z"></path></svg></button></sc-if>
             </div>
           </div>
         </section>
@@ -1269,7 +1271,7 @@ body{margin:0;background:#07080a}
             <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
             <span>{{micLabel}}</span>
           </button>
-          <button class="snd" onClick="{{onSend}}" aria-label="Enviar" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24"><path d="M3 11.5 20.5 4 14 20l-3-6.5L3 11.5z"></path></svg></button>
+          <sc-if value="{{col.parar}}" hint-placeholder-val="{{false}}"><button class="snd snd-parar" onClick="{{col.onParar}}" aria-label="Parar" title="Parar"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg></button></sc-if><sc-if value="{{col.enviar}}" hint-placeholder-val="{{true}}"><button class="snd" onClick="{{onSend}}" aria-label="Enviar" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24"><path d="M3 11.5 20.5 4 14 20l-3-6.5L3 11.5z"></path></svg></button></sc-if>
         </div>
       </div>
     </aside>
@@ -1292,7 +1294,7 @@ body{margin:0;background:#07080a}
           <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
           <span>{{micLabel}}</span>
         </button>
-        <button class="snd" onClick="{{onSend}}" aria-label="Enviar" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24"><path d="M3 11.5 20.5 4 14 20l-3-6.5L3 11.5z"></path></svg></button>
+        <sc-if value="{{col.parar}}" hint-placeholder-val="{{false}}"><button class="snd snd-parar" onClick="{{col.onParar}}" aria-label="Parar" title="Parar"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg></button></sc-if><sc-if value="{{col.enviar}}" hint-placeholder-val="{{true}}"><button class="snd" onClick="{{onSend}}" aria-label="Enviar" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24"><path d="M3 11.5 20.5 4 14 20l-3-6.5L3 11.5z"></path></svg></button></sc-if>
       </div>
     </div>
     <div class="dsheet glass {{dock.sheetCls}}" role="dialog" aria-label="Histórico da conversa" aria-hidden="{{dock.sheetHidden}}">
@@ -1736,7 +1738,7 @@ const SEM_PLACA_DE_VIDEO = (() => {
 })();
 const ESTADOS = { aguardando: 'idle', ouvindo: 'listening', transcrevendo: 'transcribing', pensando: 'thinking', falando: 'speaking' };
 /* preferências: nome na tela -> chave no servidor (voz\preferencias.json) */
-const PF_MAP = { sound: 'sons', typing: 'som_digitacao', motion: 'som_movimento', touch: 'som_toques', confirm: 'som_avisos', stateSnd: 'som_estados', track: 'som_abertura', alwaysMic: 'mic_sempre_ligado', openMic: 'escuta_aberta', openExec: 'execucao_ao_abrir', session: 'sessao', voice: 'voz_guardiao', light: 'modo_leve' };
+const PF_MAP = { sound: 'sons', typing: 'som_digitacao', motion: 'som_movimento', touch: 'som_toques', confirm: 'som_avisos', stateSnd: 'som_estados', track: 'som_abertura', alwaysMic: 'mic_sempre_ligado', openMic: 'escuta_aberta', openExec: 'execucao_ao_abrir', session: 'sessao', provider: 'provedor_ia', voice: 'voz_guardiao', light: 'modo_leve' };
 const SONS_DO_GRUPO = ['motion', 'touch', 'confirm', 'stateSnd', 'track'];  // a chave Sons liga e desliga todos eles juntos (a digitação tem chave própria)
 const VELOCIDADES = [1, 1.5, 2];
 const QS = (() => { try { return new URLSearchParams(location.search); } catch (e) { return new URLSearchParams(''); } })();
@@ -1786,7 +1788,7 @@ class Component extends DCLogic {
       diaLayer: 0, noticeOpen: false,
       detail: null, detailOpen: false, extra: {}, dForm: { a: '', b: '', note: '', open: false },
       prefsOpen: false, pfSec: '', hdPin: false, hdPeek: false,
-      pf: { sound: true, stateSnd: true, volume: 70, typing: true, motion: true, touch: true, confirm: true, track: true, alwaysMic: false, openMic: true, openExec: true, session: false, voice: true, speed: 1, light: false, variant: 'N' },
+      pf: { sound: true, stateSnd: true, volume: 70, typing: true, motion: true, touch: true, confirm: true, track: true, alwaysMic: false, openMic: true, openExec: true, session: false, provider: 'claude', voice: true, speed: 1, light: false, variant: 'N' },
       saude: null, pessoa: 'você', gname: 'Guardião',
       scene: null, sceneOn: false, toasts: [],
       cal: null, calForm: false, calFields: ['', '', '', ''], calBusy: false,
@@ -1794,7 +1796,7 @@ class Component extends DCLogic {
       checkin: null, roteiro: null,
       introPhase: 'prep', introT: 0, introStart: 0,
       compact: false, instOpen: !!props.install,
-      ver: null, verBusy: false, fullJob: false,
+      ver: null, verBusy: false, fullJob: false, progressQuick: null, progressFull: null,
       conv: null, tool: null, perm: null
     };
   }
@@ -1961,6 +1963,7 @@ class Component extends DCLogic {
     if (typeof p.volume === 'number') pf.volume = Math.round(p.volume * 100);
     if (VELOCIDADES.indexOf(p.voz_velocidade) >= 0) pf.speed = p.voz_velocidade;
     if (p.bolinha === 'N' || p.bolinha === 'A') pf.variant = p.bolinha;
+    if (p.provedor_ia === 'claude' || p.provedor_ia === 'codex') pf.provider = p.provedor_ia;
     return pf;
   }
   conectar() {
@@ -2061,7 +2064,8 @@ class Component extends DCLogic {
       case 'previa': this.setState({ userLine: String(ev.texto || '') }); break;
       case 'escuta_cancelada': this.setState({ userLine: '', listening: false }); this.sfx('micCancel'); break;
       case 'versao': this.onVersao(ev); break;
-      case 'completo': if (ev.ativo && !this.state.fullJob && this.M !== 'mini') this.toast('Guardião completo trabalhando. Ele avisa quando terminar.'); this.setState({ fullJob: !!ev.ativo }); break;
+      case 'completo': if (ev.ativo && !this.state.fullJob && this.M !== 'mini') this.toast('Guardião completo trabalhando. Ele avisa quando terminar.'); this.setState({ fullJob: !!ev.ativo, progressFull: ev.ativo ? this.state.progressFull : null }); break;
+      case 'progresso': this.setState(ev.modo === 'completo' ? { progressFull: ev.ativo ? ev : null } : { progressQuick: ev.ativo ? ev : null }); break;
       case 'voce': this.chegouVoce(String(ev.texto || '')); break;
       case 'guardiao_texto': this.chegouFala(String(ev.texto || '')); break;
       case 'guardiao_fim': this.fimDaFala(String(ev.texto || '')); break;
@@ -2943,8 +2947,12 @@ class Component extends DCLogic {
     const idx = SCREENS.indexOf(S.screen), SX = ST_X[M] + sobra, SY = ST_Y[M];
     const stn = (i) => ({ cls: i === idx ? 'cur' : '', st: 'left:' + (i * SX) + 'px;top:' + SY[i] + 'px;width:' + W + 'px;height:' + H + 'px', hidden: i === idx ? 'false' : 'true' });
     const semMic = S.saude && S.saude.mic === false;
-    const statusMap = { idle: S.fullJob ? 'Montando o seu pedido' : voiceOn && !semMic ? 'Diga Ei Guardião' : 'Escreva ou toque no microfone', listening: 'Ouvindo · Esc cancela', transcribing: 'Transcrevendo', thinking: S.tool ? S.tool.rotulo : this.liveId ? 'Ainda respondendo' : 'Pensando', speaking: voiceOn ? 'Falando' : 'Escrevendo', error: 'Algo falhou', offline: 'Guardião desligado' };
-    const statusTxt = statusMap[orbEff] || '', usando = (!!S.tool && orbEff === 'thinking') || (!!S.fullJob && orbEff === 'idle');  // usando um conector, uma skill ou um agente: isso aparece no lugar da frase da pessoa
+    const andamento = orbEff === 'thinking' ? S.progressQuick : orbEff === 'idle' && S.fullJob ? S.progressFull : null;
+    const decorrido = andamento ? Math.max(0, Math.floor((Date.now() - Number(andamento.inicio || 0) * 1000) / 1000)) : 0;
+    const tempoAndamento = decorrido >= 60 ? Math.floor(decorrido / 60) + 'm ' + String(decorrido % 60).padStart(2, '0') + 's' : decorrido + 's';
+    const rotuloAndamento = andamento ? String(andamento.rotulo || 'Trabalhando') + ' · ' + tempoAndamento : '';
+    const statusMap = { idle: S.fullJob ? rotuloAndamento || 'Montando o seu pedido' : voiceOn && !semMic ? 'Diga Ei Guardião' : 'Escreva ou toque no microfone', listening: 'Ouvindo · Esc cancela', transcribing: 'Transcrevendo', thinking: S.tool ? S.tool.rotulo : rotuloAndamento || (this.liveId ? 'Ainda respondendo' : 'Pensando'), speaking: voiceOn ? 'Falando' : 'Escrevendo', error: 'Algo falhou', offline: 'Guardião desligado' };
+    const statusTxt = statusMap[orbEff] || '', usando = (!!(S.tool || S.progressQuick) && orbEff === 'thinking') || (!!S.fullJob && orbEff === 'idle');  // usando uma ferramenta ou trabalhando em segundo plano: isso aparece fora da conversa
     const dataLonga = DIAS[hoje.getDay()] + ', ' + hoje.getDate() + ' de ' + MESES[hoje.getMonth()];
 
     /* ----- tabs ----- */
@@ -3167,15 +3175,16 @@ class Component extends DCLogic {
     const rot = S.roteiro;
     const plan = {
       status: statusTxt.toUpperCase(),
-      sub: rot ? 'Report do dia, pergunta ' + rot.passo + ' de ' + rot.total + '. Responda por voz ou texto.' : orbEff === 'speaking' ? (voiceOn ? 'Falo e escrevo no mesmo ritmo.' : 'Escrevo no ritmo da conversa. A voz está silenciada.') : orbEff === 'listening' ? 'Pode falar. O texto aparece no campo.' : orbEff === 'thinking' ? 'Pensando na melhor forma de encaixar isso.' : orbEff === 'offline' ? 'O guardião está desligado neste computador.' : orbEff === 'error' ? 'Não consegui agora. Tente de novo.' : 'Escreva, fale ou escolha um roteiro.',
+      sub: rot ? 'Report do dia, pergunta ' + rot.passo + ' de ' + rot.total + '. Responda por voz ou texto.' : andamento ? 'O Guardião continua trabalhando. A resposta aparece aqui quando terminar.' : orbEff === 'speaking' ? (voiceOn ? 'Falo e escrevo no mesmo ritmo.' : 'Escrevo no ritmo da conversa. A voz está silenciada.') : orbEff === 'listening' ? 'Pode falar. O texto aparece no campo.' : orbEff === 'thinking' ? 'Pensando na melhor forma de encaixar isso.' : orbEff === 'offline' ? 'O guardião está desligado neste computador.' : orbEff === 'error' ? 'Não consegui agora. Tente de novo.' : 'Escreva, fale ou escolha um roteiro.',
       count: S.chat.length + (S.chat.length === 1 ? ' mensagem' : ' mensagens')
     };
-    const colHint = orbEff === 'speaking' ? plan.sub : orbEff === 'listening' ? 'Pode falar. O texto aparece no campo.' : orbEff === 'thinking' ? (S.tool ? S.tool.rotulo + '.' : this.liveId ? 'Ainda estou respondendo.' : 'Pensando.') : orbEff === 'transcribing' ? 'Transcrevendo o que você disse.' : orbEff === 'offline' ? 'O guardião está desligado neste computador.' : orbEff === 'error' ? 'Não consegui agora. Tente de novo.' : voiceOn ? 'Diga "Ei Guardião" ou escreva.' : 'Voz silenciada. Respondo só por texto.';
+    const colHint = andamento ? 'O Guardião continua trabalhando. A resposta aparece aqui quando terminar.' : orbEff === 'speaking' ? plan.sub : orbEff === 'listening' ? 'Pode falar. O texto aparece no campo.' : orbEff === 'thinking' ? (S.tool ? S.tool.rotulo + '.' : this.liveId ? 'Ainda estou respondendo.' : 'Pensando.') : orbEff === 'transcribing' ? 'Transcrevendo o que você disse.' : orbEff === 'offline' ? 'O guardião está desligado neste computador.' : orbEff === 'error' ? 'Não consegui agora. Tente de novo.' : voiceOn ? 'Diga "Ei Guardião" ou escreva.' : 'Voz silenciada. Respondo só por texto.';
     const visivel = !introRun && !introHome && !prep;
     const colOn = colScr && S.screen !== 'plan' && visivel;
     const dockOn = mobile && S.screen !== 'home' && visivel;
     const col = {
       vcls: voiceOn ? 'v-on' : 'v-off', hidden: colOn ? 'false' : 'true', status: statusTxt.toUpperCase(), hint: colHint, empty: !S.chat.length,
+      parar: !!andamento || orbEff === 'thinking' || orbEff === 'speaking', enviar: !(andamento || orbEff === 'thinking' || orbEff === 'speaking'), onParar: () => this.esc(),
       emptyTxt: voiceOn ? 'A conversa aparece aqui, palavra por palavra, enquanto eu falo.' : 'Escreva abaixo. Eu respondo por texto.',
       ph: S.net === 'offline' ? 'Guardião desligado' : voiceOn ? 'Fale ou escreva' : 'Escreva para o Guardião'
     };
@@ -3268,10 +3277,10 @@ class Component extends DCLogic {
           : [btn('Procurar versão nova', V.tem_origem ? vQuando + ' O Guardião confere sozinho na primeira abertura do dia.' : 'Falta dizer de onde vêm as atualizações (campo atualizacao do config.json).', S.verBusy ? 'Conferindo' : 'Conferir', C('verificarVersao'), S.verBusy || vOff)]);
     const off = S.net === 'offline', sd = S.saude || {};
     const st3 = (ok, sim, nao) => (off ? ['desligado', 'off'] : ok ? [sim, ''] : [nao, 'bad']);
-    const sMic = st3(sd.mic, 'pronto', 'sem microfone'), sStt = st3(sd.groq, 'pronta', 'sem chave'), sCl = st3(sd.claude, 'online', 'não encontrado');
+    const sMic = st3(sd.mic, 'pronto', 'sem microfone'), sStt = st3(sd.groq, 'pronta', 'sem chave'), sCl = st3(sd.claude, 'online', 'não encontrado'), sCx = st3(sd.codex, 'online', 'não pronto');
     const chips = (lst) => ({ label: 'Serviços', hint: '', isSw: false, isRange: false, isSeg: false, isStat: false, isBtn: false, isChips: true, chips: lst, dis: false, on: false, cls: '', go: () => {}, val: '', set: () => {}, opts: [] });
     const servicos = [{ k: 'Guardião', v: off ? 'desligado' : 'ligado', cls: off ? 'bad' : '' }, { k: 'Microfone', v: sMic[0], cls: sMic[1] }, { k: 'Transcrição', v: sStt[0], cls: sStt[1] },
-      { k: 'Claude', v: sCl[0], cls: sCl[1] }, { k: 'Plano', v: S.planState === 'none' ? 'sem plano' : S.planState === 'suggested' ? 'aguardando ok' : 'aprovado', cls: S.planState === 'none' ? 'off' : '' }];
+      { k: 'Claude', v: sCl[0], cls: sCl[1] }, { k: 'Codex', v: sCx[0], cls: sCx[1] }, { k: 'Plano', v: S.planState === 'none' ? 'sem plano' : S.planState === 'suggested' ? 'aguardando ok' : 'aprovado', cls: S.planState === 'none' ? 'off' : '' }];
     const velSeg = seg('Velocidade da voz', 'Também muda pelo botão ao lado do campo de texto, enquanto ele fala.', VELOCIDADES.map((v) => ({ label: String(v).replace('.', ',') + 'x', on: pf.speed === v, cls: pf.speed === v ? 'on' : '', go: () => { this.setPf('speed', v); this.sfx('click'); } })));
     const prefs = {
       cls: S.prefsOpen ? 'open' : '', shadeCls: S.prefsOpen ? 'on' : '', hidden: S.prefsOpen ? 'false' : 'true',
@@ -3280,7 +3289,7 @@ class Component extends DCLogic {
       top: vRows.concat([chips(servicos), sw('light', 'Modo leve', 'Menos animação, sem vidro, bolinha 2D e sem a animação de abertura. Bom para computadores fracos.')]),
       groups: [
         { id: 'som', title: 'Voz e sons', rows: [sw('voice', 'Voz do Guardião', 'Desligada, ele só escreve. O seu microfone continua valendo. Esc enquanto ele fala também desliga.'), velSeg, sw('sound', 'Sons', 'Cliques, telas, avisos, os sininhos enquanto ele pensa e a trilha da abertura.'), rng('volume', 'Volume'), sw('typing', 'Som de digitação', 'Teclas quando você digita e o Guardião escrevendo a resposta.')] },
-        { id: 'comp', title: 'Comportamento', rows: [sw('alwaysMic', 'Escuta contínua (Ei guardião)', 'Desligada, o microfone fica fechado e só abre quando você clica no botão dele. Ligada, ele fica aberto esperando você chamar o Guardião.'), sw('openMic', 'Reabrir depois de uma pergunta', 'Só vale com a escuta contínua ligada: reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Ir direto para a execução', 'Com o plano aprovado, quando você abre o app de novo no mesmo dia, ele já mostra a tarefa de agora.'), sw('session', 'Conversa com memória', 'Cada conversa vira uma sessão do seu Claude Code: lembra do que foi dito e usa conectores, skills e agentes. Ele começa a responder cerca de um segundo depois.')] },
+        { id: 'comp', title: 'Comportamento', rows: [seg('Quem pensa pelo Guardião', 'Escolha quem responde às conversas e monta os planos. Codex usa GPT-6 Sol com esforço médio. A troca vale no próximo pedido; cada provedor usa seu próprio login.', ['claude', 'codex'].map((v) => ({ label: v === 'claude' ? 'Claude' : 'Codex', on: pf.provider === v, cls: pf.provider === v ? 'on' : '', go: () => { this.setPf('provider', v); this.sfx('click'); } }))), sw('alwaysMic', 'Escuta contínua (Ei guardião)', 'Desligada, o microfone fica fechado e só abre quando você clica no botão dele. Ligada, ele fica aberto esperando você chamar o Guardião.'), sw('openMic', 'Reabrir depois de uma pergunta', 'Só vale com a escuta contínua ligada: reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Ir direto para a execução', 'Com o plano aprovado, quando você abre o app de novo no mesmo dia, ele já mostra a tarefa de agora.'), sw('session', 'Conversa com memória do Claude', 'No Claude, cada conversa usa a sessão com conectores e agentes. No Codex, o Guardião usa o resumo e as últimas trocas; este botão não ativa uma sessão persistente.')] },
         { id: 'apar', title: 'Aparência', rows: [seg('Bolinha', 'Núcleo: cristal 3D com onda de voz. Relógio: o instrumento clássico, com o dia em volta e o tempo no centro.', ['N', 'A'].map((v) => ({ label: v === 'N' ? 'Núcleo 3D' : 'Relógio', on: pf.variant === v, cls: pf.variant === v ? 'on' : '', go: () => { this.setPf('variant', v); this.sfx('click'); } }))), seg('Formato da janela', 'Compacta é a janela pequena, para deixar num canto da tela.', [{ label: 'Completa', on: !compact, cls: !compact ? 'on' : '', go: () => { if (compact) this.toggleCompact(); } }, { label: 'Compacta', on: compact, cls: compact ? 'on' : '', go: () => { if (!compact) this.toggleCompact(); } }])] }
       ]
     };
@@ -3300,7 +3309,7 @@ class Component extends DCLogic {
       cls: S.introPhase === 'skip' ? 'skip' : '', st: introOn ? '' : 'display:none',
       w: W, h: H, ox: o.cx, oy: o.cy, r: Math.round(360 * o.s * (orb3d ? 0.2824 : 0.44)), t0: introOn && S.introPhase !== 'skip' ? (S.introStart || 0) : 0, skip: S.introPhase === 'skip',
       dateLong: dataLonga, clock: d3 + ' · ' + hm,
-      sys: [{ k: 'Servidor', v: 'online' }, { k: 'Claude', v: sd.claude === false ? 'desligado' : 'online' }, { k: 'ClickUp', v: S.dues.length + (S.dues.length === 1 ? ' prazo' : ' prazos') }, { k: 'Plano de hoje', v: S.tasks.length ? S.tasks.length + ' blocos' : 'sem plano' }, { k: 'Microfone', v: sd.mic === false ? 'desligado' : 'pronto' }, { k: 'Transcrição', v: sd.groq === false ? 'desligada' : 'pronta' }, { k: 'Voz', v: voiceOn ? 'ligada' : 'silenciada' }],
+      sys: [{ k: 'Servidor', v: 'online' }, { k: pf.provider === 'codex' ? 'Codex' : 'Claude', v: sd[pf.provider] === false ? 'desligado' : 'online' }, { k: 'ClickUp', v: S.dues.length + (S.dues.length === 1 ? ' prazo' : ' prazos') }, { k: 'Plano de hoje', v: S.tasks.length ? S.tasks.length + ' blocos' : 'sem plano' }, { k: 'Microfone', v: sd.mic === false ? 'desligado' : 'pronto' }, { k: 'Transcrição', v: sd.groq === false ? 'desligada' : 'pronta' }, { k: 'Voz', v: voiceOn ? 'ligada' : 'silenciada' }],
       dayLine: S.tasks.length ? S.tasks.length + ' blocos. Agora: ' + (curP ? curP.title : 'dia livre') + '.' : 'Ainda sem plano para hoje.',
       logs: ['servidor local · porta ' + (location.port || '80'), 'versão · ' + (V.instalada || '...'), 'idioma · pt-BR', 'clickup · ' + S.dues.length + ' prazos nos próximos 3 dias', 'agenda · ' + S.tasks.length + ' blocos para hoje', 'calibragem · dia ' + K.dia + ' de 30', 'pops · ' + PP.meus.length + ' na sua biblioteca', 'plano · ' + (S.planState === 'approved' ? 'aprovado' : S.planState === 'suggested' ? 'aguardando aprovação' : 'ainda não montado'), 'tudo pronto, ' + String(S.pessoa || '').toLowerCase()]
     };
@@ -3334,7 +3343,7 @@ class Component extends DCLogic {
       inst: { cls: S.instOpen && mobile ? 'open' : '', hidden: S.instOpen && mobile ? 'false' : 'true', done: () => this.setState({ instOpen: false }), later: () => this.setState({ instOpen: false }) },
       isMiniBoard: mini, notMiniBoard: !mini, expandir: C('expandir'),
       mini: { status: statusTxt.toUpperCase(), kick: focus.kick, title: focus.title, nextLbl: nextCards.length ? 'A seguir' : '', next: nextCards.length ? nextCards[0].time.split(' ')[0] + ' ' + nextCards[0].title : 'Nada depois desta', hasCap: !!glG, noCap: !glG, cap: glG, ph: voiceOn ? 'Fale ou escreva' : 'Escreva para o Guardião' },
-      orbVis: (orbEff === 'thinking' && S.tool) || (orbEff === 'idle' && S.fullJob) ? 'working' : orbEff,  // usando uma ferramenta ou com um pedido em segundo plano: a esfera mostra que há trabalho correndo
+      orbVis: (orbEff === 'thinking' && (S.tool || S.progressQuick)) || (orbEff === 'idle' && S.fullJob) ? 'working' : orbEff,  // usando uma ferramenta ou com um pedido em segundo plano: a esfera mostra que há trabalho correndo
       orbSt, orbCls, orbVariant2d: pf.variant === 'N' ? 'B' : pf.variant, orb3d, orb2d: !orb3d, orbEff, orbLod: o.lod, arcs, nowF: fr(now), dayStart: S.dayStart, dayEnd: S.dayEnd, pulse: S.pulse, orbLevel: -1, introT: S.introT, bgW: W, bgH: H, bgPaused: !!(compact || mini), bgOx: o.cx, bgOy: o.cy, lightMode: !!pf.light, orbPx: 360,
       onOrbTap: C('onOrbTap'), orbAria: 'Bolinha do Guardião. Toque para falar.',
       orbTxtSt, ot,

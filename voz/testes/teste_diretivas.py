@@ -52,6 +52,9 @@ print("  frases:", [g.extrair_diretivas(f) for f in frases])
 
 # ---- 3) guarda de intenção ----
 confere("concluir exige o Rafa ter pedido", g.permitido("concluir", "conclui a tarefa da Marina") and not g.permitido("concluir", "o que eu tenho amanhã?"))
+confere("contar que já está feito libera concluir (caso real: já revisei, já foi para aprovação)",
+        g.permitido("concluir", "Eu já disse que já foi para aprovação, eu já revisei") and g.permitido("concluir", "já mandei pra aprovação") and g.permitido("concluir", "tá feita também"))
+confere("negar o feito não libera concluir", not g.permitido("concluir", "ainda não revisei") and not g.permitido("concluir", "não mandei ainda"))
 confere("criar exige pedido de criar", g.permitido("criar", "cria uma tarefa para pagar a hospedagem") and not g.permitido("criar", "quais são as tarefas de amanhã"))
 confere("resposta sim/não", g.SIM.search(g._norm("sim, pode criar")) and g.NAO.search(g._norm("não, cancela")) and not g.NAO.search(g._norm("pode criar")))
 

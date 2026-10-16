@@ -715,6 +715,7 @@ class Processo:
             registro = h._registro_de_hoje().get("blocos", [])
             feitos = {b.get("id") for b in registro if b.get("estado") in ("feito", "adiado")}
             anterior = _ler_json(caminho)
+            avisos = self._consertar(plano, caminho)
             problemas = cp.conferir(plano, anterior, feitos)
             problemas += self._conferir_semana(plano, caminho, anterior, feitos)
             problemas += self._exigir_rota(plano, caminho, anterior)
@@ -722,6 +723,8 @@ class Processo:
                 problemas.append("O plano mudou, então grave com \"status\": \"sugerido\" e pergunte se ela aprova (marca aprovar com a data do dia).")
             if problemas:
                 return "O plano não pode ser gravado assim. Corrija e grave de novo:\n- " + "\n- ".join(problemas)
+            cp.anotar_avisos(plano, avisos)
+            entrada["content"] = json.dumps(plano, ensure_ascii=False, indent=2)  # vai como updatedInput: grava o plano já consertado e com os avisos
         self.gravou_plano = True
         if plano is not None:
             self._registrar_imprevistos(plano, _ler_json(caminho) or {})
@@ -767,6 +770,19 @@ class Processo:
         return [f"Entrou neste dia o que não estava nele ({'; '.join(map(str, novas[:3]))}). Antes de gravar, rode o roteador da agenda "
                 "(powershell -ExecutionPolicy Bypass -File onde_cabe.ps1 -Minutos N -Tipo pesado|design|leve -Prazo AAAA-MM-DD -Frente X -Titulo \"...\", na pasta operacional) "
                 "e siga o nível e o horário que ele indicar, ou diga a ela por que não."]
+
+    def _consertar(self, plano, caminho):
+        """Conserta no próprio plano o que é mecânico (plano_base.consertar) e devolve os avisos que não barram a gravação."""
+        try:
+            import plano_base as pb
+            import visao_semana as vs
+            dia = cp.data_do_plano(caminho, plano)
+            outros = vs.planos_da_semana(h.OPER)
+            pb.consertar(plano, dia, h.OPER, None, outros)
+            return cp.conferir_regras_da_pasta(plano, dia, outros, h.OPER, com_avisos=True)[1]
+        except Exception as erro:  # o conserto nunca impede a gravação por um defeito dele
+            print("  Conserto do plano falhou:", erro)
+            return []
 
     def _conferir_semana(self, plano, caminho, anterior, feitos):
         """O plano de um dia não pode quebrar os outros: tarefa não some, prazo final vale, nobre é do importante (conferencia_plano.conferir_semana)."""

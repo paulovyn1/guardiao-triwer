@@ -149,7 +149,7 @@ def resumir(chamar, nome="Pessoa", agora=None):
         novas = [t for t in e["trocas"] if t[0] > e["resumo_ate"]][-30:]
         anterior = e["resumo"]
         _resumindo = True
-    pedido = (f"{PEDIDO_DO_RESUMO}\n\nRESUMO ANTERIOR:\n{anterior or '(nenhum)'}\n\nTROCAS NOVAS:\n"
+    pedido = (f"{PEDIDO_DO_RESUMO}\nO que a pessoa confirmou nas trocas novas (feito, cancelado, mudado) substitui o resumo anterior: não deixe como pendente o que ela já resolveu.\n\nRESUMO ANTERIOR:\n{anterior or '(nenhum)'}\n\nTROCAS NOVAS:\n"
               + "\n".join(f"{nome}: {u}\nGuardiao: {g}" for _, u, g in novas))
     try:
         texto = chamar(pedido)

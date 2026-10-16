@@ -7,6 +7,89 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.9 - 2026-10-16
+- Compromisso fixo (WhatsApp, aprovações) tem identificador e pode ser concluído pelo chat e pelo painel.
+- "Cancela X" fecha a tarefa no ClickUp ao aprovar; "tira X" só tira do dia.
+- Aprovação que não conseguiu levar tudo ao ClickUp fica com sincronização pendente e avisa; aprovar de novo tenta outra vez.
+- Ao aprovar hoje, o guardião avisa quais próximos dias também mudaram e ainda precisam de aprovação.
+- Tarefa vencida há 2 dias ou mais vira pergunta "ainda vale fazer?" no aviso do dia.
+- O resumo da conversa respeita o que a pessoa confirmou por último; a IA não atribui dono por dedução.
+- Testes desatualizados reescritos para o comportamento novo; testes novos do motor.
+
+## 0.10.8 - 2026-10-16
+- Quem manda na data é o guardião: tarefa com horário no ClickUp que não é fixa volta para a fila e é reencaixada pelas regras; só reunião, aula e hora combinada ficam.
+- Tarefa com limite encaixa a partir do próprio limite, de trás para frente; preparo da live no primeiro horário livre do dia; sem espaço na janela ideal, qualquer horário livre antes de virar pergunta.
+- Etapa de post que volta à fila mantém o limite do post; plano gravado depois do horizonte não é duplicado; a data do ClickUp do preparo da live não vale como prazo.
+
+## 0.10.7 - 2026-10-16
+- Tarefa com limite vai o mais perto possível do limite (a partir da véspera, de trás para frente), não no primeiro espaço livre; atrasada continua indo o quanto antes.
+
+## 0.10.6 - 2026-10-16
+- SKILL.md reescrito (28 KB para 11 KB): começa por quem o guardião é (dono e responsável pela agenda, gestor que a pessoa não consegue ser por envolvimento emocional, ClickUp só registro) e traz um mapa do que ler e quando. Os procedimentos foram para references/planejar.md, destrinchar.md e entrega.md, sem perder regra.
+- Pedido que não é de agenda: a IA segue o SKILL.md e lê sob demanda pelo mapa.
+
+## 0.10.5 - 2026-10-16
+- Todo pedido de agenda ao guardião completo (mover, adiar, "pronta até dia 27") vai para o motor, em segundos; só destrinchar e configuração seguem para a IA completa (que lia a pasta inteira e levava minutos).
+- A IA entende prazo novo dado pela pessoa (instrução "limite") e o motor reencaixa a tarefa até essa data.
+
+## 0.10.4 - 2026-10-16
+- Resposta do replanejamento em parágrafos (explicação, resto do dia, delegação, uma pergunta) e a conversa escrita mostra as quebras.
+- A explicação da IA é dita à pessoa, em até 2 frases, sem instruções ao sistema; no máximo uma pergunta por vez.
+
+## 0.10.3 - 2026-10-16
+- Plano novo esperando o ok: o guardião vai para a lista do Hoje e diz numa frase; a aprovação é só na barra de baixo da lista. Sem ler tarefa por tarefa e sem cartões de aprovação por cima da tela.
+
+## 0.10.2 - 2026-10-16
+- Enquanto o guardião pensa, fala ou trabalha em segundo plano, o botão de enviar vira o botão Parar (quadrado), no mesmo lugar; Enter continua enviando.
+- "Parado" só quando o processo foi mesmo encerrado pelo Parar ou pelo Esc; outra falha do Codex aparece com o motivo real.
+- Depois de refazer o plano, o guardião diz o que ficou para o resto do dia, além do que não coube.
+
+## 0.10.1 - 2026-10-16
+- Motor da agenda: o código monta hoje e os próximos dias (fila por limite, consumo antes da copy, stories na meta, nada depois da hora de parar) e a IA revisa uma vez, devolvendo instruções em vez de horário (cerca de 16 mil tokens e 40 s por plano).
+- "Refaça meu plano" e o plano da manhã passam pelo motor: a IA só traduz o que a pessoa disse (já fiz, tira, almoço às 14h) e o que não cabe vira a pergunta "estender o dia ou renegociar o prazo?".
+- Codex roda numa pasta vazia na conversa, no resumo e na revisão (lia 200 mil tokens por chamada dentro da pasta do guardião).
+- Onboarding pergunta por evento recorrente com preparo (live semanal); caixinha fica em 45 min.
+
+## 0.10.0 - 2026-10-16
+- Nada mexe no plano sem perguntar: o supervisor de atraso só avisa e pergunta; a manutenção dos próximos dias monta só por código, sem IA, e não troca plano refinado.
+- Botão Parar na conversa: interrompe a resposta ou o trabalho em segundo plano (Claude ou Codex).
+- Conversa fora do modo sessão nas preferências da Milena (o modo sessão gastava ~300 mil tokens por fala).
+- PRD do motor de agenda em docs/PRD-motor-agenda.md (código monta, IA revisa).
+
+## 0.9.15 - 2026-10-16
+- Conferência conserta em vez de recusar: stories e blocos diários que faltam, consumo repetido, rotina com a mesma tarefa em dois dias, `agenda_impoe` e preparo da live vencido são resolvidos por código antes de conferir.
+- Regras de preferência (copy/design alternados, minutos de stories, alavanca, nobre) viram aviso no plano em vez de barrar; só o grave (sobreposição, tarefa que some, prazo, fixa, duplicada) reprova.
+- Correções retomam a mesma sessão (Claude `--session-id`/`--resume`, Codex `exec resume`) e pedem para reler só o plano; se a correção do revisor estragar o plano, volta o plano já conferido, não a base.
+- Replanejamento por voz lê um dossiê calculado por código em vez de reler ClickUp, planos, campanhas e memória.
+- Bloco de rotina (consumo, stories, almoço) pode repetir em vários dias da proposta do Codex; só o id do ClickUp identifica a mesma tarefa.
+- Preparo de evento recorrente (`rotina.preparos` + `clickup.eventos`): a Estrateclass passa a ter tema, thumb e agendamento até a quarta anterior e a antecipação no grupo até a quinta; etapas de outra pessoa viram cobrança no plano.
+
+## 0.9.14 - 2026-10-16
+- As correções de um plano reprovado retomam a mesma sessão do Codex, reaproveitando a pesquisa já feita dentro daquele pedido.
+
+## 0.9.13 - 2026-10-16
+- Replanejamento segue a ordem definida pela pessoa: reagendar o adiável, simplificar uma tarefa e só então propor hora extra.
+- Se o Codex devolver uma recusa ou um plano reprovado, o Guardião apresenta os problemas e pede uma proposta corrigida, até duas rodadas de correção.
+- A conferência reúne os problemas de todos os dias da proposta; o dia apertado continua reconhecido depois que tarefas foram reagendadas.
+- Movimentos entre dias futuros são conferidos em cadeia, sem alterar o arquivo histórico do dia atual.
+
+## 0.9.12 - 2026-10-16
+- O painel mostra etapas curtas e tempo decorrido enquanto o Codex trabalha, fora da conversa.
+- Pedidos de plano continuam protegidos pela conferência; ao mover uma tarefa, o app completa o dia futuro de origem se o Codex o omitir.
+- Falhas de conferência e limite de uso do Codex agora explicam o motivo no próprio Guardião.
+
+## 0.9.11 - 2026-10-16
+- A skill passa a carregar corretamente no Codex.
+- Ao planejar com Codex, o Guardião confere a resposta e grava somente arquivos de plano permitidos; o modelo continua com acesso de leitura.
+
+## 0.9.10 - 2026-10-16
+- O Codex usa GPT-6 Sol com esforço médio por padrão; o modelo e o esforço podem ser alterados por configuração.
+
+## 0.9.9 - 2026-10-16
+- O painel permite escolher Claude Code ou Codex para conversas e planos, mantendo Claude como padrão.
+- Uma instalação pode habilitar os dois: Claude e Codex leem a mesma skill global, sem duplicar o arquivo.
+- A escolha é salva nas preferências e vale no próximo pedido; cada provedor usa seu próprio login.
+
 ## 0.9.8 - 2026-10-15
 - Animações fluidas de novo: o painel usa a placa de vídeo sempre.
 - Os sons da abertura tocam sozinhos, sem esperar um clique.
@@ -50,6 +133,30 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - Novo atalho atualizar_guardiao.bat, na pasta do guardião, para atualizar sem o painel.
 
 ## 0.8.0 - 2026-10-13
+Vem do uso diário do guardião de uma pessoa da equipe (07 a 13/10) e do relatório da primeira instalação fora da máquina de desenvolvimento. Fica em cima da 0.7.1: o resolvedor do Claude, a memória em arquivo, a saudação, a abertura, o status dos serviços e o modelo do plano não foram mexidos.
+- **O painel abre no navegador padrão da pessoa, no perfil dela.** Chrome e Edge abrem como janela de aplicativo (sem abas nem barra de endereço); Opera, Opera GX, Brave, Vivaldi, Firefox e os demais, numa aba do navegador que já está aberto (o Opera GX ignora a janela de aplicativo e abriria uma janela vazia; Brave e Vivaldi não foram conferidos). O guardião não cria mais perfil, não entra em conta, não liga sincronização e não mexe em extensão (a 0.7.0 abria um perfil do Edge só dele). A pasta `voz\perfil_edge` das versões anteriores é apagada na primeira abertura, se o Edge antigo não estiver usando. O som da abertura pode esperar o primeiro clique, porque o navegador não deixa uma página tocar sozinha. `janela_edge.py` virou `janela_painel.py`.
+- **POPs da escola vêm de um catálogo na nuvem, sem a pessoa configurar nada.** O painel lê, pela API aberta do Supabase da escola, só os POPs publicados (`voz\catalogo_pops.json`, que leva só a chave pública, a que o próprio Supabase manda usar em aplicativos). Sem rede, mostra o último catálogo que veio. `pops.catalogo` no `config.json` continua valendo para quem quiser outro catálogo. Enquanto a escola não publica nenhum POP, a aba diz "A escola ainda não publicou POPs" (em vez de "Nada encontrado").
+- **Matriz de prioridade** no SKILL.md (seção 3.1): importante e urgente (folga de 2 dias úteis ou menos), importante sem urgência ganha bloco curto diário, empate pela menor folga, tarefa "opcional" reclassificada a cada plano. "Importante" vem de uma seção nova do `perfil.md`, respondida no onboarding.
+- **Auditoria de 12 perguntas sim ou não** antes de mostrar o plano (seção 3.2). Plano reprovado é corrigido antes de a pessoa ver.
+- **`aprendizados.md`** (seção 7): cada correção da pessoa vira "quando X, faça Y, teste sim ou não", escrita na hora, lida em toda ativação e relida no fim do dia. A regra repetida sobe para o `perfil.md` ou para um `extensoes-*.md`, nunca para o SKILL.md.
+- Regras de conduta (proposta decidida em vez de "opção A ou B", fato só se conferido hoje), horário (trabalho pesado só nas faixas boas, o dia vai até a hora de parar daquele dia, sobra com destino, fim de semana só como último recurso) e reunião que existe como tarefa no ClickUp vai em `blocos` com `clickup_id`.
+- Templates: `perfil.md` (O que é importante, Faixas do dia, Sobra do dia), `semana-base.md` (Agenda por dia), `estado.md` (Aguardando gatilho), `aprendizados.md` novo. O onboarding avisa que a primeira semana é de calibragem e traz as perguntas que alimentam as seções novas. A manutenção da memória saiu do SKILL.md para `references/memoria.md`.
+- **O check de "feito" conclui na hora**, inclusive tarefa do ClickUp. Antes a tarefa ficava "aguardando" até a pessoa escrever uma frase, sem lembrete, e nada fechava. O comentário de status ("Atualização de status: ...", com assinatura) foi removido: o ClickUp já registra quando fechou, e o horário real de início e fim vai para a própria tarefa. Os testes `teste_v2_servidor` e `teste_v2_tela` foram ajustados para esse comportamento.
+- **Quando uma ação por voz não dá certo, o guardião diz.** Ele fala "estou concluindo" na hora em que a frase sai, e o resultado só chega depois; se a tarefa não existe, o ClickUp não responde ou a pessoa nem tinha pedido, antes ele seguia como se tivesse dado certo. Agora, no fim da resposta, ele mesmo diz "Não consegui concluir X: motivo" (ou, se a pessoa não pediu, "Não fiz nada ainda... Quer que eu conclua X?", e o "sim" vale), avisa o modelo para não repetir nem afirmar o contrário, e cala se a janela foi fechada.
+- Filtro das frases que o Whisper inventa no silêncio ampliado: "[Música]", "(Aplausos)", "Até a próxima!", "Se inscreva no canal", "Obrigado por ter assistido"; palavras soltas como "Valeu" e "Pai" também não gastam mais uma resposta.
+- **A ação por voz reconhece blocos com nome** (`pensar`, `copy_a`). O app só entendia `b1`, `b2`: a voz dizia "estou concluindo" e a tarefa não mudava. O prompt da voz usa `{{concluir:ID}}` sem frase.
+- **Concluir sem chamar o Claude.** Fala que começa com "concluí", "terminei", "acabei", "finalizei", "fechei", "encerrei" ou "já fiz" fecha a tarefa de agora em Python, guarda o relato da pessoa na calibragem (evento `relato`) e avança. Antes, um relato longo ia inteiro para a sessão e custava cerca de US$ 0,56 e 90 mil tokens.
+- **Home**: o compromisso fixo que vem antes da próxima tarefa (almoço, live, pausa) vira o foco, e a tarefa aparece como "Depois". Antes a Home pulava direto para a próxima tarefa.
+- **Etapa de post vira subtarefa da tarefa mãe**, achada em Python (`voz/posts_maes.py`) com uma consulta direta ao ClickUp: só a lista de conteúdo, só os próximos dias, só `Onde = Feed` (`clickup.posts` no `config.json`; desligado sem essa chave). Bloco de criação de posts (`posts_previstos`) mede, ao ser concluído, quantos posts apareceram e grava `posts_criados` para o report. Sem vigia em segundo plano.
+- **Escuta contínua virou opção** (preferência `mic_sempre_ligado`, interruptor "Escuta contínua (Ei guardião)" em Comportamento). Desligada (padrão), o microfone fica fechado: só abre quando a pessoa clica no botão dele (ou em ditar um campo) e fecha de verdade no fim da gravação, então o indicador de microfone em uso do Windows apaga. Sem "Ei guardião" e sem reabrir sozinho depois de uma pergunta. Ligada, volta ao comportamento anterior. Motivo: quem não gosta de falar com o computador não aceita um microfone aberto o tempo todo; quem gosta liga o interruptor. Vale ao vivo, sem reiniciar. Não testado com microfone real.
+- **Não cria tarefa que já existe no ClickUp.** O guardião só olhava o resumo gravado em arquivo, que as leituras agendadas atualizam 3 vezes por dia: uma tarefa criada por outra pessoa ou por outra automação minutos depois da última leitura não existia para ele, e ele criava uma igual (caso real de 13/10: duas tarefas do mesmo vídeo, criadas com 8 minutos de diferença). Agora, antes de criar, ele roda de novo o script `ler_clickup.ps1` (sem Claude, sem conector). Título igual a uma tarefa aberta: o bloco passa a usar ela e ela muda de hora. Mesmo assunto com outras palavras (3 palavras em comum e a mesma letra de carrossel e o mesmo dia): não cria e mostra o link da parecida, para a pessoa decidir. Carrossel A e B, ou copy e design do mesmo carrossel, continuam tarefas separadas. Vale na aprovação do plano e na criação por voz (`forcar` cria mesmo assim). Teste novo: `teste_duplicadas`. Os testes `teste_revisao` e `teste_preferencias` foram ajustados para a escuta contínua opcional.
+- **Tarefa de conteúdo nunca nasce solta, e o app lê as regras locais.** Caso real de 13/10: o guardião criou tarefas soltas na lista de conteúdo (as etapas já existiam na tarefa mãe) depois de a pessoa ter corrigido isso, porque a sessão do app roda na pasta operacional e só leria `extensoes-*.md` e `aprendizados.md` se decidisse acionar a skill. Agora: (1) `clickup_create_task` na lista de conteúdo (`clickup.posts.lista`) sem `parent` é negado na sessão quando é etapa de post (nome começa com copy, design, manychat ou roteiro; stories, caixinha, material de aula e cronograma ficam soltos, são tarefas próprias), com a orientação de achar a mãe (`classificar`, em `guardiao_sessao.py`); (2) bloco de etapa de post com `lista_id` de conteúdo sem `pai` ou `post` não vira tarefa ao aprovar o plano, e o erro aparece na tela (`aprovar_plano`, em `hud_servidor.py`); (3) `extensoes-*.md` e `aprendizados.md` entram sempre no prompt da sessão (`_regras_locais`, em `guardiao_voz.py`). Sem a lista configurada a trava não bloqueia nada. Teste novo em `teste_sessao`.
+- **Bloco de ideias concluído lança as etapas dos posts.** Copy e design de um post que ainda não existe ficam como bloco reservado no plano (`reserva_post` = data da postagem, `etapa` = Copy ou Design), sem tarefa no ClickUp. Ao concluir o bloco de ideias, o app já media quantos posts nasceram; agora também troca cada reserva, pela data da postagem, por uma subtarefa real da mãe nova ("Copy | título do post"), no horário reservado, e grava o evento `etapas_lancadas` (criadas, posts sem reserva, reservas sem post). Nunca cria tarefa solta. Veio de um pedido da pessoa em 13/10 (o guardião chamava posts de "carrossel A, B, C" e criava tarefa de post que ainda não tinha tema). `posts_maes.lancar_etapas`, teste novo `teste_posts_etapas` (8 checagens, ClickUp falso). Não testado com o ClickUp de verdade.
+- **SKILL.md mais leve (26 KB para 24 KB).** Concluir tarefa pelo chat ("já concluí X"), modo automático e conferência do fim do dia saíram da seção 6 para `references/fechamento.md`, lido só quando o assunto pedir (o mesmo padrão do `references/painel.md`). Texto movido sem mudança. Medido em 13/10: uma conversa nova do painel abre com cerca de 40 mil tokens que são do próprio Claude Code (os conectores quase não pesam, porque as ferramentas chegam só como nomes); o que o guardião controla é o prompt dele, que caiu de 45 KB para cerca de 30 KB com as regras locais e o perfil enxutos.
+- **O vigia confere o ClickUp antes de cobrar.** O aviso de tempo só olhava o relógio e cobrava tarefa já concluída no ClickUp (caso de 14/10: caixinha concluída às 8h, cobrada às 8h55). Agora, nas viradas do plano (começo e fim de cada bloco, marcas de 30 e 10 min e uma passada ao abrir o app), o servidor renova o resumo com `ler_clickup.ps1` e fecha o bloco cuja tarefa já está concluída lá. Fora das viradas não há chamada. A mesma passada acha tarefa nova e o guardião pergunta se a pessoa quer replanejar (nunca replaneja sozinho). Compromisso fixo sem tarefa no ClickUp (triagem do WhatsApp) é perguntado uma vez depois do horário ("Fiz" ou "Não fiz"). `sincronizar_com_clickup` em `hud_servidor.py`; `_virada_do_plano`, `_avisar_tarefas_novas` e `_tique_fixos` em `guardiao_v2.py`; testes novos em `teste_v2_servidor`.
+- `.gitignore` com `memoria.md`, `extensoes-*.md` e `.repo-path`, para arquivos pessoais não irem ao repositório.
+- Testado: a suíte de `voz\testes` inteira (teste de tela rodado um por vez; dois deles oscilam quando o computador está ocupado e passam sozinhos), a abertura do painel de verdade no Chrome e no Edge, e o Opera GX de verdade (que mostrou que ele ignora o `--app`). Dois testes antigos foram ajustados ao novo comportamento: tarefa repetida concluída sem comentário de status e a janela do painel.
+- Ainda sem teste: o onboarding completo com uma pessoa real, o plano gerado com o perfil novo e o catálogo de POPs com POPs publicados. O SKILL.md está com cerca de 25 KB (meta: 20 KB).
 - O painel abre no seu navegador, no seu perfil.
 - POPs da escola prontos para instalar, sem configurar nada.
 - Planos com prioridade e conferidos antes de aparecer.

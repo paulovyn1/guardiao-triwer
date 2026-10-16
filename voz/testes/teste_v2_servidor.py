@@ -340,7 +340,7 @@ confere("a mesma passada registra tarefa nova do ClickUp", any(e["tipo"] == "tar
 confere("tarefa nova entra na fila de avisos (sem as de aprovação)", [t["id"] for t in h.ULTIMAS_NOVAS] == ["cidN"], h.ULTIMAS_NOVAS)
 v2.CHECKIN = None
 c = v2._avisar_tarefas_novas()
-confere("avisa a tarefa nova e pergunta se quer replanejar", bool(c) and "Nova" in c["texto"] and "replaneje" in c["texto"]
+confere("tarefa nova com data vencida/hoje pergunta se quer replanejar", bool(c) and "Nova" in c["texto"] and "replaneje" in c["texto"]
         and [o["resposta"] for o in c["opcoes"]] == ["novas_replanejar", "novas_depois"], c)
 comandos()
 r = v2.responder_checkin({"resposta": "novas_replanejar"})
@@ -348,6 +348,15 @@ cm = comandos()
 confere("replanejar manda o pedido ao guardião e fecha o aviso", r["ok"] and not v2.CHECKIN and any(t == "perguntar" and "Nova" in v for t, v in cm), cm)
 h.ULTIMAS_NOVAS.append({"id": "cidN", "nome": "Nova"})
 confere("a mesma tarefa não é anunciada duas vezes", v2._avisar_tarefas_novas() is None)
+v2.CHECKIN = None
+h.ULTIMAS_NOVAS.append({"id": "cidF", "nome": "Futura", "prazo": "2999-01-05"})
+cf = v2._avisar_tarefas_novas()
+confere("tarefa de data futura não oferece replanejar o dia", bool(cf) and "replaneje" not in cf["texto"] and "Não mexo em hoje" in cf["texto"], cf)
+comandos()
+v2.responder_checkin({"resposta": "novas_replanejar"})
+cm = comandos()
+confere("o pedido da tarefa futura proíbe mexer em hoje", any(t == "perguntar" and "NÃO altere o plano de hoje" in v for t, v in cm), cm)
+v2.CHECKIN = None
 chamadas.clear()
 h.sincronizar_com_clickup(espaco=60)
 confere("a conferência não repete a chamada dentro do intervalo", not any(u.endswith("/cid4") for u in chamadas))

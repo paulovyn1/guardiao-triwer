@@ -66,11 +66,12 @@ try {
     $subpasta = if ($at -and $at.PSObject.Properties['pasta']) { [string]$at.pasta } else { 'guardiao-triwer' }
     $skillLocal = Join-Path $oper '.claude\skills\guardiao-triwer'
     $skillGlobal = Join-Path $env:USERPROFILE '.claude\skills\guardiao-triwer'
-    foreach ($p in @($skillLocal, $skillGlobal)) {  # instalada a partir de um clone: o instalador deixa o caminho dele em .repo-path
+    $skillCodex = Join-Path $env:USERPROFILE '.codex\skills\guardiao-triwer'
+    foreach ($p in @($skillLocal, $skillGlobal, $skillCodex)) {  # instalada a partir de um clone: o instalador deixa o caminho dele em .repo-path
         $marcador = Join-Path $p '.repo-path'
         if (-not $Origem -and (Test-Path $marcador)) { $Origem = ([System.IO.File]::ReadAllText($marcador, $utf8)).Trim() }
     }
-    foreach ($p in @($skillLocal, $skillGlobal)) {  # endereço publicado junto com a skill
+    foreach ($p in @($skillLocal, $skillGlobal, $skillCodex)) {  # endereço publicado junto com a skill
         $arqOrigem = Join-Path $p 'origem.json'
         if (-not $Origem -and (Test-Path $arqOrigem)) {
             $o = [System.IO.File]::ReadAllText($arqOrigem, $utf8) | ConvertFrom-Json
@@ -188,6 +189,7 @@ try {
     $pastasSkill = @()
     if (Test-Path $skillLocal) { $pastasSkill += $skillLocal }
     if (Test-Path $skillGlobal) { $pastasSkill += $skillGlobal }
+    if (Test-Path $skillCodex) { $pastasSkill += $skillCodex }
     if ($at -and $at.PSObject.Properties['pastas_skill']) { foreach ($p in @($at.pastas_skill)) { if ($p -and (Test-Path $p)) { $pastasSkill += [string]$p } } }
     $feitas = @{}
     foreach ($p in $pastasSkill) {

@@ -8,7 +8,7 @@ Todo comando de script deste roteiro leva `-ExecutionPolicy Bypass`: sem isso o 
 
 O painel é o aplicativo do guardião: mostra o plano, escuta "Ei guardião", fala e age no ClickUp. Ele precisa de arquivos grandes (cerca de 500 MB), então começa a ser instalado já, enquanto a entrevista acontece.
 
-1. Rodar `powershell -ExecutionPolicy Bypass -File "<pasta da skill>\scripts\instalar_painel.ps1" -Verificar` e ler as linhas `chave=valor`: `pasta_operacional`, `painel_instalado`, `chave_groq`, `token_clickup`, `claude`, `config`.
+1. Rodar `powershell -ExecutionPolicy Bypass -File "<pasta da skill>\scripts\instalar_painel.ps1" -Verificar` e ler as linhas `chave=valor`: `pasta_operacional`, `painel_instalado`, `chave_groq`, `token_clickup`, `claude`, `codex`, `config`. A escolha de provedor feita no instalador ou no painel fica em `voz\preferencias.json`, campo `provedor_ia`; sem campo, vale Claude.
 2. `painel_instalado=nao`: instalar em segundo plano e seguir para a abertura sem esperar: `powershell -ExecutionPolicy Bypass -File "<pasta da skill>\scripts\instalar_painel.ps1" -Quieto`. Leva de 5 a 10 minutos e não pede nada à pessoa. Avisar em uma frase que o painel está sendo baixado enquanto vocês conversam.
 3. Se o script disser que a skill não traz a pasta `voz\`, a pessoa instalou só os textos da skill: pedir que ela dê dois cliques no `instalar.bat` da pasta do guardião que baixou e avise quando terminar.
 4. A pasta operacional é a que o `-Verificar` mostrou. Não oferecer outra, a não ser que a pessoa peça.
@@ -43,8 +43,8 @@ Se a pessoa disser que está sem tempo, propor remarcar. Não rodar o onboarding
 
 Rodar e anotar o resultado:
 - `[Environment]::OSVersion` e `[Environment]::Is64BitOperatingSystem`. O guardião roda no Windows 10 ou 11 de 64 bits. Fora disso, parar e avisar.
-- `claude=falta` no `-Verificar`: sem o comando `claude` no computador o guardião do painel não responde e o plano automático não roda. Orientar a instalar o Claude Code (https://claude.com/claude-code) antes de continuar.
-- Conector do ClickUp no Claude. Sem ele, a descoberta de listas usa o script (etapa 3) e a reprogramação no fim do dia fica manual.
+- Conferir o provedor escolhido no painel. Se for Claude e `claude=falta`, orientar a instalar o Claude Code (https://claude.com/claude-code). Se for Codex e `codex=falta`, orientar a instalar o Codex CLI (https://learn.chatgpt.com/docs/codex/cli) e rodar `codex login`. Quem escolheu os dois instala com um único `instalar.bat`; o Codex global aponta para a mesma pasta da skill global do Claude.
+- Conector do ClickUp no provedor escolhido. Sem ele, a descoberta de listas usa o script (etapa 3) e a reprogramação no fim do dia fica manual.
 - Conta no ClickUp (a gratuita serve). Sem conta, parar e pedir para criar uma lista simples antes de continuar.
 
 **Token do ClickUp** (se `token_clickup=falta`; a pessoa faz na janela dela, não no chat):
@@ -110,7 +110,13 @@ Vai para: `perfil.md` (Como cobrar, Decisão e interrupções); `config.json` (r
 - Quanto tempo leva cada etapa de uma entrega (escrever, produzir, revisar)? Chute honesto.
 - Em que dias e horários isso é publicado ou entregue?
 - Quantas entregas devem ficar prontas à frente, como colchão?
-Vai para: `perfil.md` (Frente de receita); `equipe.md` (Tempos).
+- Você vende de um jeito em que stories (ou outro bloco diário de conteúdo curto) puxa gente todos os dias? Se sim, quantas telas por dia? Para quem faz, cada dia de trabalho tem um tipo, definido antes: sequência normal (30 min, 10 telas, pelo menos 2 dias por semana), respostas da caixinha (45 min, 12 telas) ou captação de leads (15 min, 3 telas, um dia por semana). A meta do dia não encolhe por o dia estar cheio: o guardião primeiro move o que não precisa ser naquele dia; o dia de captação é a válvula da semana apertada. O tempo pode ser quebrado em blocos curtos espalhados pelo dia. Se a pessoa NÃO vende assim, ou não consegue manter, NÃO ligar: deixar `rotina.stories` fora do config. Nunca ligar sem ela confirmar.
+- Em que dias da semana você posta (para a "gordura": quantos posts prontos à frente você quer ter)?
+Vai para: `perfil.md` (Frente de receita); `equipe.md` (Tempos); `config.json` (`rotina.stories` e `rotina.posts`, só se a pessoa confirmou).
+
+- Você tem um evento recorrente que precisa de preparo antes (live semanal, aula ao vivo, webinar)? Se sim: qual dia e hora, e o que precisa estar pronto quantos dias antes e por quem (ex.: tema e thumb 6 dias antes, por ela; agendar 6 dias antes, pelo sócio; aviso no grupo 5 dias antes, pelo sócio). No ClickUp, a tarefa mãe de cada edição precisa ter uma tag própria (ex.: "live semanal") e a data do evento; as etapas são subtarefas.
+
+Vai para: `config.json` (`clickup.eventos` com a tag; `rotina.preparos` com uma regra por etapa: `palavras` do título da subtarefa, `dias_antes`, `rotulo`). Sem evento recorrente, não criar.
 
 **Revisão de padrões (depois do bloco 6, antes da etapa 3).**
 1. Reler todas as respostas e listar de 3 a 6 padrões que aparecem em mais de um bloco (ex: "trava quando decidir e executar vêm juntos", "rende depois de consumir conteúdo", "dia pesado destrói o dia seguinte"). Cada padrão leva as duas situações reais que o sustentam, nas palavras da pessoa.
@@ -131,7 +137,7 @@ Vai para: `perfil.md` (Frente de receita); `equipe.md` (Tempos).
 
 **Painel.** O visual é um só, igual para todos. O que a pessoa escolhe:
 - **Voz do guardião.** Com o painel já instalado (`-Verificar` de novo), pedir que ela dê dois cliques em `<pasta operacional>\voz\ouvir_vozes.bat`: toca a mesma frase em três vozes, numeradas. A escolha vai em `agente.voz`: 1 = `pm_santa` (masculina, mais grave, a padrão), 2 = `pm_alex` (masculina, mais leve), 3 = `pf_dora` (feminina). Se o painel ainda está baixando, usar a padrão e dizer que dá para trocar depois.
-- **Conversa com memória.** Explicar em duas frases: desligada, cada fala é respondida sozinha, rápido e barato, e o guardião lembra só das últimas trocas; ligada, a conversa do painel vira uma sessão do Claude Code, lembra de tudo que foi dito e usa os conectores, as skills e os agentes da pessoa, gastando mais do plano dela. Se ela quiser, perguntar em que pasta ela costuma usar o Claude Code e gravar em `sessao.pasta`. Quem liga e desliga é ela, no painel: Preferências, Comportamento, Conversa com memória.
+- **Conversa com memória.** Desligada, o guardião usa as últimas trocas e o resumo do dia. Ligada e com Claude selecionado, a conversa do painel vira uma sessão do Claude Code com seus conectores, skills e agentes. Com Codex selecionado, o painel usa as últimas trocas e o resumo; a sessão persistente do Claude não é usada. Se ela quiser a sessão do Claude, perguntar em que pasta costuma usá-lo e gravar em `sessao.pasta`. A escolha do provedor e o botão de memória ficam em Preferências, Comportamento.
 - Velocidade da voz, sons, tipo de bolinha e modo leve (computador fraco) ficam em Preferências, no próprio painel. Não perguntar agora.
 - O painel usa a porta 8767 do próprio computador e só aceita pedidos dele. Não precisa de internet para abrir.
 
