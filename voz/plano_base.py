@@ -125,6 +125,21 @@ def montar(dia, oper=OPER, cfg=None, hoje=None):
     return plano, motivos
 
 
+def _vaos_do_dia(plano, dia, memoria):
+    """Todos os espaços livres do expediente, de qualquer janela (leve, pesado ou design), unidos e em ordem."""
+    todos = []
+    for tipo in ("leve", "pesado", "design"):
+        todos += ra.espacos(plano, dia, tipo, memoria=memoria)
+    todos.sort()
+    unidos = []
+    for x, y in todos:
+        if unidos and x <= unidos[-1][1]:
+            unidos[-1] = (unidos[-1][0], max(unidos[-1][1], y))
+        else:
+            unidos.append((x, y))
+    return unidos
+
+
 def inserir_stories(plano, dia, cfg, nome="Eu"):
     """Define o TIPO do dia (rotina.stories.padrao_semana) e completa o tempo de stories que o tipo pede (normal 30 min, caixinha 45 min, captação 15 min; em dia apertado a caixinha
     cai para 15), QUEBRADO em blocos de até 15 min na tarde, espalhados (1 h entre um e outro quando dá). Se um espaço é menor que 15 min, usa o que couber (mínimo 5 min).
@@ -148,7 +163,7 @@ def inserir_stories(plano, dia, cfg, nome="Eu"):
         escolha = None
         for exigir in (True, False):
             melhor = None
-            for x, y in ra.espacos(plano, dia, "leve", memoria=memoria):
+            for x, y in (ra.espacos(plano, dia, "leve", memoria=memoria) if exigir else _vaos_do_dia(plano, dia, memoria)):
                 ini = max(x, pref[0] if exigir else x, (ultimo_fim + 60) if (exigir and ultimo_fim is not None) else x)
                 if exigir and ini >= pref[1]:
                     continue
@@ -345,6 +360,7 @@ def conferir_arquivo(caminho, oper=OPER, cfg=None):
     resumo = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas")
     pendentes = {t.get("id") for t in resumo} if resumo is not None else None
     base, _ = montar(dia, oper, cfg)  # o que a semana combinada punha neste dia: nada dela pode sumir sem ir para outro dia
+    base["blocos"] = [b for b in base.get("blocos") or [] if b.get("clickup_id")]  # blocos criados pelo próprio plano base (stories) não são tarefa do ClickUp
     return (cp.conferir(plano) + cp.conferir_semana(plano, dia, base, outros, pendentes, (), _memoria(cfg))
             + cp.conferir_regras_da_pasta(plano, dia, outros, oper))
 

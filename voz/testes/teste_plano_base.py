@@ -136,4 +136,10 @@ apert, _ = pb.montar(date(2026, 10, 21), oper, cfg_st, date(2026, 10, 21))
 pequenos = [b for b in apert["blocos"] if "Stories" in b["titulo"]]
 confere("sem espaço de 15 min, quebra em blocos menores (mínimo 5 min) e ainda chega ao tempo do tipo", mins(pequenos) >= 30 and any(
         int(b["fim"][:2]) * 60 + int(b["fim"][3:]) - int(b["inicio"][:2]) * 60 - int(b["inicio"][3:]) < 15 for b in pequenos), pequenos)
+# o vão fica numa janela de trabalho pesado (manhã): para stories qualquer vão do dia serve
+resumo([t("m1", "Reunião de planejamento", "2026-10-22", "08:40", "09:20"), t("m2", "Aprovações", "2026-10-22", "09:35", "13:00"), t("m3", "Tarde cheia", "2026-10-22", "14:00", "19:00")])
+cfg_cx = dict(cfg_st, rotina=dict(cfg_st["rotina"], stories={"ativo": True, "padrao_semana": {"3": "caixinha"}}))
+manha, _ = pb.montar(date(2026, 10, 22), oper, cfg_cx, date(2026, 10, 22))
+vao = [b for b in manha["blocos"] if "caixinha" in b["titulo"]]
+confere("dia cheio à tarde: os stories entram nos vãos da manhã (9h20 às 9h35) em vez de faltar", mins(vao) >= 15 and any(b["inicio"] == "09:20" for b in vao), vao)
 sys.exit(1 if falhas else 0)
