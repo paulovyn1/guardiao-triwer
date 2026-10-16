@@ -223,3 +223,8 @@ A conferência (`conferencia_plano.py`, `plano_base.conferir_plano`) continua co
   - `teste_acoes_rapidas`, 4 testes do supervisor. Agora o supervisor só avisa e pergunta, sem chamar `iniciar_completo`.
 - Ambiente (não é defeito): `teste_versao` "sem origem configurada", "ao aprovar... criadas 2" e "se o script falhar sem reiniciar... avisa" (espera de 6 s).
 - Ponto de atenção para o motor: quando um compromisso longo de manhã e um bloco às 14h impedem o almoço até 15h, o almoço volta ao horário e fica sobreposto. O melhor é o motor devolver à fila o bloco que está por baixo do almoço (como faz com imprevisto).
+
+### [FEITO] v0.10.2 (16/10)
+- O botão Parar agora troca o botão de enviar (`snd-parar`, `col.parar` e `col.enviar` no `Main.dc.html`). O botão abaixo do texto de status não aparecia na tela.
+- `controle_fala.ENCERRADOS` (pids encerrados pelo Esc ou pelo Parar): o Codex só diz "cancelado" se o próprio processo foi encerrado. Caso real às 16h54: a revisão da IA "cancelou" 1 s depois de começar e o motivo real se perdeu.
+- `_planejar_pelo_motor` fala os blocos do resto de hoje.
