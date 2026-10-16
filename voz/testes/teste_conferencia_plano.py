@@ -127,4 +127,9 @@ com_consumo = pl(bl("c", "08:30", "Consumo com a pergunta"), bl("a", "09:00", "P
 confere("regra pessoal: ideia sem consumo antes é barrada só com a regra ligada",
         cp.conferir_regras(sem_consumo, qua, {}, [], almoco) == [] and len(cp.conferir_regras(sem_consumo, qua, {}, [], almoco, consumo_antes_de_ideia=True)) == 2
         and cp.conferir_regras(com_consumo, qua, {}, [], almoco, consumo_antes_de_ideia=True) == [])
+
+maes_rel = [{"id": "m1", "nome": "Postar várias vezes não adianta NADA", "prazo": "2026-10-15", "etapas": [{"id": "r1"}]}]
+rel = {"blocos": [{"id": "x", "inicio": "16:40", "fim": "17:05", "titulo": "Preencher relatório do Postar várias vezes não adianta NADA", "clickup_id": "r1"}]}
+confere("relatório no mesmo dia do post é barrado; no dia seguinte passa (caso real 15/10)",
+        len(cp.conferir_regras(rel, date(2026, 10, 15), {}, maes_rel, [])) == 1 and cp.conferir_regras(rel, date(2026, 10, 16), {}, maes_rel, []) == [])
 sys.exit(1 if falhas else 0)

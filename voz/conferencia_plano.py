@@ -195,6 +195,20 @@ ETAPA_DESIGN = re.compile(r"^\s*(\[?design\]?\b|arte\b)", re.I)
 LETRA_NO_NOME = re.compile(r"\b(carrossel|post|reels?|story|stories)\s+[A-Z]\b(?!\w)")
 
 
+RELATORIO = re.compile(r"^\s*\[?preencher relat[óo]rio|^\s*\[?relat[óo]rio\b", re.I)
+
+
+def _data_do_relatorio_pelo_titulo(bloco, maes):
+    """Data de postagem pelo título "Preencher relatório (Manychat -) <nome do post>" comparado ao nome da mãe."""
+    t = _norm(re.sub(r"^\s*\[?preencher relat[óo]rio( manychat)?\s*[-:|]?\s*(do )?", "", str(bloco.get("titulo") or ""), flags=re.I))
+    if len(t) < 12:
+        return None
+    for m in maes:
+        if _norm(m.get("nome"))[:25] == t[:25]:
+            return str(m.get("prazo") or "") or None
+    return None
+
+
 def _etapa(bloco):
     """'copy', 'design' ou None, pelo campo etapa ou pelo começo do título ("Copy | ...", "[DESIGN] ...", "Design: ...")."""
     e = _norm(bloco.get("etapa"))
@@ -250,6 +264,17 @@ def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=Fals
                 continue
             chave, data_post = _post_do_bloco(b, maes)
             etapas.append((d, str(b.get("inicio") or ""), e, chave, data_post, b.get("titulo")))
+    for d, p in list((outros or {}).items()) + [(iso, plano)]:
+        if d != iso or p is not plano:
+            continue
+        for b in p.get("blocos") or []:  # relatório de post só 24h depois da postagem: no mínimo no dia seguinte
+            if RELATORIO.search(str(b.get("titulo") or "")):
+                _chave, data_post = _post_do_bloco(b, maes)
+                if not data_post:
+                    data_post = _data_do_relatorio_pelo_titulo(b, maes)
+                if data_post and d <= data_post:
+                    problemas.append(f"\"{b.get('titulo')}\" ({d}) vem antes de 24h da postagem (post de {data_post}). "
+                                     f"Relatório de post só 24h depois: ponha no dia seguinte ao post ou depois, nunca no mesmo dia.")
     etapas.sort()
     for i, (d1, h1, e1, k1, p1, t1) in enumerate(etapas):
         for d2, h2, e2, k2, p2, t2 in etapas[i + 1:]:
