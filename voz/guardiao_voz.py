@@ -1790,6 +1790,7 @@ def _planejar_pelo_motor(pedido):
     bus.emitir("progresso", modo="completo", ativo=True, rotulo="Montando a agenda", inicio=inicio)
     r = motor_agenda.planejar(OPER, incluir_hoje=True, ia=True, pedido=pedido)
     motor_agenda.gravar(r, OPER, hoje_mesmo_aprovado=True)
+    bus.emitir("plano")  # sem isso a tela não relia o arquivo e o plano novo nunca aparecia para aprovar
     bus.emitir("ui", cmd="tela", id="dia")  # a lista do Hoje mostra o plano novo; a aprovação é na barra de baixo
     PELO_MOTOR["ultimo"] = True
     hoje = time.strftime("%Y-%m-%d")

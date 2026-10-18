@@ -1804,6 +1804,7 @@ class Component extends DCLogic {
   /* ---------- ciclo de vida ---------- */
   componentDidMount() {
     this.clockIv = setInterval(() => this.tickClock(), 5000);
+    this.planoIv = setInterval(() => { if (!document.hidden) this.carregarPlano(); }, 30000);  // plano gravado por fora (motor, outra janela) aparece mesmo sem o aviso "plano"
     this.onInputSnd = (e) => { const t = e.target; if (!t || !/^(INPUT|TEXTAREA)$/.test(t.tagName) || t.type === 'range' || t.type === 'checkbox') return; this.sfx('type'); };
     this.onClickSnd = (e) => {
       const b = e.target && e.target.closest && e.target.closest('button,[role="button"],[role="switch"]'); if (!b) return;

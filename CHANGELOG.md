@@ -7,6 +7,9 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.11 - 2026-10-18
+- Plano montado pelo guardião aparece na tela: o servidor avisa a tela depois de gravar, e a tela relê o plano a cada 30 s. Antes a tela só trocava de aba e continuava com "Sem plano para hoje".
+
 ## 0.10.10 - 2026-10-18
 - Dia de folga (fora de rotina.dias_trabalho) ganha plano quando a pessoa pede: antes o domingo nunca tinha plano, nada aparecia para aprovar e tudo que vencia nele virava "não cabe, renegocie".
 - Na folga entra só o que ela disse que faz hoje (instrução "hoje" do revisor); o resto vai para o próximo dia de trabalho, sem hora extra nem almoço da rotina.
