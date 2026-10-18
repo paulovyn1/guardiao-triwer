@@ -7,6 +7,9 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.11.1 - 2026-10-18
+- Procurar versão nova volta a funcionar em instalações que ficaram sem a origem das atualizações.
+
 ## 0.11.0 - 2026-10-18
 - O código monta a sua agenda e a IA só revisa: o plano sai em segundos e gasta bem menos do Claude.
 - O que não cabe no dia vira uma pergunta clara: estender o dia ou renegociar o prazo.

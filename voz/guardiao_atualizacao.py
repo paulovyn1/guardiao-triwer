@@ -54,15 +54,35 @@ def _salvar(estado):
         json.dump(estado, f, ensure_ascii=False, indent=2)
 
 
+def _pastas_da_skill():
+    casa = os.path.expanduser("~")
+    return [os.path.join(h.OPER, ".claude", "skills", "guardiao-triwer"),
+            os.path.join(casa, ".claude", "skills", "guardiao-triwer"),
+            os.path.join(casa, ".codex", "skills", "guardiao-triwer")]
+
+
+def _origem_publicada():
+    """O origem.json que vem no pacote, com o endereço público do repositório (o mesmo que o atualizar.ps1 usa)."""
+    for raiz in _pastas_da_skill():
+        try:
+            with open(os.path.join(raiz, "origem.json"), encoding="utf-8-sig") as f:
+                o = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(o, dict) and str(o.get("origem") or "").strip():
+            return o
+    return None
+
+
 def origem():
     """De onde vêm as atualizações: campo "atualizacao" do config.json ({"origem": pasta do clone ou endereço do GitHub, "ramo", "pasta"}).
-    Sem o campo, vale o marcador .repo-path da skill instalada (o mesmo das outras skills internas)."""
+    Sem o campo, vale o marcador .repo-path da skill instalada (o mesmo das outras skills internas) e, por último, o origem.json
+    do pacote: um config.json escrito sem o campo (fora do configurar.ps1) deixava o aluno sem atualização pelo painel."""
     cfg = h._config().get("atualizacao") or {}
     onde = str(cfg.get("origem") or "").strip()
+    ramo, pasta = cfg.get("ramo"), cfg.get("pasta")
     if not onde:
-        for raiz in (os.path.join(h.OPER, ".claude", "skills", "guardiao-triwer"),
-                     os.path.join(os.path.expanduser("~"), ".claude", "skills", "guardiao-triwer"),
-                     os.path.join(os.path.expanduser("~"), ".codex", "skills", "guardiao-triwer")):
+        for raiz in _pastas_da_skill():
             try:
                 with open(os.path.join(raiz, ".repo-path"), encoding="utf-8-sig") as f:
                     onde = f.read().strip()
@@ -70,8 +90,14 @@ def origem():
                 continue
             if onde:
                 break
-    pasta = cfg.get("pasta")
-    return {"origem": onde, "ramo": str(cfg.get("ramo") or "main"), "pasta": "guardiao-triwer" if pasta is None else str(pasta).strip("/\\"),
+    if not onde:
+        publicada = _origem_publicada()
+        if publicada:
+            onde = str(publicada["origem"]).strip()
+            ramo = ramo or publicada.get("ramo")
+            if pasta is None:
+                pasta = publicada.get("pasta") or ""
+    return {"origem": onde, "ramo": str(ramo or "main"), "pasta": "guardiao-triwer" if pasta is None else str(pasta).strip("/\\"),
             "verificar": cfg.get("verificar", True) is not False}
 
 

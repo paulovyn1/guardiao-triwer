@@ -251,9 +251,23 @@ confere("GET /versao traz instalada, publicada e notas", v["instalada"] == "0.3.
 config(atualizacao={"origem": os.path.join(tmp, "nao-existe")})
 v = requests.post(URL + "/versao/verificar", json={}, timeout=20).json()
 confere("origem errada não derruba nada: fica o aviso e o painel segue", v["erro"] and v["instalada"] == "0.3.0", v)
+skill_teste = tempfile.mkdtemp(prefix="gv_skill_")  # a skill do aluno: o teste não pode ler a skill de verdade deste computador
+at._pastas_da_skill = lambda: [skill_teste]
 config(atualizacao={})
 confere("sem origem configurada, o painel sabe dizer", at.verificar(forcar=True)["erro"] == "sem_origem" and at.publico()["tem_origem"] is False)
 confere("sem origem, atualizar é recusado com explicação", at.atualizar()["ok"] is False)
+escrever(os.path.join(skill_teste, "origem.json"), json.dumps({"origem": "", "ramo": "main", "pasta": ""}))
+confere("origem.json sem endereço continua sem origem", at.origem()["origem"] == "")
+escrever(os.path.join(skill_teste, "origem.json"), json.dumps({"origem": raiz, "ramo": "main", "pasta": ""}))
+o = at.origem()
+confere("config.json sem o campo atualizacao: vale o origem.json do pacote (endereço, ramo e pasta dele)",
+        o["origem"] == raiz and o["ramo"] == "main" and o["pasta"] == "", o)
+v = at.verificar(forcar=True)
+confere("com o origem.json do pacote, o painel acha a versão nova sem o aluno mexer no config", v["tem_origem"] and v["nova"] and v["remota"] == "0.4.0", v)
+config(atualizacao={"origem": fonte, "pasta": "guardiao-triwer"})
+confere("o campo do config.json continua valendo antes do origem.json", at.origem()["origem"] == fonte and at.origem()["pasta"] == "guardiao-triwer")
+os.remove(os.path.join(skill_teste, "origem.json"))
+config(atualizacao={})
 
 # repositório git de verdade (local): a versão nova é vista sem mexer na cópia de trabalho
 if shutil.which("git"):
