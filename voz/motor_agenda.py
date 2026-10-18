@@ -396,8 +396,11 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             validos = [hoje.isoformat()] + [v for v in validos if v != hoje.isoformat()]
         posto = None
         if pedido_hoje and hoje.isoformat() in rascunho:  # ela disse "faço hoje": qualquer horário livre de hoje antes de outro dia
-            posto = (_colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria)
-                     or _colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria, qualquer=True))
+            if hoje_folga:  # folga: o que ela escolheu vem em sequência a partir de agora; janela nobre e zona morta são regras do dia útil
+                posto = _colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria, qualquer=True)
+            else:
+                posto = (_colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria)
+                         or _colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria, qualquer=True))
             if posto:
                 continue
         if item.get("limite") and not pedido_hoje:  # com limite: de trás para frente a partir do próprio limite (o limite é o prazo do preparo, não o do evento)

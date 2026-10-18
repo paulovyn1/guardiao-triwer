@@ -7,6 +7,9 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.12 - 2026-10-18
+- Dia de folga: o que ela pediu entra em sequência a partir de agora, sem janela nobre nem zona morta (antes a newsletter ia para as 18h com a tarde vazia).
+
 ## 0.10.11 - 2026-10-18
 - Plano montado pelo guardião aparece na tela: o servidor avisa a tela depois de gravar, e a tela relê o plano a cada 30 s. Antes a tela só trocava de aba e continuava com "Sem plano para hoje".
 
