@@ -7,6 +7,12 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.10.10 - 2026-10-18
+- Dia de folga (fora de rotina.dias_trabalho) ganha plano quando a pessoa pede: antes o domingo nunca tinha plano, nada aparecia para aprovar e tudo que vencia nele virava "não cabe, renegocie".
+- Na folga entra só o que ela disse que faz hoje (instrução "hoje" do revisor); o resto vai para o próximo dia de trabalho, sem hora extra nem almoço da rotina.
+- "Posso fazer isso hoje" agora conta como pedido de encaixe; ajuste do plano recusado pela trava é dito em voz alta, em vez de o guardião afirmar que encaixou.
+- Tarefa de prazo máximo já vencido feita hoje não é mais barrada (hoje é o mais cedo possível).
+
 ## 0.10.9 - 2026-10-16
 - Compromisso fixo (WhatsApp, aprovações) tem identificador e pode ser concluído pelo chat e pelo painel.
 - "Cancela X" fecha a tarefa no ClickUp ao aprovar; "tira X" só tira do dia.

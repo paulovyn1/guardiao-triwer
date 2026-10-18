@@ -19,8 +19,8 @@ from datetime import date
 
 OPER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPO = 240
-ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar", "feito", "tirar", "imprevisto", "limite", "cancelar"}
-SO_TITULO = {"feito", "tirar", "imprevisto", "limite", "cancelar"}
+ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar", "feito", "tirar", "imprevisto", "limite", "cancelar", "hoje"}
+SO_TITULO = {"feito", "tirar", "imprevisto", "limite", "cancelar", "hoje"}
 
 REGRAS = """REGRAS DA AGENDA (o código já aplica as de horário; você só julga):
 - Quem decide a agenda é o guardião. Pergunte à pessoa SÓ quando for impossível: até 2h de hora extra a pergunta é "você prefere estender o dia ou renegociar o prazo?"; acima disso, renegociar o prazo com quem combinou. Nunca pergunte onde colocar algo.
@@ -49,6 +49,8 @@ PEDIDO = """PEDIDO DA PESSOA (traduza em instruções; não monte horário, o c�
 - o que ela mandou tirar DESTE DIA (a tarefa continua existindo e vai para outro dia): {"acao":"tirar","titulo":".."}
 - o que ela cancelou de vez ("cancela", "não vou mais fazer", "não faz mais sentido"): {"acao":"cancelar","titulo":".."} (a tarefa é fechada no ClickUp ao aprovar)
 - compromisso, refeição ou imprevisto com horário que ela disse (ex.: almoço às 14h, reunião de emergência): {"acao":"imprevisto","titulo":"..","inicio":"HH:MM","fim":"HH:MM"}
+- tarefa que ela disse que faz HOJE ("posso fazer hoje", "faço isso hoje", "quero ver isso hoje"): {"acao":"hoje","titulo":".."}, uma por tarefa.
+  Num dia de folga (fim de semana) SÓ entra hoje o que vier com "hoje"; o resto vai para o próximo dia de trabalho sem pergunta.
 - tarefa que ela quer em outro momento ou com outro prazo ("joga mais pra frente", "pronta antes do dia 27"): {"acao":"limite","titulo":"..","ate":"AAAA-MM-DD"}
   (o código acha o melhor dia até essa data; "mais pra frente" sem data: use a data da entrega ligada a ela, se houver, ou 7 dias depois de hoje)
 Use o título como aparece no plano atual quando for o mesmo item."""
@@ -57,6 +59,11 @@ Use o título como aparece no plano atual quando for o mesmo item."""
 def montar_prompt(resultado, cfg, marcos=(), pedido=None, plano_hoje=None):
     linhas = [f"Hoje é {date.today():%d/%m/%Y}, agora são {time.strftime('%H:%M')}. Você é o guardião da agenda de "
               f"{((cfg.get('pessoa') or {}).get('nome')) or 'uma pessoa'}.", REGRAS, ""]
+    trabalho = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}
+    dias = {trabalho[n] for n in ((cfg.get("rotina") or {}).get("dias_trabalho") or []) if n in trabalho} or {0, 1, 2, 3, 4}
+    if date.today().weekday() not in dias:
+        linhas += ["HOJE É DIA DE FOLGA (fora dos dias de trabalho). Nunca proponha estender hoje nem hora extra hoje. Só entra hoje o que ela pediu "
+                   "para hoje (acao hoje); o resto vai para o próximo dia de trabalho.", ""]
     if pedido:
         linhas += [PEDIDO, f'Ela disse: "{pedido}"', ""]
         if plano_hoje:
@@ -179,6 +186,8 @@ def ajustes(instrucoes):
             a["tirar"].append(str(i["titulo"]))
         elif acao == "cancelar":
             a.setdefault("cancelar", []).append(str(i["titulo"]))
+        elif acao == "hoje":
+            a.setdefault("hoje", []).append(str(i["titulo"]))
         elif acao == "limite":
             a["limites"][str(i["titulo"])] = i["ate"]
         elif acao == "imprevisto":

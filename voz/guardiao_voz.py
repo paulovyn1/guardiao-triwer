@@ -541,7 +541,9 @@ def avisar_modelo(texto):
 # Aqui o programa fecha a conta. Se a ação falhou, ou foi recusada porque a pessoa não a pediu, ele mesmo diz isso em voz alta no fim
 # da resposta e avisa o modelo, que não deve repetir nem afirmar que deu certo. (O toast de erro na tela já existia.)
 VERBO_ACAO = {"concluir": ("concluir", "conclua"), "reabrir": ("reabrir", "reabra"), "comentar": ("anotar em", "anote em"),
-              "criar": ("criar a tarefa", "crie a tarefa"), "aprovar": ("aprovar o plano", "aprove o plano")}
+              "criar": ("criar a tarefa", "crie a tarefa"), "aprovar": ("aprovar o plano", "aprove o plano"),
+              "mover": ("mover no plano", "mova no plano"), "editar": ("mudar no plano", "mude no plano"), "remover": ("tirar do plano", "tire do plano"),
+              "adicionar": ("pôr no plano", "ponha no plano"), "desfazer": ("desfazer no plano", "desfaça no plano")}
 ACOES_EM_CURSO = 0
 _TRAVA_ACOES = threading.Lock()
 CORRECOES = []  # frases a dizer quando a resposta termina
@@ -778,7 +780,7 @@ INTENCAO = {  # a ação só acontece se o que a pessoa disse realmente pede aqu
     "mover": re.compile(r"\bmov|\btroc|\bpass[ae]\b|\badi[ae]\b|antecip|desloc|\bmuda|\balter|\bjoga|empurr|\bremarc|\breagend"),
     "editar": re.compile(r"renome|\bmuda|\balter|\btroc|\bedit|corrig|\bajust|\bchama"),
     "remover": re.compile(r"remov|\btira\b|\btirar\b|\bexclu|\bapag|\bcorta|nao vou|nao da pra|nao preciso|esquece|de fora"),
-    "adicionar": re.compile(r"adicion|\binclu|acrescent|\bcri[ae]|novo bloco|mais um|encaix|\bcoloc|\bbota"),
+    "adicionar": re.compile(r"adicion|\binclu|acrescent|\bcri[ae]|novo bloco|mais um|encaix|\bcoloc|\bbota|(fazer|faco|faz|ver|vejo|resolv\w*|decid\w*) (\w+ ){0,3}hoje"),
     "desfazer": re.compile(r"desfaz|\bvolt|como estava|errei|\banul"),
     "aprovar": re.compile(r"aprov"),
     # acompanhamento da execução: valem sempre que há um aviso de tempo em aberto; fora dele, só se a frase pedir
@@ -787,7 +789,7 @@ INTENCAO = {  # a ação só acontece se o que a pessoa disse realmente pede aqu
     "motivo": re.compile(r"."),
     # guardião completo: pedidos de planejar, refazer ou organizar várias coisas de uma vez
     "completo": re.compile(r"refa[zc]|replanej|reorganiz|planej|\bmont|remont|\bsemana|\bamanha|destrinch|\bquebr|encaix|redistribu|reprogram|prioriz|organiz"
-                           r"|penden|atras|\bplano\b|\bdia\b|\bagenda|complet"),
+                           r"|penden|atras|\bplano\b|\bdia\b|\bagenda|complet|(fazer|faco|faz|ver|vejo|resolv\w*|decid\w*) (\w+ ){0,3}hoje"),
 }
 EDITA = re.compile(r"mov|troc|pass[ae]|adi[ae]|remov|tira|inclu|acrescent|mud|alter|antes|depois|hora|cedo|tarde|renome|apag")
 SIM_APROVAR = {"sim", "sim pode", "pode", "pode sim", "pode aprovar", "aprova", "aprove", "aprovado", "aprova sim", "isso", "isso mesmo", "claro",
@@ -1646,6 +1648,7 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
         elif nome in ("mover", "editar", "remover", "adicionar", "desfazer"):
             if not plano_permitido(nome, texto_usuario):
                 print(f"  (ignorei o ajuste '{nome}': a pessoa não pediu isso)")
+                registrar_recusa_de_acao(nome, None if nome == "adicionar" else arg.partition("|")[0].strip())  # ele já disse que fez: no fim conta que não fez
                 continue
             ref, _, resto = arg.partition("|")
             ref = ref.strip()

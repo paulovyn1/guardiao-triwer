@@ -71,9 +71,18 @@ def _tipo_janela(item, ajustes=None):
     return ra.tipo_de(item.get("titulo"), item.get("lista") or "")
 
 
-def _dias(hoje, cfg, n):
+def folga(d, cfg):
+    """Dia fora de rotina.dias_trabalho (fim de semana)."""
+    return d.weekday() not in cp._dias_de_trabalho((cfg or {}).get("rotina") or {})
+
+
+def _dias(hoje, cfg, n, incluir_hoje=False):
+    """Os próximos n dias de trabalho. Com incluir_hoje num dia de folga (ela está trabalhando hoje e pediu o plano), hoje entra também: antes o
+    domingo nunca ganhava plano, tudo que vencia nele virava "não cabe" e o plano nunca aparecia para aprovar."""
     trabalho = cp._dias_de_trabalho((cfg or {}).get("rotina") or {})
-    d, saida = hoje, []
+    d, saida = hoje, ([hoje] if incluir_hoje and hoje.weekday() not in trabalho else [])
+    if saida:
+        d += timedelta(days=1)
     while len(saida) < n:
         if d.weekday() in trabalho:
             saida.append(d)
@@ -291,7 +300,9 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
     existentes = vs.carregar_planos(oper, hoje)
     rascunho, aprovados, fila = {}, [], {}
     acrescimo = {}  # dia aprovado: o motor só ACRESCENTA em espaço livre (nunca move o que ela aprovou) e o dia volta para aprovação
-    for d in _dias(hoje, cfg, dias):
+    pedidos_hoje = [str(t) for t in (ajustes or {}).get("hoje") or []]
+    hoje_folga = incluir_hoje and folga(hoje, cfg)
+    for d in _dias(hoje, cfg, dias, incluir_hoje):
         iso = d.isoformat()
         ex = existentes.get(iso)
         if d == hoje and not incluir_hoje:
@@ -309,6 +320,15 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             chave = item.get("id") or _norm(item.get("titulo"))
             if chave and (chave not in fila or (not fila[chave].get("limite") and item.get("limite"))):  # o limite da etapa vale mesmo se ela voltou à fila sem ele
                 fila[chave] = {**fila.get(chave, {}), **item}
+        if d == hoje and hoje_folga:  # folga: o dia começa vazio (sem almoço da rotina, sem "conferir com"); tarefa do ClickUp que estava nele volta à fila
+            base["fixos"] = [f for f in base.get("fixos") or [] if f.get("clickup_id")]
+            for b in list(base.get("blocos") or []):
+                if b.get("status") == "feito":
+                    continue
+                base["blocos"].remove(b)
+                if b.get("clickup_id"):
+                    fila.setdefault(b["clickup_id"], {"id": b["clickup_id"], "titulo": b.get("titulo"), "limite": _limite_da_tarefa(b["clickup_id"], oper),
+                                                      "origem": "dia de folga", "minutos": max(5, cp._minutos(b)), "lista": b.get("frente")})
         if d == hoje:
             _refazer_hoje(base, d, oper, ajustes, fila)
         _soltar_nao_fixas(base, d, oper, cfg, fila)
@@ -334,6 +354,15 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             if _parecido(item.get("titulo"), titulo):
                 item["limite"] = date.fromisoformat(ate)
                 item.pop("ate", None)
+    for titulo in pedidos_hoje:  # "faço hoje": sai do dia em que o plano base pôs (atrasada cai em qualquer dia) e volta à fila, que põe hoje primeiro
+        for iso, plano in rascunho.items():
+            for b in list(plano.get("blocos") or []) if iso != hoje.isoformat() else []:
+                if b.get("status") != "feito" and _parecido(b.get("titulo"), titulo):
+                    plano["blocos"].remove(b)
+                    fila.setdefault(b.get("clickup_id") or _norm(b.get("titulo")), {"id": b.get("clickup_id"), "titulo": b.get("titulo"),
+                                                                                    "limite": _limite_da_tarefa(b.get("clickup_id"), oper),
+                                                                                    "origem": "ela disse que faz hoje", "minutos": max(5, cp._minutos(b)),
+                                                                                    "lista": b.get("frente")})
     prioridade = (ajustes or {}).get("prioridade") or {}
     ja = {b.get("clickup_id") for p in acrescimo.values() for b in p.get("blocos") or [] if b.get("clickup_id")}
     ja |= {b.get("clickup_id") for iso, p in existentes.items() if iso > max(list(rascunho) + aprovados or [hoje.isoformat()])
@@ -345,6 +374,8 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
     itens = sorted(fila.values(), key=lambda i: (i.get("limite") or date.max, prioridade.get(str(i.get("id") or ""), 4),
                                                  ordem.get(i.get("etapa") or _tipo_janela(i, ajustes), 4), str(i.get("titulo"))))
     for iso, plano in rascunho.items():
+        if hoje_folga and iso == hoje.isoformat():
+            continue  # dia de folga: sem consumo de rotina, só o que ela pediu
         if any(i.get("etapa") == "copy" for i in itens):
             _inserir_consumo(plano, date.fromisoformat(iso), cfg, nome, memoria)
     nao_coube, julgar, adiados = [], [], []
@@ -354,10 +385,22 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
         if not medido:
             julgar.append({"id": item.get("id"), "titulo": item.get("titulo"), "minutos_padrao": minutos})
         tipo = _tipo_janela(item, ajustes)
-        validos = [iso for iso in rascunho if (not item.get("limite") or iso <= max(item["limite"].isoformat(), hoje.isoformat()))  # limite que já passou: hoje ainda serve
-                   and (not item.get("abre") or iso >= item["abre"].isoformat())]
+        pedido_hoje = any(_parecido(item.get("titulo"), t) for t in pedidos_hoje)
+        piso = hoje.isoformat()
+        if hoje_folga and not pedido_hoje:  # dia de folga: só entra o que ela disse que faz hoje; o resto, vencido ou não, vai para o próximo dia de trabalho
+            piso = min([iso for iso in rascunho if iso > hoje.isoformat()] or [piso])
+        validos = [iso for iso in rascunho if (not item.get("limite") or iso <= max(item["limite"].isoformat(), piso))  # limite que já passou: o primeiro dia possível ainda serve
+                   and (not item.get("abre") or iso >= item["abre"].isoformat())
+                   and not (hoje_folga and iso == hoje.isoformat() and not pedido_hoje)]
+        if pedido_hoje and hoje.isoformat() in rascunho:  # ela disse "faço hoje": hoje primeiro, mesmo num dia de folga
+            validos = [hoje.isoformat()] + [v for v in validos if v != hoje.isoformat()]
         posto = None
-        if item.get("limite"):  # com limite: de trás para frente a partir do próprio limite (o limite é o prazo do preparo, não o do evento)
+        if pedido_hoje and hoje.isoformat() in rascunho:  # ela disse "faço hoje": qualquer horário livre de hoje antes de outro dia
+            posto = (_colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria)
+                     or _colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria, qualquer=True))
+            if posto:
+                continue
+        if item.get("limite") and not pedido_hoje:  # com limite: de trás para frente a partir do próprio limite (o limite é o prazo do preparo, não o do evento)
             validos = sorted(validos, reverse=True)
         for iso in validos:
             posto = _colocar(rascunho[iso], date.fromisoformat(iso), item, minutos, tipo, nome, memoria)
@@ -368,6 +411,8 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             if posto:
                 break
         validos = sorted(validos)
+        if hoje_folga and validos and validos[-1] == hoje.isoformat():
+            validos = []  # folga: hoje não encolhe stories nem vira hora extra
         while not posto and validos and _encolher_stories(rascunho[validos[-1]], date.fromisoformat(validos[-1]), cfg):  # stories só encolhe se não há para onde mover
             posto = _colocar(rascunho[validos[-1]], date.fromisoformat(validos[-1]), item, minutos, tipo, nome, memoria)
         if posto:
