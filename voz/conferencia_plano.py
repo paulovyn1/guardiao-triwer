@@ -195,6 +195,20 @@ ETAPA_DESIGN = re.compile(r"^\s*(\[?design\]?\b|arte\b)", re.I)
 LETRA_NO_NOME = re.compile(r"\b(carrossel|post|reels?|story|stories)\s+[A-Z]\b(?!\w)")
 
 
+RELATORIO = re.compile(r"^\s*\[?preencher relat[óo]rio|^\s*\[?relat[óo]rio\b", re.I)
+
+
+def _data_do_relatorio_pelo_titulo(bloco, maes):
+    """Data de postagem pelo título "Preencher relatório (Manychat -) <nome do post>" comparado ao nome da mãe."""
+    t = _norm(re.sub(r"^\s*\[?preencher relat[óo]rio( manychat)?\s*[-:|]?\s*(do )?", "", str(bloco.get("titulo") or ""), flags=re.I))
+    if len(t) < 12:
+        return None
+    for m in maes:
+        if _norm(m.get("nome"))[:25] == t[:25]:
+            return str(m.get("prazo") or "") or None
+    return None
+
+
 def _etapa(bloco):
     """'copy', 'design' ou None, pelo campo etapa ou pelo começo do título ("Copy | ...", "[DESIGN] ...", "Design: ...")."""
     e = _norm(bloco.get("etapa"))
@@ -226,7 +240,7 @@ def _post_do_bloco(bloco, maes):
     return None, None
 
 
-def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=False):
+def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=False, consumo_antes_de_ideia=False):
     """Regras de conteúdo e rotina que viraram conta (2026-10-14). Gerais: a copy de um post antes do design dele; etapas do mesmo tipo na ordem
     das datas de postagem; o almoço da rotina não some; post não se chama por letra. Pessoal (só com rotina.regras.etapas_em_lote no config):
     copies juntas e designs juntos, nunca copy, design, copy no mesmo dia."""
@@ -250,6 +264,17 @@ def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=Fals
                 continue
             chave, data_post = _post_do_bloco(b, maes)
             etapas.append((d, str(b.get("inicio") or ""), e, chave, data_post, b.get("titulo")))
+    for d, p in list((outros or {}).items()) + [(iso, plano)]:
+        if d != iso or p is not plano:
+            continue
+        for b in p.get("blocos") or []:  # relatório de post só 24h depois da postagem: no mínimo no dia seguinte
+            if RELATORIO.search(str(b.get("titulo") or "")):
+                _chave, data_post = _post_do_bloco(b, maes)
+                if not data_post:
+                    data_post = _data_do_relatorio_pelo_titulo(b, maes)
+                if data_post and d <= data_post:
+                    problemas.append(f"\"{b.get('titulo')}\" ({d}) vem antes de 24h da postagem (post de {data_post}). "
+                                     f"Relatório de post só 24h depois: ponha no dia seguinte ao post ou depois, nunca no mesmo dia.")
     etapas.sort()
     for i, (d1, h1, e1, k1, p1, t1) in enumerate(etapas):
         for d2, h2, e2, k2, p2, t2 in etapas[i + 1:]:
@@ -260,12 +285,276 @@ def conferir_regras(plano, dia, outros=None, maes=(), fixos_semana=(), lote=Fals
             if e1 == e2 and p1 and p2 and k1 != k2 and p1 > p2 and d2 <= p2:
                 problemas.append(f"\"{t1}\" (post de {p1}) está antes de \"{t2}\" (post de {p2}, que sai primeiro). "
                                  f"Etapas do mesmo tipo vão na ordem das datas de postagem.")
+    if consumo_antes_de_ideia:  # pessoal (rotina.regras.ideia_depois_de_consumo): a ideia nasce do consumo com a pergunta, nunca solta
+        ordem = sorted(plano.get("blocos") or [], key=lambda x: str(x.get("inicio") or ""))
+        for i, b in enumerate(ordem):
+            t = _norm(b.get("titulo"))
+            if re.search(r"\bideia|\bdopa\b", t) and not re.search(r"encaix|calendario", t) and not any("consumo" in _norm(x.get("titulo")) for x in ordem[:i]):
+                problemas.append(f"\"{b.get('titulo')}\" é bloco de ideia sem um bloco de consumo antes no mesmo dia. A ideia nasce do consumo: ponha o consumo com a pergunta antes.")
     if lote:
         do_dia = [e for d, _h, e, _k, _p, _t in etapas if d == iso]
         for a, b, c in zip(do_dia, do_dia[1:], do_dia[2:]):
             if a == c != b:
                 problemas.append("Neste dia há copy, design e copy alternados. Agrupe: copies juntas, depois designs juntos.")
                 break
+    return problemas
+
+
+CONSUMO = re.compile(r"consumo|recarga")
+
+
+def conferir_consumo(plano):
+    """Um bloco de consumo/recarga por dia. A sobra do dia não vira um segundo (caso real 15/10: 'Recarga' às 9h20 e 'Consumo com a pergunta' às 16h30)."""
+    blocos = [x for x in (plano.get("blocos") or []) + (plano.get("fixos") or []) if CONSUMO.search(_norm(x.get("titulo")))]
+    if len(blocos) > 1:
+        return ["O dia tem " + str(len(blocos)) + " blocos de consumo/recarga (" + "; ".join(f"{x.get('titulo')} {x.get('inicio')}" for x in blocos)
+                + "). Deixe um só: a sobra vai para outra coisa ou fica como pausa."]
+    return []
+
+
+def conferir_duplicadas(plano, dia, outros):
+    """Tarefa do ClickUp (clickup_id) em mais de um dia. Cada tarefa tem um dia só; o outro plano é quem manda."""
+    iso = dia.isoformat()
+    problemas = []
+    for b in plano.get("blocos") or []:
+        cid = b.get("clickup_id")
+        if not cid:
+            continue
+        for d, p in (outros or {}).items():
+            if d != iso and any(x.get("clickup_id") == cid and x.get("id") is not None for x in p.get("blocos") or []):
+                problemas.append(f"\"{b.get('titulo')}\" já está no plano de {d[8:10]}/{d[5:7]}. Uma tarefa tem um dia só: deixe-a em um dos dois.")
+                break
+    return problemas
+
+
+def conferir_prazos(plano, dia, tarefas):
+    """Bloco de tarefa que só tem horário limite no ClickUp (sem início) nunca termina depois do limite nem vai para depois do dia do prazo.
+    Caso real 15/10: 'Substack - Newsletter' (publica segunda às 9h) foi para segunda 17h10."""
+    iso = dia.isoformat()
+    problemas = []
+    for b in plano.get("blocos") or []:
+        t = (tarefas or {}).get(b.get("clickup_id"))
+        if not t or t.get("inicio") or t.get("aprovar"):
+            continue
+        prazo, limite = str(t.get("prazo") or ""), str(t.get("fim") or "")
+        if prazo and (iso > prazo or (iso == prazo and limite and str(b.get("fim") or "") > limite)):
+            problemas.append(f"\"{b.get('titulo')}\" ({iso[8:10]}/{iso[5:7]} {b.get('inicio')} a {b.get('fim')}) fica depois do prazo da tarefa "
+                             f"({prazo[8:10]}/{prazo[5:7]}{' ' + limite if limite else ''}). O trabalho vai ANTES do prazo, em dia anterior ou no sábado.")
+    return problemas
+
+
+_DIAS_EN = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}
+
+
+def _minutos(b):
+    try:
+        (h1, m1), (h2, m2) = [tuple(int(x) for x in str(b[k]).split(":")) for k in ("inicio", "fim")]
+        return (h2 * 60 + m2) - (h1 * 60 + m1)
+    except (KeyError, ValueError, TypeError):
+        return 0
+
+
+def _dias_de_trabalho(rot):
+    return {_DIAS_EN[n] for n in rot.get("dias_trabalho") or [] if n in _DIAS_EN} or {0, 1, 2, 3, 4}
+
+
+# Stories todo dia de trabalho (decisão de produto, 2026-10-16). Liga com rotina.stories no config.json; sem a chave, desligado (cada negócio decide: nem todo
+# mundo vende de um jeito que precise de stories). O TIPO DO DIA vem primeiro e define o tempo e as telas do dia; o tempo pode ser QUEBRADO em vários blocos curtos
+# (15 min ou menos) espalhados pelo dia, não precisa ser feito de uma vez. Em dia apertado a caixinha cai para 1 bloco.
+STORIES_TIPOS_PADRAO = {
+    "normal": {"telas": 10, "minutos": 30, "minutos_apertado": 30},
+    "caixinha": {"telas": 12, "minutos": 45, "minutos_apertado": 45, "palavras": ["caixinha"]},  # 45 sempre: só encolhe se nada puder ser remanejado (o motor decide)
+    "captacao": {"telas": 3, "minutos": 15, "minutos_apertado": 15, "palavras": ["captacao", "leads", "isca"]},
+}
+STORIES_DIVULGACAO = ("replay", "convite", "divulg", "lembrete", "aviso")  # divulgação não conta para o tipo do dia
+NOME_TIPO_STORIES = {"normal": "sequência normal", "caixinha": "respostas da caixinha", "captacao": "captação de leads"}
+PADRAO_SEMANA_STORIES = {"0": "normal", "1": "caixinha", "2": "normal", "3": "captacao", "4": "caixinha"}
+LIMITE_DIA_APERTADO = 0.9
+BLOCO_IDEAL_MIN, BLOCO_MINIMO_MIN = 15, 5
+
+
+def config_stories(cfg):
+    s = ((cfg or {}).get("rotina") or {}).get("stories")
+    if not isinstance(s, dict) or s.get("ativo") is False:
+        return None
+    tipos = {k: dict(v, **(s.get("tipos") or {}).get(k, {})) for k, v in STORIES_TIPOS_PADRAO.items()}
+    return {"captacao_por_semana": int(s.get("dias_captacao_por_semana", 1)), "bloco_max_min": int(s.get("bloco_max_min") or 40), "tipos": tipos,
+            "padrao": s.get("padrao_semana") or PADRAO_SEMANA_STORIES}
+
+
+def _eh_stories(b):
+    t = _norm(b.get("titulo"))
+    return ("stories" in t or "story" in t or "caixinha" in t) and "cronograma" not in t
+
+
+def tipo_stories(titulo, s):
+    t = _norm(titulo)
+    if any(p in t for p in STORIES_DIVULGACAO):
+        return "divulgacao"
+    for nome in ("captacao", "caixinha"):
+        if any(_norm(p) in t for p in s["tipos"][nome]["palavras"]):
+            return nome
+    return "normal"
+
+
+def tipo_do_dia(plano, dia, s):
+    """O tipo de stories do dia: o que o plano declara em "stories_tipo" ou, sem isso, o padrão da semana (rotina.stories.padrao_semana)."""
+    declarado = (plano or {}).get("stories_tipo")
+    if declarado in s["tipos"]:
+        return declarado
+    padrao = s["padrao"].get(str(dia.weekday()))
+    return padrao if padrao in s["tipos"] else "normal"
+
+
+def dia_apertado(plano, dia, memoria=None):
+    # No replanejamento a ocupação do plano final pode cair porque tarefas foram
+    # movidas. Isso não apaga o aperto que motivou a redução da caixinha.
+    modo = _norm((plano or {}).get("modo_dia"))
+    aviso = _norm((plano or {}).get("aviso"))
+    if modo in ("apertado", "dia apertado") and any(
+            palavra in aviso for palavra in ("replanej", "remanej", "adiad", "movid", "passa", "saiu", "simplific")):
+        return True
+    try:
+        import rota_agenda as ra
+        return ra.ocupacao(plano, dia, memoria)[0] >= LIMITE_DIA_APERTADO
+    except Exception:
+        return False
+
+
+def minutos_stories_do_tipo(plano, tipo, s):
+    return sum(_minutos(b) for b in (plano.get("blocos") or []) + (plano.get("fixos") or []) if _eh_stories(b) and tipo_stories(b.get("titulo"), s) == tipo)
+
+
+def conferir_stories(plano, dia, cfg, outros=None, memoria=None):
+    """O dia de trabalho tem o tipo de stories definido e o tempo que o tipo pede, em blocos curtos que podem ser quebrados: normal 30 min (10 telas), caixinha 45 min (12 telas;
+    15 min em dia apertado), captação 15 min (3 telas, um dia por semana). Divulgação (replay, convite) não conta. Bloco longo demais é lote e é barrado."""
+    s = config_stories(cfg)
+    rot = (cfg or {}).get("rotina") or {}
+    if not s or dia.weekday() not in _dias_de_trabalho(rot):
+        return []
+    tipo = tipo_do_dia(plano, dia, s)
+    t = s["tipos"][tipo]
+    apertado = dia_apertado(plano, dia, memoria)
+    precisa = t["minutos_apertado"] if apertado else t["minutos"]
+    tem = minutos_stories_do_tipo(plano, tipo, s)
+    problemas = []
+    if tem < precisa:
+        problemas.append(f"Stories: hoje é dia de {NOME_TIPO_STORIES[tipo]} ({t['telas']} telas). O plano tem {tem} min desse tipo e o dia pede {precisa} min"
+                         f"{' (dia apertado)' if apertado else ''}. Pode quebrar em vários blocos curtos (15 min ou menos) espalhados pelo dia, antes de tarefa que dispute o horário. "
+                         "Divulgação (replay, convite) não substitui.")
+    if tipo == "captacao":
+        semana = dia.isocalendar()[:2]
+        usados = 0
+        for d, p in (outros or {}).items():
+            try:
+                dd = date.fromisoformat(d)
+            except ValueError:
+                continue
+            if dd != dia and dd.isocalendar()[:2] == semana and (p.get("stories_tipo") or s["padrao"].get(str(dd.weekday()))) == "captacao":
+                usados += 1
+        if usados >= s["captacao_por_semana"]:
+            problemas.append(f"Stories de captação de leads só em {s['captacao_por_semana']} dia por semana, e esta semana já tem outro. Troque este dia para caixinha ou sequência normal.")
+    for b in (plano.get("blocos") or []) + (plano.get("fixos") or []):
+        if _eh_stories(b) and _minutos(b) > s["bloco_max_min"]:
+            problemas.append(f"\"{b.get('titulo')}\" tem {_minutos(b)} min, acima de {s['bloco_max_min']}: divida os stories em blocos curtos espalhados pelo dia, nunca em lote.")
+    return problemas
+
+
+def conferir_blocos_diarios(plano, dia, cfg):
+    """Blocos que TODO dia de trabalho precisa ter (decisão de produto, 2026-10-15: stories é prioridade e entra todos os dias). Vem de config.json:
+    rotina.blocos_diarios = [{"nome": "stories", "palavras": ["stories", "story"], "excluir": ["cronograma"], "minutos_minimos": 15, "bloco_max_min": 40}].
+    Falta bloco, ou soma abaixo do mínimo, ou bloco maior que o máximo (a pessoa pediu stories espalhados, nunca em lote): barra o plano."""
+    rot = (cfg or {}).get("rotina") or {}
+    regras = rot.get("blocos_diarios") or []
+    trabalho = {_DIAS_EN[n] for n in rot.get("dias_trabalho") or [] if n in _DIAS_EN} or {0, 1, 2, 3, 4}
+    if not regras or dia.weekday() not in trabalho:
+        return []
+    problemas = []
+    for r in regras:
+        palavras = [_norm(x) for x in r.get("palavras") or [r.get("nome")] if x]
+        excluir = [_norm(x) for x in r.get("excluir") or []]
+        itens = [b for b in (plano.get("blocos") or []) + (plano.get("fixos") or [])
+                 if any(p in _norm(b.get("titulo")) for p in palavras) and not any(e in _norm(b.get("titulo")) for e in excluir)]
+        total = sum(_minutos(b) for b in itens)
+        minimo = int(r.get("minutos_minimos") or 1)
+        nome = r.get("nome") or palavras[0]
+        if total < minimo:
+            problemas.append(f"Todo dia de trabalho tem {nome}, e este dia tem {total} min (mínimo {minimo}). Ponha um bloco de {nome} antes de qualquer item que dispute o horário.")
+        maximo = int(r.get("bloco_max_min") or 0)
+        for b in itens:
+            if maximo and _minutos(b) > maximo:
+                problemas.append(f"\"{b.get('titulo')}\" tem {_minutos(b)} min, acima de {maximo}: divida {nome} em blocos menores espalhados pelo dia, nunca em lote.")
+    return problemas
+
+
+def conferir_travas(plano, dia, tarefas, cfg, memoria):
+    """Fixa: data e horário não mudam. Prazo máximo (entrega, cliente, marco de campanha): pode vir antes, nunca depois, porque mudar exige renegociar."""
+    import travas as tv
+    iso = dia.isoformat()
+    marcos = tv.ids_de_marcos(memoria)
+    problemas = []
+    for b in plano.get("blocos") or []:
+        t = (tarefas or {}).get(b.get("clickup_id"))
+        if not t:
+            continue
+        c = tv.classe(t, cfg, marcos)
+        if c == tv.FIXA and (iso != t.get("prazo") or (t.get("inicio") and (b.get("inicio") != t.get("inicio") or b.get("fim") != t.get("fim")))):
+            problemas.append(f"\"{b.get('titulo')}\" é tarefa fixa ({str(t.get('prazo'))[8:10]}/{str(t.get('prazo'))[5:7]} {t.get('inicio') or ''}): data e horário não mudam sem negociar com quem combinou.")
+        elif c == tv.LIMITE and iso > str(t.get("prazo") or "9999"):
+            problemas.append(f"\"{b.get('titulo')}\" tem prazo máximo em {str(t.get('prazo'))[8:10]}/{str(t.get('prazo'))[5:7]}: pode ser feita antes, nunca depois, porque mudar exige renegociar.")
+    return problemas
+
+
+def conferir_etapas(plano, dia, tarefas, maes, outros):
+    """Etapas de post (etapas_post.py): nenhuma passa do limite da postagem, relatório não abre antes de 24h, e etapa que já chegou ao limite está em algum plano."""
+    import etapas_post as ep
+    iso = dia.isoformat()
+    problemas = []
+    no_plano = {b.get("clickup_id") for b in plano.get("blocos") or [] if b.get("clickup_id")}
+    em_outros = {b.get("clickup_id") for d, p in (outros or {}).items() if d != iso for b in p.get("blocos") or [] if b.get("clickup_id") and b.get("id") is not None}
+    for b in plano.get("blocos") or []:
+        t = (tarefas or {}).get(b.get("clickup_id"))
+        e = ep.info(t, maes) if t else None
+        if not e:
+            continue
+        if e["limite"] and dia > e["limite"]:
+            problemas.append(f"\"{b.get('titulo')}\" ({iso[8:10]}/{iso[5:7]}) passa do limite: " + (f"o post sai em {e['post']:%d/%m}, " if e["post"] else "")
+                             + f"a etapa termina até {e['limite']:%d/%m}. Mova para antes.")
+        if e["abre"] and dia < e["abre"]:
+            problemas.append(f"\"{b.get('titulo')}\" ({iso[8:10]}/{iso[5:7]}) vem antes de 24h da postagem (post de {e['post']:%d/%m}): só a partir de {e['abre']:%d/%m}.")
+    for e in ep.pendentes(list((tarefas or {}).values()), maes):
+        if e["limite"] and e["limite"] <= dia and e["id"] not in no_plano and e["id"] not in em_outros:
+            problemas.append(f"A etapa \"{e['titulo']}\" chegou ao limite ({e['limite']:%d/%m}) e não está em nenhum plano. Ponha neste dia ou antes.")
+    return problemas
+
+
+# Alavancas: o que move a métrica de uma campanha PÚBLICA de venda (mais gente entrando na venda). Campanha interna não tem.
+# A nota da campanha pode listar as suas no cabeçalho ("alavancas: stories, aviso no Daily"); sem a lista, vale esta.
+ALAVANCAS_PADRAO = ("stories", "story", "daily", "grupo", "antecipa", "convite", "lembrete", "aviso")
+JANELA_ALAVANCA_DIAS = 3
+
+
+def conferir_alavancas(plano, dia, memoria, janela=JANELA_ALAVANCA_DIAS):
+    """Campanha pública de venda (tipo "venda...") que termina em até `janela` dias exige, no plano de cada um desses dias, pelo menos um bloco
+    que mova a métrica dela (stories, aviso no grupo, convite). Sem isso o tempo sobrando vai para tarefa que não traz gente."""
+    if not memoria:
+        return []
+    problemas = []
+    titulos = [_norm(x.get("titulo")) for x in (plano.get("blocos") or []) + (plano.get("fixos") or [])]
+    for slug in campanhas_ativas(memoria, dia):
+        c = _cabecalho(os.path.join(memoria, "campanhas", slug + ".md"))
+        if not _norm(c.get("tipo")).startswith("venda") or _norm(c.get("publica")) in ("nao", "interna"):
+            continue
+        try:
+            fim = date.fromisoformat(c.get("data_fim", ""))
+        except ValueError:
+            continue
+        if not 0 <= (fim - dia).days <= janela:
+            continue
+        palavras = [_norm(p) for p in re.split(r"[,;]", c.get("alavancas") or "") if _norm(p)] or list(ALAVANCAS_PADRAO)
+        if not any(p in t for p in palavras for t in titulos):
+            problemas.append(f"\"{c.get('nome') or slug}\" é venda pública e termina em {fim:%d/%m}: o plano de {dia:%d/%m} não tem nenhum bloco que traga gente "
+                             f"({', '.join(palavras[:4])}). Ponha um bloco assim antes de qualquer tarefa que não mova a campanha.")
     return problemas
 
 
@@ -280,8 +569,39 @@ def texto_do_plano(entrada):
         return None
 
 
-def conferir_regras_da_pasta(plano, dia, outros, oper):
-    """conferir_regras com o que está na pasta operacional: mães dos posts, fixos da rotina e as regras pessoais ligadas no config.json."""
+# Avisos: regra de preferência ou de quantidade que o plano tenta cumprir, mas que não justifica deixar a pessoa sem plano (caso real 16/10: o
+# replanejamento das 14h35 foi recusado três vezes por stories e copy/design alternados, e ela ficou o dia inteiro com o plano da véspera).
+# O que é mecânico o código conserta antes (plano_base.consertar); o que sobrar vai para o "aviso" do plano, que ela vê ao aprovar.
+# Grave continua barrando: sobreposição, tarefa que some, prazo, fixa movida, duplicada, almoço, relatório antes de 24h, design antes da copy.
+_AVISO = re.compile(r"alternados|pelo título, não por letra|bloco de ideia sem um bloco de consumo|^Stories:|Stories de captação de leads só|"
+                    r"nenhum bloco que traga gente|horário nobre da manhã|blocos de consumo/recarga|divida os stories|^Todo dia de trabalho tem")
+
+
+def e_aviso(problema):
+    return bool(_AVISO.search(str(problema)))
+
+
+def separar(problemas):
+    """(graves, avisos): graves barram a gravação; avisos vão para o campo "aviso" do plano."""
+    return [p for p in problemas if not e_aviso(p)], [p for p in problemas if e_aviso(p)]
+
+
+def anotar_avisos(plano, avisos):
+    """Junta ao "aviso" do plano o que a conferência não conseguiu resolver, sem repetir a mesma frase."""
+    novos = [a for a in dict.fromkeys(avisos) if a and a not in str(plano.get("aviso") or "")]
+    if novos:
+        plano["aviso"] = (str(plano.get("aviso") or "").rstrip() + " Pendências que ficaram para você decidir: " + " ".join(novos)).strip()
+    return plano
+
+
+def conferir_regras_da_pasta(plano, dia, outros, oper, com_avisos=False):
+    """conferir_regras com o que está na pasta operacional: mães dos posts, fixos da rotina e as regras pessoais ligadas no config.json.
+    Devolve só os problemas graves; com_avisos=True devolve (graves, avisos)."""
+    graves, avisos = separar(_regras_da_pasta(plano, dia, outros, oper))
+    return (graves, avisos) if com_avisos else graves
+
+
+def _regras_da_pasta(plano, dia, outros, oper):
     try:
         with open(os.path.join(oper, "posts_maes.json"), encoding="utf-8-sig") as f:
             maes = json.load(f).get("maes") or []
@@ -292,4 +612,44 @@ def conferir_regras_da_pasta(plano, dia, outros, oper):
             rotina = json.load(f).get("rotina") or {}
     except (OSError, ValueError):
         rotina = {}
-    return conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool((rotina.get("regras") or {}).get("etapas_em_lote")))
+    regras = rotina.get("regras") or {}
+    try:
+        with open(os.path.join(oper, "config.json"), encoding="utf-8-sig") as f:
+            memoria = (json.load(f).get("pastas") or {}).get("memoria")
+    except (OSError, ValueError):
+        memoria = None
+    try:
+        with open(os.path.join(oper, "resumo_clickup.json"), encoding="utf-8-sig") as f:
+            tarefas = {t.get("id"): t for t in json.load(f).get("tarefas") or []}
+    except (OSError, ValueError):
+        tarefas = {}
+    try:
+        with open(os.path.join(oper, "config.json"), encoding="utf-8-sig") as f:
+            cfg_completo = json.load(f)
+    except (OSError, ValueError):
+        cfg_completo = {}
+    return (conferir_regras(plano, dia, outros, maes, rotina.get("fixos_semana") or [], bool(regras.get("etapas_em_lote")),
+                            bool(regras.get("ideia_depois_de_consumo"))) + conferir_alavancas(plano, dia, memoria)
+            + conferir_consumo(plano) + conferir_duplicadas(plano, dia, outros) + conferir_prazos(plano, dia, _sem_preparo(tarefas, cfg_completo, oper))
+            + conferir_etapas(plano, dia, tarefas, maes, outros) + conferir_travas(plano, dia, tarefas, cfg_completo, memoria)
+            + conferir_blocos_diarios(plano, dia, cfg_completo) + conferir_stories(plano, dia, cfg_completo, outros, memoria)
+            + conferir_preparos(plano, dia, cfg_completo, oper, outros))
+
+
+def _sem_preparo(tarefas, cfg, oper):
+    """O prazo do ClickUp das etapas de preparo da live é da automação: o limite real vem de preparos.py, não do ClickUp."""
+    try:
+        import preparos
+        ids = preparos.ids(cfg, oper)
+    except Exception:
+        return tarefas
+    return {k: v for k, v in (tarefas or {}).items() if k not in ids}
+
+
+def conferir_preparos(plano, dia, cfg, oper, outros=None):
+    """Preparo de evento recorrente (como uma live semanal): etapa dela que chegou ao limite e não está em nenhum plano, ou que está depois do limite."""
+    try:
+        import preparos
+    except ImportError:
+        return []
+    return preparos.conferir(plano, dia, cfg, oper, outros)

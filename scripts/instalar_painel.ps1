@@ -10,6 +10,7 @@
 #   -Quieto       sem barra de progresso nos downloads (para rodar em segundo plano)
 param(
     [string]$Pasta = "",
+    [ValidateSet('Claude','Codex','Ambos')][string]$Provedores = 'Claude',
     [switch]$Verificar,
     [switch]$SemAtalho,
     [switch]$Quieto,
@@ -92,6 +93,14 @@ function Estado-Claude {
     return 'falta'
 }
 function Tem-Claude { (Estado-Claude) -eq 'ok' }
+function Estado-Codex {
+    $c = Get-Command codex -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $c) { return 'falta' }
+    try {
+        $v = & $c.Source --version 2>&1
+        return $(if ($LASTEXITCODE -eq 0) { 'ok' } else { 'nao_executa' })
+    } catch { return 'nao_executa' }
+}
 
 # ---------------------------------------------------------------------------------------------------------------
 if ($Verificar) {
@@ -104,6 +113,7 @@ if ($Verificar) {
         chave_groq        = $(if (Variavel-Usuario 'GROQ_API_KEY') { 'ok' } else { 'falta' })
         token_clickup     = $(if (Variavel-Usuario 'CLICKUP_API_TOKEN') { 'ok' } else { 'falta' })
         claude            = (Estado-Claude)
+        codex             = (Estado-Codex)
         config            = $(if (Test-Path (Join-Path $op 'config.json')) { 'ok' } else { 'falta' })
     }
     $r.painel_instalado = $(if ($r.programa -eq 'ok' -and $r.python -eq 'ok' -and $r.modelo_escuta -eq 'ok' -and $r.voz -eq 'ok') { 'sim' } else { 'nao' })
@@ -296,8 +306,11 @@ if ($c -ne 0) { throw "A conferência final falhou (veja as linhas acima). Rode 
 Write-Host ""
 Write-Host "Painel do guardião instalado em $op." -ForegroundColor Green
 if (-not (Variavel-Usuario 'GROQ_API_KEY')) { Write-Host "Falta a chave gratuita do Groq para o microfone: dois cliques em $voz\definir_chave_groq.bat. Sem ela o painel abre e funciona por texto." }
-switch (Estado-Claude) {
-    'falta' { Write-Host "Não achei o Claude Code neste computador. É ele que pensa: instale em https://claude.com/claude-code, entre com a sua conta e abra o guardião." }
-    'nao_executa' { Write-Host "Achei o Claude Code, mas ele não executa ($((Get-ClaudeEstado).Erro)). Abra um terminal, rode 'claude' e siga o que ele pedir (entrar na conta, atualizar)." }
+if ($Provedores -ne 'Codex') {
+    switch (Estado-Claude) {
+        'falta' { Write-Host "Não achei o Claude Code neste computador. Instale em https://claude.com/claude-code, entre com a sua conta e abra o guardião." }
+        'nao_executa' { Write-Host "Achei o Claude Code, mas ele não executa ($((Get-ClaudeEstado).Erro)). Abra um terminal, rode 'claude' e siga o que ele pedir (entrar na conta, atualizar)." }
+    }
 }
-if (-not (Test-Path (Join-Path $op 'config.json'))) { Write-Host "Próximo passo: abra o Claude Code e escreva: configurar o guardião." }
+if ($Provedores -ne 'Claude' -and (Estado-Codex) -ne 'ok') { Write-Host "Codex CLI não encontrado. Instale pelo guia https://learn.chatgpt.com/docs/codex/cli e rode 'codex login'." }
+if (-not (Test-Path (Join-Path $op 'config.json'))) { Write-Host "Próximo passo: abra $(if ($Provedores -eq 'Codex') { 'o Codex' } else { 'o Claude Code' }) e escreva: configurar o guardião." }

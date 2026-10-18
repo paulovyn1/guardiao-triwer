@@ -29,6 +29,7 @@ _ativas = 0                        # falas aninhadas (uma pergunta de permissão
 _processos = set()                 # Claude do modo rápido em andamento
 _fundo = set()                     # trabalho em segundo plano (o guardião completo)
 FUNDO_CANCELADO = threading.Event()
+ENCERRADOS = set()  # pids encerrados pelo Esc ou pelo botão Parar: só esses contam como "parado pela pessoa"
 
 
 def comecar():
@@ -118,6 +119,7 @@ def cancelar_fundo():
         return False
     FUNDO_CANCELADO.set()
     for p in procs:
+        ENCERRADOS.add(p.pid)
         try:
             p.terminate()
         except OSError:

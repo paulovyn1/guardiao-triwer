@@ -33,7 +33,7 @@ JANELA_LONGA = 10        # prazo além da semana: procura até 10 dias úteis an
 ESTENDER = {}             # {data: minutos} hora de parar estendida que ela autorizou (--estender AAAA-MM-DD=HH:MM)
 FRENTES_FLEXIVEIS = {"agencia", "agencias", "cliente", "clientes", "operacional", "operacao", "gestao", "administrativo", "admin"}
 
-PESADO = re.compile(r"copy|roteiro|manifesto|decid|decis|estrat|ideia|dopa|rascunho|substack|p[aá]gina|aula|material|pitch|branding|escrever|planej|briefing|texto|e-?mail", re.I)
+PESADO = re.compile(r"copy|roteiro|manifesto|decid|decis|estrat|ideia|dopa|rascunho|substack|p[aá]gina|aula|material|pitch|branding|escrever|planej|briefing|texto|e-?mail|destrinch|reestrutur|evento|lan[cç]amento|recalibr", re.I)
 DESIGN = re.compile(r"design|arte|edi[cç][aã]o|carrossel|thumb|capa", re.I)
 
 
@@ -63,12 +63,19 @@ def janelas(tipo, parar, fora=False):
     leve só quando não há outro espaço, e aí o guardião confere antes se alguma tarefa pesada pode ser adiantada para aquele horário."""
     m1, m2 = vs.NOBRE_MANHA
     noite = (vs.NOBRE_NOITE_INICIO, parar)
-    if fora:
-        return [(vs.CHEGADA, parar)]
+    if fora:  # o dia inteiro, menos a zona morta para o que não é leve
+        faixas = [(vs.CHEGADA, parar)]
+        if tipo != "leve":
+            for z1, z2 in vs.ZONA_MORTA:
+                faixas = [p for a, b in faixas for p in ((a, min(b, z1)), (max(a, z2), b)) if p[1] > p[0]]
+        return faixas
     if tipo == "pesado":
         return [(m1, m2), noite]
     if tipo == "design":
-        return [(m1, m2), (14 * 60, 16 * 60), noite]
+        tarde = [(14 * 60, 16 * 60)]
+        for z1, z2 in vs.ZONA_MORTA:
+            tarde = [p for a, b in tarde for p in ((a, min(b, z1)), (max(a, z2), b)) if p[1] > p[0]]
+        return [(m1, m2), *tarde, noite]
     return [(m2, vs.NOBRE_NOITE_INICIO)]
 
 
@@ -93,6 +100,8 @@ def fixos_do_dia(dia, cfg=None):
     if not fixos and rotina.get("almoco"):
         ini = vs.hm(rotina["almoco"])
         fixos.append({"inicio": vs.fmt(ini), "fim": vs.fmt(ini + 60), "titulo": "Almoço"})
+    for i, f in enumerate(fixos, 1):  # compromisso fixo também se conclui (WhatsApp, aprovações): precisa de identificador estável
+        f.setdefault("id", f"f{i}")
     return fixos
 
 
@@ -132,10 +141,13 @@ def _no_nobre(minuto):
 
 
 def margem(oper=OPER):
-    """Margem de tempo: mediana de real/planejado dos registros confirmados do tempos.json (3 ou mais), entre 1,0 e 1,5."""
+    """Margem de tempo: mediana de real/planejado dos registros confirmados do tempos.json (3 ou mais), entre 1,0 e 1,5.
+    Reunião e folga ficam de fora (duram o que foi marcado e não dizem nada sobre estimativa)."""
+    import calibragem_motor as cm
+    cm.garantir_tempos(oper)
     dados = vs._json(os.path.join(oper, "tempos.json")) or {}
-    razoes = sorted(r["real"] / r["planejado"] for t in (dados.get("tipos") or {}).values() for r in t.get("registros") or []
-                    if r.get("confirmado") and r.get("planejado") and r.get("real"))
+    razoes = sorted(r["real"] / r["planejado"] for nome, t in (dados.get("tipos") or {}).items() if nome not in cm.SEM_MEDIA
+                    for r in t.get("registros") or [] if r.get("confirmado") and r.get("planejado") and r.get("real"))
     if len(razoes) < 3:
         return MARGEM_PADRAO, len(razoes)
     meio = razoes[len(razoes) // 2]
@@ -342,7 +354,7 @@ def decidir(minutos, tipo, prazo=None, frente="", titulo="", hoje=None, agora=No
                     r["cabe_em"] = {"dia": d, "inicio": vs.CHEGADA, "fim": vs.CHEGADA, "como": "termina neste dia, somando as partes"}
                     break
             d += timedelta(days=1)
-    r["alertas"] = alertas(planos, hoje, cfg, memoria, oper)
+    r["alertas"] = alertas(planos, hoje, cfg, memoria, oper, agora=agora_min)
     if r["nivel"] == 3:
         r["horizonte"] = horizonte(hoje, max(filter(None, [prazo, hoje + timedelta(days=14)])), planos, cfg, memoria, oper)
     return r
@@ -375,10 +387,14 @@ def imprevistos_recentes(oper=OPER, dias=7, hoje=None):
             "Use no fechamento da semana e quando um imprevisto novo chegar: se eles se repetem, diga o número a ela.")
 
 
-def ocupacao(plano, dia, memoria):
+def ocupacao(plano, dia, memoria, a_partir=None):
+    """(fração ocupada, minutos livres) do dia; hoje conta só a partir de agora (antes contava a manhã que já passou)."""
     parar = vs.hora_de_parar(dia, memoria)
-    janela = parar - vs.CHEGADA
-    livre = vs._livre_em((vs.CHEGADA, parar), vs._intervalos(plano))
+    ini = max(vs.CHEGADA, a_partir or 0)
+    janela = parar - ini
+    if janela <= 0:  # o expediente do dia já acabou: não há o que ocupar
+        return 0.0, 0
+    livre = vs._livre_em((ini, parar), vs._intervalos(plano))
     return (janela - livre) / janela if janela > 0 else 1.0, livre
 
 
@@ -465,15 +481,17 @@ def marcos(oper, memoria, hoje, ate):
     return sorted(saida)
 
 
-def alertas(planos, hoje, cfg, memoria, oper, dias=10, pular_hoje=False):
+def alertas(planos, hoje, cfg, memoria, oper, dias=10, pular_hoje=False, agora=None):
     """Antecipar: dia útil com mais de 90% da janela ocupada, tarefa sem hora em dia já cheio, marco perto sem horário no ClickUp."""
+    if agora is not None and agora >= vs.hora_de_parar(hoje, memoria):  # depois do expediente, hoje não entra nos alertas
+        pular_hoje = True
     out = []
     resumo = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []
     d = hoje + timedelta(days=1 if pular_hoje else 0)  # pular_hoje: no prompt fixo, hoje muda a cada turno e quebraria o cache
     for _ in range(dias):
         if d.weekday() < 5:
             p = plano_efetivo(d, planos, cfg)
-            oc, livre = ocupacao(p, d, memoria)
+            oc, livre = ocupacao(p, d, memoria, agora if d == hoje else None)
             sem_hora = [t for t in resumo if t.get("prazo") == d.isoformat() and not t.get("inicio") and not t.get("aprovar")]
             nobre = vs.livre_do_dia(p, d, memoria)[1]
             if oc <= OCUPACAO_ALERTA and nobre < NOBRE_ALERTA and p.get("blocos"):
@@ -486,7 +504,7 @@ def alertas(planos, hoje, cfg, memoria, oper, dias=10, pular_hoje=False):
     uteis, d = [], hoje + timedelta(days=1 if pular_hoje else 0)
     while len(uteis) < 5:
         if d.weekday() < 5:
-            uteis.append((d, ocupacao(plano_efetivo(d, planos, cfg), d, memoria)[1]))
+            uteis.append((d, ocupacao(plano_efetivo(d, planos, cfg), d, memoria, agora if d == hoje else None)[1]))
         d += timedelta(days=1)
     cheios = [(d, l) for d, l in uteis if l < DESEQUILIBRIO_CHEIO]
     folgados = [(d, l) for d, l in uteis if l >= DESEQUILIBRIO_FOLGA]

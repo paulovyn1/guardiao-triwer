@@ -1,4 +1,5 @@
 {
-  "observacao": "Tempo real por TIPO de tarefa, em minutos. Preenchido pelo guardião no fim do dia a partir de registros\\registro_AAAA-MM-DD.json. A média só vale a partir da 3ª execução do mesmo tipo. Execução sem horário real confirmado entra como confirmado=false e fica fora da média.",
+  "observacao": "Tempo real por NATUREZA de tarefa (copy, reunião, operacional...), em minutos. Preenchido sozinho pelo painel a cada conclusão. A média só vale a partir da 3ª execução confirmada da mesma natureza. Confirmado = medido no modo execução ou horário informado pela pessoa; marcar como feito depois fica fora da média.",
+  "versao": 2,
   "tipos": {}
 }

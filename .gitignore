@@ -4,3 +4,4 @@ extensoes-*.md
 perfil_edge/
 __pycache__/
 *.pyc
+calibragem/

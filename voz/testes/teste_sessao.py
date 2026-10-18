@@ -90,7 +90,7 @@ try:
             and "parent" in c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "name": "Copy | Post X"})[2])
     confere("stories, caixinha e material de aula ficam soltos na lista de conteúdo sem trava",
             all(c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "name": n})[0] == "perguntar"
-                for n in ("Stories da sala secreta: 3 telas", "Caixinha de perguntas", "Material de aula da sala secreta")))
+                for n in ("Stories da turma VIP: 3 telas", "Caixinha de perguntas", "Material de aula da turma VIP")))
     confere("com parent, ou em outra lista, segue a regra normal (pergunta)",
             c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "L9", "parent": "M1"})[0] == "perguntar"
             and c("mcp__claude_ai_ClickUp__clickup_create_task", {"list_id": "OUTRA"})[0] == "perguntar")

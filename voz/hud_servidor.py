@@ -58,8 +58,9 @@ class Barramento:
 
     def emitir(self, tipo, /, **dados):
         ev = {"t": tipo, **dados}
-        if tipo in ("estado", "saude", "metricas", "revisao", "completo"):
-            self.ultimos[tipo] = ev
+        chave = tipo + ":" + str(dados.get("modo", "")) if tipo == "progresso" else tipo
+        if tipo in ("estado", "saude", "metricas", "revisao", "completo", "progresso"):
+            self.ultimos[chave] = ev
         with self.trava:
             for q in list(self.assinantes):
                 try:
@@ -145,15 +146,16 @@ PREFS_PADRAO = {
     "mic_sempre_ligado": False,  # OPÇÃO: escuta contínua ("Ei guardião"). Desligada, o microfone só abre num clique e fecha no fim da gravação
     "escuta_aberta": True,     # o microfone reabre sozinho quando o guardião espera resposta (só vale com a escuta contínua)
     # painel novo (v2)
-    "som_estados": True,       # sininhos enquanto ele pensa, ligando e desligando quando a conexão cai ou volta
+    "som_estados": True,       # som de ligar e desligar quando a conexão com o guardião cai ou volta (pensar é em silêncio)
     "voz_guardiao": True,      # o guardião fala em voz alta; desligado, ele só escreve (o microfone continua valendo)
     "voz_velocidade": 1.0,     # 1, 1.5 ou 2 vezes
     "execucao_ao_abrir": True,  # com o plano aprovado, as aberturas do dia vão direto para a tarefa de agora (substitui abrir_em_execucao, que nascia desligada)
     "modo_leve": False,        # menos animação, sem vidro e bolinha 2D, para computador fraco
     "sessao": False,           # a conversa vira uma sessão do Claude Code: lembra do que foi dito e usa conectores, skills e agentes
+    "provedor_ia": "claude",   # Claude continua como padrão para instalações existentes
     "bolinha": "N",            # N = Núcleo 3D, A = Relógio (o instrumento clássico)
 }
-PREFS_OPCOES = {"bolinha": ("N", "A")}
+PREFS_OPCOES = {"bolinha": ("N", "A"), "provedor_ia": ("claude", "codex")}
 
 
 def _pref_valida(k, v):
@@ -222,6 +224,12 @@ def montar_plano():
     hoje_txt = hoje.isoformat()
     plano = _plano_de_hoje()
     registro = _registro_de_hoje()
+    if plano and plano.get("status") == "aprovado" and not registro.get("blocos"):  # plano aprovado num dia anterior: o registro nasce quando o dia chega
+        try:
+            registrar_plano_aprovado(plano)
+            registro = _registro_de_hoje()
+        except Exception as erro:
+            print("  (não consegui abrir o registro do dia:", erro, ")")
     por_id = {b.get("id"): b for b in registro.get("blocos", [])}
     blocos = []
     try:  # painel novo: o que já foi trabalhado em cada bloco no modo execução
@@ -240,6 +248,7 @@ def montar_plano():
                 "estado": reg.get("estado", "pendente"), "real": reg.get("real"),
                 "vezes_adiada": reg.get("vezes_adiada", 0), "clickup": reg.get("clickup"),
                 "lista_id": b.get("lista_id"), "estendido_min": b.get("estendido_min") or 0, "exec": trabalhado.get(b.get("id")),
+                "natureza": reg.get("natureza") or b.get("natureza"), "principal": bool(b.get("principal")),
             })
     ultimo_plano = None
     if not plano:
@@ -305,24 +314,58 @@ def _id_dono(cfg, dono):
     return int(clickup["user_id"])
 
 
-def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, status_clickup=None, adiou=False):
-    """Grava no mesmo arquivo e formato da tela antiga do plano, para o guardião ler igual."""
+def _registro_com_o_plano(plano):
+    """O registro de hoje com todos os blocos do plano (os novos entram como pendentes). Devolve (caminho, registro, por_id)."""
+    import calibragem_motor as cm
     hoje_txt = date.today().isoformat()
     pasta = os.path.join(OPER, "registros")
     os.makedirs(pasta, exist_ok=True)
     caminho = os.path.join(pasta, f"registro_{hoje_txt}.json")
     registro = _ler_json(caminho) or {}
     por_id = {b.get("id"): b for b in registro.get("blocos", [])}
-    for b in plano.get("blocos", []):
-        if b.get("id") in por_id:
+    for b in plano.get("blocos", []) + [f for f in plano.get("fixos", []) if f.get("id")]:  # compromisso fixo também se conclui
+        if not (_hora(b.get("inicio")) and _hora(b.get("fim"))):
+            continue
+        if b.get("id") in por_id:  # a natureza e a tarefa principal acompanham o plano, mesmo que ele mude no meio do dia
+            por_id[b["id"]]["natureza"] = cm.natureza_do_bloco(b)
+            por_id[b["id"]]["principal"] = bool(b.get("principal"))
             continue
         minutos = _min(b["fim"]) - _min(b["inicio"])
         por_id[b["id"]] = {
             "id": b["id"], "titulo": b.get("titulo"), "dono": b.get("dono"), "frente": b.get("frente"),
+            "natureza": cm.natureza_do_bloco(b), "principal": bool(b.get("principal")),
             "clickup_id": b.get("clickup_id"), "estado": "pendente",
             "planejado": {"inicio": b["inicio"], "fim": b["fim"], "minutos": minutos},
             "real": None, "desvio_minutos": None, "clickup": None, "vezes_adiada": 0,
         }
+        if b in plano.get("fixos", []):
+            por_id[b["id"]]["fixo"] = True  # compromisso fixo concluível: fica no registro, mas a calibragem não o conta como tarefa do plano
+    return caminho, registro, por_id
+
+
+def _itens_do_registro(plano, por_id):
+    """Blocos e compromissos fixos com id, na ordem do plano: é o que o registro do dia guarda."""
+    return [por_id[b["id"]] for b in plano.get("blocos", []) + [f for f in plano.get("fixos", []) if f.get("id")] if b.get("id") in por_id]
+
+
+def registrar_plano_aprovado(plano):
+    """Assim que o plano de hoje é aprovado, o registro do dia nasce com todos os blocos pendentes: um dia sem nada marcado também conta
+    na calibragem (o plano cumprido é o que foi feito sobre o que foi planejado, e não só sobre o que foi marcado)."""
+    if plano.get("data") and plano.get("data") != date.today().isoformat():
+        return
+    caminho, registro, por_id = _registro_com_o_plano(plano)
+    registro["data"] = date.today().isoformat()
+    registro["aprovado_em"] = plano.get("aprovado_em") or time.strftime("%Y-%m-%d %H:%M")
+    registro["salvo_em"] = datetime.now().astimezone().isoformat()
+    registro["blocos"] = _itens_do_registro(plano, por_id)
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(registro, f, ensure_ascii=False, indent=2)
+
+
+def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, status_clickup=None, adiou=False):
+    """Grava no mesmo arquivo e formato da tela antiga do plano, para o guardião ler igual."""
+    hoje_txt = date.today().isoformat()
+    caminho, registro, por_id = _registro_com_o_plano(plano)
     entrada = por_id[bloco["id"]]
     entrada["estado"] = estado
     if adiou:
@@ -340,7 +383,7 @@ def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, stat
         entrada["clickup"] = "concluida" if estado == "feito" else "reaberta"
     registro["data"] = hoje_txt
     registro["salvo_em"] = datetime.now().astimezone().isoformat()
-    registro["blocos"] = [por_id[b["id"]] for b in plano.get("blocos", []) if b["id"] in por_id]
+    registro["blocos"] = _itens_do_registro(plano, por_id)
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(registro, f, ensure_ascii=False, indent=2)
     return entrada
@@ -357,8 +400,17 @@ def texto_realizado(real, nota=""):
 
 def concluir_bloco(dados):
     """Conclui (ou reabre) um bloco do plano de hoje. Com tarefa no ClickUp: comenta, assinando, e muda o status."""
+    try:
+        import manter_planos
+        manter_planos.pedir()  # concluir pode fechar o dia: a janela dos próximos planos anda
+    except Exception:
+        pass
     plano = _plano_de_hoje()
     bloco = next((b for b in (plano or {}).get("blocos", []) if b.get("id") == dados.get("id")), None)
+    if not bloco:  # compromisso fixo (WhatsApp, aprovações) também se conclui: pelo id "fN" ou pelo título
+        titulo = re.sub(r"\W+", " ", str(dados.get("titulo") or dados.get("id") or "")).lower().strip()
+        bloco = next((f for f in (plano or {}).get("fixos", []) if f.get("id") == dados.get("id")
+                      or (titulo and titulo in re.sub(r"\W+", " ", str(f.get("titulo") or "")).lower())), None)
     if not bloco:
         return {"ok": False, "erro": "Esse bloco não está no plano de hoje."}
     concluido = bool(dados.get("concluido", True))
@@ -445,8 +497,11 @@ def sincronizar_com_clickup(espaco=20):
         ULTIMAS_NOVAS.extend(t for t in tarefas if t.get("id") in novas and t.get("id") not in no_plano and not t.get("aprovar"))
     if novas:
         print(f"  ({len(novas)} tarefa(s) nova(s) no ClickUp desde a última leitura)")
-        try:
-            _v2().registrar_evento("tarefas_novas", None, quantidade=len(novas))
+        try:  # de onde veio e a que horas chegou: é o que mostra o que se repete sem estar no plano
+            por_id_resumo = {t.get("id"): t for t in (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", [])}
+            lista = [{"id": i, "nome": (por_id_resumo.get(i) or {}).get("nome"), "lista": (por_id_resumo.get(i) or {}).get("lista"),
+                      "prazo": (por_id_resumo.get(i) or {}).get("prazo")} for i in sorted(novas)][:15]
+            _v2().registrar_evento("tarefas_novas", None, quantidade=len(novas), tarefas=lista)
         except Exception:
             pass
     estados = {b.get("id"): b.get("estado") for b in _registro_de_hoje().get("blocos", [])}
@@ -588,6 +643,11 @@ def _levar_ao_clickup(plano):
         if any(b.get("lista_id") and not b.get("clickup_id") for b in plano.get("blocos", [])):
             atualizar_resumo_clickup()  # outra pessoa ou outra automação pode ter criado a tarefa depois da última leitura agendada
         abertas = (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", [])
+        por_id = {t.get("id"): t for t in abertas}
+        for b in plano.get("blocos", []):  # o guardião manda na data: o que o plano pôs em outro dia ou horário vai para o ClickUp
+            t = por_id.get(b.get("clickup_id"))
+            if t and not b.get("reagendado") and (t.get("prazo") != plano.get("data") or t.get("inicio") != b.get("inicio") or t.get("fim") != b.get("fim")):
+                b["reagendado"] = True
         for b in plano.get("blocos", []):  # título igual ao de uma tarefa aberta: o bloco passa a usar ela (e ela muda de hora abaixo)
             if b.get("lista_id") and not b.get("clickup_id") and not b.get("post"):
                 achada, exata = achar_parecida(b.get("titulo"), abertas)
@@ -607,6 +667,11 @@ def _levar_ao_clickup(plano):
                     r.raise_for_status()
                     b.pop("reagendado", None)
                     reagendadas += 1
+                    try:
+                        import travas
+                        travas.registrar_agendada(OPER, b["clickup_id"], plano["data"], b["inicio"], b["fim"])  # o guardião já avaliou e marcou esta data
+                    except Exception:
+                        pass
                 except Exception as erro:
                     erros.append(f"{b.get('titulo')} (novo horário): {erro}")
                 continue
@@ -657,6 +722,12 @@ def _levar_ao_clickup(plano):
                 criadas += 1
             except Exception as erro:  # um bloco com problema não impede os outros
                 erros.append(f"{b.get('titulo')}: {erro}")
+        for cid in list(plano.get("cancelar") or []):  # cancelada pela pessoa: fecha no ClickUp (tirar do dia não fecha nada)
+            try:
+                clickup_mudar_status(cid, True)
+                plano["cancelar"].remove(cid)
+            except Exception as erro:
+                erros.append(f"cancelar {cid}: {erro}")
     return criadas, reagendadas, erros
 
 
@@ -665,20 +736,52 @@ def aprovar_plano():
     plano, caminho = _plano_e_caminho()
     if not plano:
         return {"ok": False, "erro": "Não há plano para hoje."}
-    if plano.get("status") == "aprovado":
+    if plano.get("status") == "aprovado" and not plano.get("sincronizacao_pendente"):
         return {"ok": True, "criadas": 0, "erros": []}
     criadas, reagendadas, erros = _levar_ao_clickup(plano)
+    _marcar_sincronizacao(plano, erros)
     plano["status"] = "aprovado"
     plano["aprovado_em"] = time.strftime("%Y-%m-%d %H:%M")
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(plano, f, ensure_ascii=False, indent=2)
     HISTORICO_PLANO.clear()
+    try:
+        registrar_plano_aprovado(plano)
+        import calibragem_motor as cm
+        cm.registrar_mudancas(OPER, plano)  # bloco com "aprendizado": vira "O que mudou no plano" na calibragem
+    except Exception as erro:
+        print("  (não consegui abrir o registro do dia:", erro, ")")
     bus.emitir("plano")
     try:  # aprovou, entra em execução sozinho (a tarefa só começa a contar quando a pessoa clica em Iniciar)
         _v2().entrar()
     except Exception as erro:
         print("  (não consegui entrar em execução depois de aprovar:", erro, ")")
+    _avisar_proximos_sugeridos()
     return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros}
+
+
+def _marcar_sincronizacao(plano, erros):
+    """O que não chegou ao ClickUp fica anotado no plano; aprovar de novo tenta outra vez (antes, aprovado escondia a falha e não tentava mais)."""
+    if erros:
+        plano["sincronizacao_pendente"] = erros
+        bus.emitir("aviso", texto="Aprovei, mas " + str(len(erros)) + " mudança(s) não chegaram ao ClickUp. Toque em Aprovar de novo para tentar outra vez.",
+                   erro=True)
+    else:
+        plano.pop("sincronizacao_pendente", None)
+
+
+def _avisar_proximos_sugeridos():
+    """Aprovado o dia de hoje, os próximos dias que o replanejamento mudou continuam sugeridos e o ClickUp guarda as datas antigas até serem aprovados."""
+    dias = []
+    for d in range(1, 8):
+        iso = (date.today() + timedelta(days=d)).isoformat()
+        p = _ler_json(os.path.join(OPER, "planos", f"plano_{iso}.json"))
+        if isinstance(p, dict) and p.get("status") == "sugerido" and any(b.get("reagendado") or (b.get("lista_id") and not b.get("clickup_id"))
+                                                                         for b in p.get("blocos") or []):
+            dias.append(iso[8:10] + "/" + iso[5:7])
+    if dias:
+        bus.emitir("aviso", texto="Os planos de " + ", ".join(dias) + " também mudaram e o ClickUp ainda tem as datas antigas. "
+                                  "Aprove em Próximos dias para levar as datas novas.", erro=False)
 
 
 def aprovar_plano_de_outro_dia(data_iso):
@@ -692,14 +795,20 @@ def aprovar_plano_de_outro_dia(data_iso):
         return {"ok": False, "erro": f"Não há plano gravado para {data_iso}."}
     if data_iso < date.today().isoformat():
         return {"ok": False, "erro": "Esse dia já passou."}
-    if plano.get("status") == "aprovado":
+    if plano.get("status") == "aprovado" and not plano.get("sincronizacao_pendente"):
         return {"ok": True, "criadas": 0, "reagendadas": 0, "erros": []}
     plano["data"] = data_iso
     criadas, reagendadas, erros = _levar_ao_clickup(plano)
+    _marcar_sincronizacao(plano, erros)
     plano["status"] = "aprovado"
     plano["aprovado_em"] = time.strftime("%Y-%m-%d %H:%M")
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(plano, f, ensure_ascii=False, indent=2)
+    try:
+        import calibragem_motor as cm
+        cm.registrar_mudancas(OPER, plano)
+    except Exception as erro:
+        print("  (não consegui registrar o que mudou no plano:", erro, ")")
     bus.emitir("plano")
     return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros, "data": data_iso}
 

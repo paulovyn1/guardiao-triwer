@@ -7,7 +7,10 @@ Roda na pasta `voz\` dentro da pasta operacional do guardião. Só Windows.
 |---|---|
 | `guardiao_voz.py` | escuta, transcreve, pergunta ao Claude e fala. É o programa que fica ligado |
 | `hud_servidor.py` | servidor local do painel: plano, eventos ao vivo e ações no ClickUp |
-| `guardiao_v2.py` | modo execução, avisos de tempo, calibragem de 30 dias e POPs |
+| `guardiao_v2.py` | modo execução, avisos de tempo, calibragem (report do dia, convite na hora de parar, conquistas e estatísticas na tela) e POPs |
+| `calibragem_motor.py` | o que o guardião aprende, sem o Claude: natureza de cada tarefa, quando um tempo vale para a média, resumo do dia, achados com nível (hipótese, provável, confirmado), pergunta do dia e a seção CALIBRAGEM do plano. `--perfil`, `--fechamento` e `--rotina-aceita` para o guardião do chat |
+| `estatisticas.py` | a aba Estatísticas: plano cumprido, tarefa principal, precisão, foco, semana a semana, e o detalhe |
+| `conquistas.py` | a aba Conquistas: as 21 conquistas, a regra de cada uma e o progresso |
 | `guardiao_janela.py` | fixa a janela compacta por cima das outras, no canto da tela |
 | `guardiao_atualizacao.py` | versão instalada e aviso de versão nova |
 | `guardiao_sessao.py` | modo sessão: a conversa como sessão do Claude Code (processo aberto, lista de conversas, permissões e o que a tela mostra de cada ferramenta) |

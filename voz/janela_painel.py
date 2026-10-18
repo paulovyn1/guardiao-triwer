@@ -1,9 +1,9 @@
 # A janela do painel. No Windows ela abre sempre no Microsoft Edge, como janela de aplicativo (sem abas nem barra de endereço), numa pasta
 # de Edge só do painel: o navegador da pessoa (perfis, conta, extensões, sincronização, configurações) não é tocado nem lido.
 #
-# Por que uma pasta só do painel (decisão do Paulo em 15/10/2026, voltando atrás na 0.8.0, que abria no perfil da pessoa):
+# Por que uma pasta só do painel (decisão de produto em 15/10/2026, voltando atrás na 0.8.0, que abria no perfil da pessoa):
 # - a animação depende da placa de vídeo. No perfil da pessoa o painel herda a configuração dela; com a aceleração de hardware desligada
-#   (caso real do Paulo) caiu de 88 para 15 quadros por segundo, medido no mesmo computador;
+#   (caso real) caiu de 88 para 15 quadros por segundo, medido no mesmo computador;
 # - o som da abertura precisa de --autoplay-policy. O Edge que já está aberto (e no Windows ele fica aberto em segundo plano desde o logon)
 #   ignora qualquer opção da linha de comando, então no perfil da pessoa o som só saía depois de um clique;
 # - extensões da pessoa rodam em toda página, inclusive no painel.

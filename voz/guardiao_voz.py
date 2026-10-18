@@ -32,8 +32,11 @@ from vosk import KaldiRecognizer, SetLogLevel
 
 import controle_fala
 import guardiao_sessao
+import guardiao_codex
 import guardiao_v2 as v2
+import calibragem_semanal
 import instancia
+import manter_planos
 import janela_painel
 import latencia
 import checar_config
@@ -94,6 +97,15 @@ def chamou(resultado):
 def achar_claude(refazer=False):
     """O Claude Code está instalado e executa? (npm, instalador oficial ou extensão do VS Code: veja guardiao_sessao.comando_do_claude)"""
     return bool(guardiao_sessao.comando_do_claude(refazer))
+
+
+def provedor_ia():
+    """A escolha do painel vale no próximo pedido, sem reiniciar o Guardião."""
+    return preferencias().get("provedor_ia", "claude")
+
+
+def achar_provedor():
+    return bool(guardiao_codex.comando()) if provedor_ia() == "codex" else achar_claude()
 
 
 AVISO_SEM_CLAUDE = guardiao_sessao.AVISO_SEM_CLAUDE
@@ -433,6 +445,13 @@ def contexto_proximos_dias():
                 texto += "\n" + imprevistos
         except Exception as erro:
             print("  Alertas da agenda falharam:", erro)
+        try:  # o que a calibragem já sabe da pessoa: muda no máximo uma vez por dia (depois do report), então o prompt continua estável
+            import calibragem_motor
+            secao = calibragem_motor.secao_do_plano(calibragem_motor.atualizar_perfil(OPER))
+            if secao:
+                texto += "\n" + secao
+        except Exception as erro:
+            print("  Calibragem fora do contexto:", erro)
         return texto
     except Exception as erro:
         print("  Visão da semana falhou, usando os 3 próximos dias:", erro)
@@ -619,6 +638,9 @@ def situacao_plano():
     execucao = v2.contexto_voz()  # modo execução e aviso de tempo em aberto (painel novo)
     if execucao:
         linhas.append(execucao)
+    calibragem = calibragem_semanal.contexto(OPER)  # fim de semana: perguntas da calibragem semanal ainda sem resposta
+    if calibragem:
+        linhas.append(calibragem)
     if COMPLETO:
         linhas.append(f"GUARDIAO COMPLETO TRABALHANDO há {int(time.time() - COMPLETO['inicio'])} segundos neste pedido: {COMPLETO['pedido']}. "
                       "Não use a marca completo de novo: diga que ainda está montando e que avisa quando terminar.")
@@ -743,7 +765,7 @@ def _prompt_sistema_antigo():
 #   {{criar:titulo=..|descricao=..|lista=..|dono=..|prazo=AAAA-MM-DD HH:MM}} só PROPÕE; a criação espera o "sim" da pessoa
 #   {{estender:ID|minutos|motivo}} {{adiar:ID|motivo}} {{motivo:ID|texto}} {{checkin:ok}} acompanham a execução (painel novo)
 #   {{completo:pedido}} passa o pedido ao guardião completo (a skill inteira, em segundo plano); a resposta chega depois
-DIRETIVA = re.compile(r"\{\{\s*(foco|detalhe|concluir|reabrir|comentar|criar|mover|editar|remover|adicionar|desfazer|aprovar|revisao|estender|adiar|motivo|checkin|completo)\s*:?\s*(.*?)\s*\}\}", re.S)
+DIRETIVA = re.compile(r"\{\{\s*(foco|detalhe|concluir|reabrir|comentar|criar|mover|editar|remover|adicionar|desfazer|aprovar|revisao|estender|adiar|motivo|checkin|completo|calibrar)\s*:?\s*(.*?)\s*\}\}", re.S)
 ACOES_ATIVAS = True
 PROPOSTA = None  # algo aguardando o "sim" da pessoa: {"tipo": "criar" ou "aprovar", "dados": {...}, "quando": time}
 REVISAO = None  # revisão do plano em andamento: {"inicio": time, "ultimo": time}; enquanto durar, o microfone reabre depois de cada resposta
@@ -751,7 +773,11 @@ AVISOS_AO_MODELO = []  # resultado dos últimos ajustes do plano, para o guardi�
 CONVERSA = []  # últimas trocas, para o guardião entender "e a da Marina?" ou o comentário que ele pediu
 VALIDADE_PROPOSTA = 180  # segundos
 INTENCAO = {  # a ação só acontece se o que a pessoa disse realmente pede aquilo
-    "concluir": re.compile(r"conclu|termin|finaliz|\bfiz\b|feito|fechei|fechar|acabei|marc"),
+    # também vale a pessoa contar que já está feito ("já revisei", "já foi para aprovação"), sem usar o verbo concluir
+    "concluir": re.compile(r"conclu|termin|finaliz|\bfiz\b|feito|fechei|fechar|acabei|marc"
+                           r"|(?<!nao )(?<!ainda nao )(?<!nunca )(revisei|mandei|enviei|entreguei|resolvi|publiquei|postei|subi\b)"
+                           r"|ja (foi|esta|ta) (pra |para |a |na |no |enviad|entregue|pront|feit|revisad|aprovad)"
+                           r"|\bfoi (pra|para) (a )?aprovac|\b(esta|ta) (pront|feit|revisad)[ao]"),
     "reabrir": re.compile(r"reabr|desfaz|desmarc|volt|ainda nao"),
     "comentar": re.compile(r"anot|coment|registr|escrev|adicion|inclu|coloc|\bpoe\b|bota|deix"),
     "criar": re.compile(r"cri[ae]|nova tarefa|adicion|lanc|cadastr|coloc|agend|abr[ae]|monta|faz uma tarefa|anota uma tarefa"),
@@ -891,6 +917,13 @@ def bloco_conversa():
 
 def _chamar_resumo(pedido):
     """O resumo do dia: uma chamada curta ao modelo leve, sem ferramentas, sem conectores e sem pensamento. Devolve o texto ou None."""
+    if provedor_ia() == "codex":
+        try:
+            return guardiao_codex.executar_sem_arquivos(
+                "Resuma de forma curta e fiel, sem inventar fatos. Responda só com o resumo.\n\n" + pedido,
+                timeout=90)[0]
+        except RuntimeError:
+            return None
     base = guardiao_sessao.comando_do_claude()
     if not base:
         return None
@@ -1037,7 +1070,8 @@ _CONVERSA_DA_VEZ = [None]
 
 
 def modo_sessao():
-    return bool(preferencias().get("sessao")) and os.environ.get("GUARDIAO_SEM_SESSAO") != "1"
+    return (provedor_ia() == "claude" and bool(preferencias().get("sessao"))
+            and os.environ.get("GUARDIAO_SEM_SESSAO") != "1")
 
 
 def arquivo_prompt_sessao():
@@ -1287,6 +1321,11 @@ def comando_claude(pergunta, streaming, modelo=None):
 
 def perguntar_claude(pergunta, modelo=None):
     t0 = time.time()
+    if provedor_ia() == "codex":
+        resposta, _ = guardiao_codex.executar_sem_arquivos(
+            prompt_sistema() + "\n\n" + mensagem_do_turno(pergunta),
+            timeout=120)
+        return resposta, time.time() - t0
     cmd, env = comando_claude(pergunta, streaming=False, modelo=modelo)
     saida = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env, cwd=OPER, timeout=90, creationflags=guardiao_sessao.FLAGS_CLAUDE)
     try:
@@ -1340,6 +1379,23 @@ class Cortador:
 
 def frases_do_claude(pergunta, modelo=None, motivo=""):
     """Pergunta ao Claude em streaming e devolve cada frase assim que ela fica completa."""
+    if provedor_ia() == "codex":
+        inicio = time.time()
+        bus.emitir("progresso", modo="conversa", ativo=True, rotulo="Iniciando o Codex", inicio=inicio)
+        try:
+            resposta, _ = guardiao_codex.executar_sem_arquivos(
+                prompt_sistema() + "\n\n" + mensagem_do_turno(pergunta),
+                timeout=120,
+                progresso=lambda rotulo: bus.emitir("progresso", modo="conversa", ativo=True,
+                                                    rotulo=rotulo, inicio=inicio))
+        finally:
+            bus.emitir("progresso", modo="conversa", ativo=False)
+        cortador = Cortador()
+        yield from cortador.alimentar(resposta)
+        resto = cortador.resto()
+        if resto:
+            yield resto
+        return
     cmd, env = comando_claude(pergunta, streaming=True, modelo=modelo)
     erro_arq = guardiao_sessao.arquivo_de_erro()
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=erro_arq, text=True, encoding="utf-8", env=env, cwd=OPER, creationflags=guardiao_sessao.FLAGS_CLAUDE)
@@ -1558,6 +1614,10 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
                     iniciar_revisao()
             else:
                 encerrar_revisao()
+        elif nome == "calibrar":  # resposta dela a uma pergunta da calibragem semanal (sábado)
+            id_pergunta, _, resposta = arg.partition("|")
+            ok, nota = calibragem_semanal.registrar_resposta(OPER, id_pergunta.strip(), resposta)
+            avisar_modelo(("calibragem: " if ok else "calibragem FALHOU: ") + nota)
         elif nome in ("estender", "adiar", "motivo", "checkin"):  # acompanhamento da execução (painel novo)
             partes = [x.strip() for x in arg.split("|")]
             if nome == "checkin":
@@ -1650,6 +1710,10 @@ EXPLICITO_APROVAR = re.compile(r"aprov")
 # vai para o Claude com a skill guardiao-triwer, do mesmo jeito que o gerar_plano.ps1 faz: leva de dois a cinco minutos e não trava a conversa.
 # Ele só pode gravar arquivo de plano, nunca o ClickUp: o plano volta como "sugerido" e a pessoa aprova na tela ou pela voz.
 REGRAS_DO_PLANO = (
+    "Ao montar ou refazer o plano, falta de tempo não encerra o pedido. Resolva nesta ordem: (1) tire de hoje o que não precisa acontecer hoje e marque outro dia; "
+    "(2) simplifique uma tarefa do dia, reduzindo o escopo e o tempo, mas mantendo uma entrega útil; (3) só se ainda faltar tempo, proponha trabalhar até mais tarde, "
+    "com o horário extra identificado e sujeito ao ok da pessoa. Preserve compromissos fixos e tarefas concluídas. Entregue sempre uma proposta concreta para o resto do dia, "
+    "mesmo que algumas tarefas saiam de hoje. Se usar a caixinha reduzida a 15 min por dia apertado, registre modo_dia='apertado' e explique no aviso o que foi reagendado. "
     "Ao gravar o plano de hoje: grave o plano inteiro, em JSON válido, no formato de plano_exemplo.json, com \"status\": \"sugerido\" "
     "(a pessoa aprova na tela e o servidor cria ou move as tarefas no ClickUp). Mantenha os blocos já feitos, mantenha o id e o clickup_id dos blocos que continuam, "
     "dê aos blocos novos um id ainda não usado (b seguido de número), use clickup_id para tarefa que já existe no resumo e lista_id só para bloco realmente novo, "
@@ -1659,6 +1723,36 @@ REGRAS_DO_PLANO = (
 COMPLETO = None  # pedido em andamento: {"pedido": texto, "inicio": time}
 COMANDO_COMPLETO = None  # os testes trocam por uma função (pedido, arquivo do plano) -> texto da resposta
 TEMPO_COMPLETO = 900  # segundos
+
+
+PEDE_PLANO = re.compile(r"plano|planej|reorganiz|organizar|encaix|agenda|hor[aá]rio|refa[cz]|replanej|mover|muda", re.I)
+
+
+def _leitura_completo(pedido, hoje):
+    """O que ler. Pedido de plano: o dossiê calculado por código (o mesmo do plano da manhã) no lugar de reler ClickUp, planos, campanhas e
+    memória a cada pedido (caso real 16/10: cada replanejamento levava 3 minutos ou mais de leitura). Outro pedido: o que a skill manda."""
+    registro = f"registros\\registro_{hoje}.json"
+    if PEDE_PLANO.search(pedido or ""):
+        try:
+            import datetime
+            import plano_base
+            dia = datetime.date.fromisoformat(hoje)
+            base, motivos = plano_base.montar(dia, OPER)
+            arq = os.path.join(OPER, "logs", "dossie_replanejar.txt")
+            os.makedirs(os.path.dirname(arq), exist_ok=True)
+            with open(arq, "w", encoding="utf-8") as f:
+                f.write(plano_base.dossie(dia, base, motivos, OPER))
+            return (f"Leia PRIMEIRO o dossiê {arq}: os motivos que pedem decisão, a semana combinada do ClickUp, os próximos dias, o horizonte das campanhas "
+                    "e os alertas, já calculados. Leia também o plano atual (plano_do_dia.json) e o registro de hoje "
+                    f"({registro}, com os blocos já feitos ou adiados), na pasta operacional. NÃO leia resumo_clickup.json, planos de outros dias, notas de "
+                    "campanha nem os arquivos de memória que a skill manda carregar: o que precisa deles está no dossiê. Da memória leia só perfil.md e "
+                    "aprendizados.md. Abra outro arquivo só se o dossiê não responder a uma dúvida concreta. O código completa sozinho stories, "
+                    "consumo repetido, agenda_impoe e preparo da live que venceu: não gaste voltas com isso.\n")
+        except Exception as erro:
+            print("  (dossiê do replanejamento falhou, a skill lê tudo:", erro, ")")
+    return ("Siga o SKILL.md e leia só o que o mapa dele indica para este pedido, sob demanda: comece pelo que responde a pergunta e abra mais um "
+            "arquivo só se ainda faltar algo. Se o pedido tocar o plano de hoje, leia o plano atual (plano_do_dia.json) e o registro de hoje "
+            f"({registro}, com os blocos já feitos ou adiados), os dois na pasta operacional.\n")
 
 
 def prompt_completo(pedido, arquivo_plano):
@@ -1672,8 +1766,7 @@ def prompt_completo(pedido, arquivo_plano):
         f"Hoje é {hoje} e agora são {time.strftime('%H:%M')}. Pasta operacional (plano, registros, resumo do ClickUp, scripts): {OPER}. Pasta de memória: {memoria}.\n"
         + (f"Conversa recente por voz, só para contexto:\n{conversa}\n" if conversa else "") +
         "Esta execução não tem conversa: não pergunte nada. Se faltar informação, escolha o caminho mais seguro e diga isso em uma frase.\n"
-        "Leia o que a skill manda carregar e, se o pedido tocar o plano de hoje, leia também o plano atual (plano_do_dia.json) e o registro de hoje "
-        f"(registros\\registro_{hoje}.json, com os blocos já feitos ou adiados), os dois na pasta operacional.\n"
+        + _leitura_completo(pedido, hoje) +
         "Não crie nem altere nada no ClickUp nem em outro lugar, e não edite os arquivos de memória. As únicas escritas permitidas são: "
         f"o arquivo {arquivo_plano} (plano de hoje) e planos\\plano_AAAA-MM-DD.json na pasta operacional (plano de outro dia), e só se o pedido for montar ou mudar um plano; "
         "e o config.json da pasta operacional, só para completar a CONFIGURAÇÃO PENDENTE quando o pedido for esse.\n"
@@ -1683,16 +1776,61 @@ def prompt_completo(pedido, arquivo_plano):
         "Fale na primeira pessoa, como o mesmo guardião da conversa: não cite esta execução, o guardião completo, checagens técnicas nem o que você não tem permissão de fazer. "
         "Diga o que você montou ou concluiu, o que ficou de fora e por quê, e o que a pessoa precisa decidir. "
         "Se sobrar algo para resolver no ClickUp (concluir, apagar ou mover uma tarefa), não mande a pessoa fazer: diga qual é a tarefa, pelo título, e pergunte se ela quer que você resolva. "
-        "Termine com uma pergunta só: a do ClickUp, se houver; senão, se você mudou o plano de hoje, pergunte se ela quer revisar o plano."
+        "Termine com uma pergunta só: a do ClickUp, se houver; senão, se propôs hora extra, pergunte se ela aprova essa hora extra; "
+        "senão, se você mudou o plano de hoje, pergunte se ela quer revisar o plano."
     )
 
 
-def _chamar_completo(pedido, arquivo_plano):
+_SESSAO_COMPLETO = {"claude": None, "codex": None}  # a correção do revisor retoma a sessão do pedido, sem reler tudo
+PELO_MOTOR = {"ultimo": False}
+NAO_E_AGENDA = re.compile(r"destrinch|quebr\w* em (etapas|partes)|configura|onboarding|instala", re.I)
+
+
+def _planejar_pelo_motor(pedido):
+    """Pedido de plano: o motor da agenda monta a partir de agora e a IA só traduz o pedido em instruções (feito, tirar, imprevisto) e julga o que
+    falta (docs/PRD-motor-agenda.md). Uma chamada de IA, sem ler arquivos. Grava como proposta: hoje volta para aprovação."""
+    import motor_agenda
+    inicio = COMPLETO["inicio"] if COMPLETO else time.time()
+    bus.emitir("progresso", modo="completo", ativo=True, rotulo="Montando a agenda", inicio=inicio)
+    r = motor_agenda.planejar(OPER, incluir_hoje=True, ia=True, pedido=pedido)
+    motor_agenda.gravar(r, OPER, hoje_mesmo_aprovado=True)
+    bus.emitir("ui", cmd="tela", id="dia")  # a lista do Hoje mostra o plano novo; a aprovação é na barra de baixo
+    PELO_MOTOR["ultimo"] = True
+    hoje = time.strftime("%Y-%m-%d")
+    blocos = [b for b in ((r.get("dias") or {}).get(hoje) or {}).get("blocos") or [] if b.get("status") != "feito"]
+    resto = "; ".join(f"{b['inicio'].replace(':', 'h')} {str(b['titulo'])[:45]}" for b in blocos[:6])
+    partes = [r.get("explicacao") or "Refiz o plano a partir de agora."] + ([f"Para o resto de hoje: {resto}."] if resto else [])
+    if r.get("delegar"):
+        donos = {}
+        for d in r["delegar"][:4]:
+            donos.setdefault(str(d["dono"]).split()[0], []).append(str(d["titulo"])[:50])
+        partes.append(" ".join(f"Para o {dono}: {'; '.join(t)}." for dono, t in donos.items()))
+    perguntas = (r.get("perguntas") or [])[:1]  # uma pergunta por vez: a próxima vem depois da resposta dela
+    partes += perguntas or ["O plano novo já está na lista: confira e aprove na barra de baixo."]
+    return "\n\n".join(partes)  # um parágrafo por assunto (a conversa mostra as quebras)
+
+
+def _chamar_completo(pedido, arquivo_plano, retomar=False):
     memoria = pasta_memoria()
+    PELO_MOTOR["ultimo"] = False
+    if not retomar and (PEDE_PLANO.search(pedido or "") or not NAO_E_AGENDA.search(pedido or "")):
+        return _planejar_pelo_motor(pedido)  # pedido de agenda (mover, adiar, "pronta até dia 27"): o motor, em segundos; só destrinchar e configuração vão à IA completa
+    if provedor_ia() == "codex":
+        inicio = COMPLETO["inicio"] if COMPLETO else time.time()
+        exigir_plano = bool(re.search(r"plano|planej|reorganiz|organizar|encaix|agenda|horário", pedido, re.I))
+        resposta, uso = guardiao_codex.executar(
+            pedido if retomar and _SESSAO_COMPLETO["codex"] else prompt_completo(pedido, arquivo_plano), OPER, memoria,
+            pode_escrever=True, timeout=TEMPO_COMPLETO,
+            exigir_plano=exigir_plano, _sessao_id=_SESSAO_COMPLETO["codex"] if retomar else None,
+            progresso=lambda rotulo: bus.emitir("progresso", modo="completo", ativo=True,
+                                                rotulo=rotulo, inicio=inicio))
+        _SESSAO_COMPLETO["codex"] = uso.get("sessao_id")
+        return resposta
     base = guardiao_sessao.comando_do_claude()
     if not base:
         raise guardiao_sessao.ErroDeConta(AVISO_SEM_CLAUDE)
-    cmd = [*base, "-p", prompt_completo(pedido, arquivo_plano), "--model", MODELO_PADRAO, "--add-dir", memoria,
+    sessao = ["--resume", _SESSAO_COMPLETO["claude"]] if retomar and _SESSAO_COMPLETO["claude"] else []
+    cmd = [*base, "-p", pedido if sessao else prompt_completo(pedido, arquivo_plano), *sessao, "--model", MODELO_PADRAO, "--add-dir", memoria,
            "--allowedTools", "Read,Write,Glob,Skill", "--max-turns", "30", "--output-format", "json"]
     env = dict(os.environ)
     env.pop("CLAUDECODE", None)
@@ -1710,6 +1848,7 @@ def _chamar_completo(pedido, arquivo_plano):
     if controle_fala.FUNDO_CANCELADO.is_set():
         raise InterruptedError("cancelado com Esc")
     ev = json.loads(saida)
+    _SESSAO_COMPLETO["claude"] = ev.get("session_id")
     registrar_chamada(MODELO_PADRAO, "guardião completo", ev)
     return str(ev.get("result") or "")
 
@@ -1753,7 +1892,40 @@ def conferir_plano(antes):
         plano.pop("aprovado_em", None)
         with open(arq, "w", encoding="utf-8") as f:
             json.dump(plano, f, ensure_ascii=False, indent=2)
+    if COMANDO_COMPLETO is None:  # conserta o que é mecânico e anota no aviso o que ficou; nunca desfaz o plano por isso
+        try:
+            import conferencia_plano
+            import plano_base
+            graves, consertos = plano_base.preparar_arquivo(arq, oper=OPER)
+            if consertos:
+                print("  Consertado por código:", "; ".join(consertos))
+            if graves:
+                p = json.loads(ler_plano())
+                with open(arq, "w", encoding="utf-8") as f:
+                    json.dump(conferencia_plano.anotar_avisos(p, graves), f, ensure_ascii=False, indent=2)
+        except Exception as erro:
+            print("  (não consegui consertar o plano:", erro, ")")
     return "mudou"
+
+
+def _revisar_completo(arq, antes):
+    """Todo pedido ao guardião completo que grava plano é replanejamento: o revisor sem contexto (revisor.py) confere o plano e, se reprovar,
+    o gerador corrige em uma rodada. Falha do revisor nunca derruba o pedido. Não roda quando o comando é de teste (COMANDO_COMPLETO)."""
+    if COMANDO_COMPLETO is not None or PELO_MOTOR["ultimo"]:  # o motor já confere por código; não há segunda volta de IA
+        return
+    try:
+        import datetime
+        import revisor
+        texto = ler_plano()
+        if not texto or texto == antes or not _plano_valido(texto):
+            return
+        plano = json.loads(texto)
+        problemas = revisor.revisar(plano, datetime.date.fromisoformat(str(plano.get("data"))), "replanejamento (pedido ao guardião completo)")
+        if problemas:
+            print("  Revisor reprovou o plano:", " | ".join(problemas))
+            _chamar_completo("Releia o plano com Read antes de gravar (o código pode tê-lo ajustado). " + revisor.texto_da_correcao(problemas, arq), arq, retomar=True)
+    except Exception as erro:
+        print("  (revisor: não consegui revisar:", erro, ")")
 
 
 def rodar_completo(pedido):
@@ -1765,6 +1937,9 @@ def rodar_completo(pedido):
     controle_fala.FUNDO_CANCELADO.clear()
     try:
         resposta = (COMANDO_COMPLETO or _chamar_completo)(pedido, arq)
+        bus.emitir("progresso", modo="completo", ativo=True, rotulo="Conferindo o resultado",
+                   inicio=COMPLETO["inicio"] if COMPLETO else time.time())
+        _revisar_completo(arq, antes)
         fala = extrair_diretivas(re.sub(r"[*_#`]+", "", resposta))[0].replace("—", ",").strip()
         conferido = conferir_plano(antes)
         if conferido == "defeito":
@@ -1778,11 +1953,20 @@ def rodar_completo(pedido):
         conferir_plano(antes)  # o que ele chegou a gravar volta para aprovação (ou é desfeito, se ficou pela metade)
         fala = ""
         bus.emitir("aviso", texto="Parei o trabalho em segundo plano.", erro=False)
+    except RuntimeError as erro:
+        print("  Erro no guardião completo:", erro)
+        detalhe = str(erro)
+        if "não passou na conferência: " in detalhe:
+            detalhe = detalhe.split("não passou na conferência: ", 1)[1]
+            fala = "Não alterei o plano porque encontrei uma inconsistência: " + detalhe
+        else:
+            fala = "Não consegui terminar esse pedido agora. " + detalhe[:180]
     except Exception as erro:
         print("  Erro no guardião completo:", erro)
         fala = "Não consegui terminar esse pedido agora. Tenta de novo daqui a pouco."
     finally:
         COMPLETO = None
+        bus.emitir("progresso", modo="completo", ativo=False)
         bus.emitir("completo", ativo=False)
     if mudou:
         bus.emitir("plano")
@@ -1800,8 +1984,16 @@ def supervisionar(agora=None):
     sem a pessoa aprovar. Regra em Python (sem gastar o plano) checada a cada minuto; só chama o Claude quando a regra manda. Devolve True se pediu."""
     agora = agora or time.time()
     hoje = time.strftime("%Y-%m-%d")
-    if SUPERVISOR["dia"] != hoje:
-        SUPERVISOR.update(dia=hoje, vezes=0, ultimo=0.0)
+    if SUPERVISOR["dia"] != hoje:  # a conta do dia vem da calibragem: reabrir o guardião não zera o limite de 3 propostas
+        vezes, ultimo = 0, 0.0
+        try:
+            for ev in v2._eventos(dias=1):
+                if ev.get("tipo") in ("replanejamento_automatico", "replanejamento_sugerido") and ev.get("data") == hoje:
+                    vezes += 1
+                    ultimo = max(ultimo, time.mktime(time.strptime(ev["ts"], "%Y-%m-%d %H:%M:%S")))
+        except Exception:
+            pass
+        SUPERVISOR.update(dia=hoje, vezes=vezes, ultimo=ultimo)
     if COMPLETO or SUPERVISOR["vezes"] >= SUPERVISOR_MAX_DIA or (SUPERVISOR["ultimo"] and agora - SUPERVISOR["ultimo"] < SUPERVISOR_INTERVALO):
         return False
     try:
@@ -1815,12 +2007,12 @@ def supervisionar(agora=None):
     pedido = (f"Replanejar o resto de hoje. A tarefa \"{titulo}\" passou {av['atraso']} minutos do horário previsto e o que falta não cabe até {av['fim_do_dia']} "
               f"(faltam {-av['folga']} minutos). Monte o plano do resto do dia a partir de agora: mantenha o que já foi feito e os compromissos fixos, "
               "siga a matriz de prioridade, passe para outros dias o que pode esperar e diga o que ficou de fora.")
-    if not iniciar_completo(pedido):
-        return False
+    # Decisão de produto (16/10): nada mexe no plano sem perguntar. O supervisor só avisa e pergunta; quem pede o replanejamento é a pessoa.
     SUPERVISOR["vezes"] += 1
     SUPERVISOR["ultimo"] = agora
-    v2.registrar_evento("replanejamento_automatico", av["bloco"], atraso=av["atraso"], folga=av["folga"])
-    bus.emitir("aviso", texto=f"{titulo} passou {av['atraso']} minutos do previsto e o resto do dia não cabe. Estou montando uma proposta para o resto do dia.", erro=False)
+    v2.registrar_evento("replanejamento_sugerido", av["bloco"], unico_por=600, atraso=av["atraso"], folga=av["folga"])
+    bus.emitir("aviso", texto=f"{titulo} passou {av['atraso']} minutos do previsto e o resto do dia não cabe até {av['fim_do_dia']}. "
+                              "Quer que eu replaneje o resto do dia? É só pedir.", erro=False)
     return True
 
 
@@ -1830,6 +2022,8 @@ def iniciar_completo(pedido):
     if COMPLETO:
         return False
     COMPLETO = {"pedido": pedido, "inicio": time.time()}
+    bus.emitir("progresso", modo="completo", ativo=True, rotulo="Preparando o pedido",
+               inicio=COMPLETO["inicio"])
     bus.emitir("completo", ativo=True, pedido=pedido)
     threading.Thread(target=rodar_completo, args=(pedido,), daemon=True).start()
     return True
@@ -1955,7 +2149,17 @@ def propor_aprovacao():
 
 
 def ler_o_plano(a, abertura):
-    """Vai para a aba Dia, passa por cada tarefa (destacando a da vez) e pede o ok. Esc pula a leitura e vai direto ao pedido de ok."""
+    """Plano novo esperando o ok: vai para a aba Dia, onde a lista já mostra o plano novo, e diz numa frase. A aprovação é na barra de baixo da lista.
+    Decisão de produto (16/10): nada de ler tarefa por tarefa nem abrir cartões de aprovação por cima da tela (eram três ao mesmo tempo)."""
+    n = len(blocos_pendentes())
+    bus.emitir("ui", cmd="tela", id="dia")
+    dizer(f"{abertura} Tem um plano novo para hoje com {n} {'tarefa' if n == 1 else 'tarefas'}, já na lista. Confira e aprove na barra de baixo, "
+          "ou me diga o que mudar.", a)
+    return False
+
+
+def ler_o_plano_em_voz(a, abertura):
+    """A leitura antiga, tarefa por tarefa, com o pedido de ok. Fica para quem pedir para ouvir o plano."""
     blocos = blocos_pendentes()
     n = len(blocos)
     controle_fala.PULAR_LEITURA.clear()
@@ -2021,9 +2225,9 @@ def abrir_o_dia(a, primeira):
         if primeira or ABERTURA["leu"] != hoje:
             ABERTURA["leu"] = hoje
             return ler_o_plano(a, f"{ola} Hoje é {data_falada()}.")
-        propor_aprovacao()
-        dizer(f"{ola} O seu plano de hoje ainda espera o seu ok. Posso aprovar?", a)
-        return True
+        bus.emitir("ui", cmd="tela", id="dia")
+        dizer(f"{ola} O seu plano de hoje ainda espera o seu ok. Confira a lista e aprove na barra de baixo.", a)
+        return False
     b = v2.bloco_atual(plano)
     if not b:
         dizer(f"{ola} O plano de hoje está todo feito. Bom trabalho.", a)
@@ -2070,14 +2274,20 @@ def dizer(texto, a, marcas=False):
     na hora em que a frase dela começa (a leitura do plano usa). Devolve o texto dito, sem as marcas."""
     controle_fala.comecar()
     bus.emitir("estado", v="falando")
-    itens = [extrair_diretivas(f) if marcas else (f, []) for f in dividir_frases(texto)]
-    falado = " ".join(limpo for limpo, _ in itens if limpo)
+    itens, inicio_par = [], set()  # "\n\n" no texto separa parágrafos: a conversa escrita mostra a quebra
+    for par in [x for x in str(texto).split("\n\n") if x.strip()]:
+        if itens:
+            inicio_par.add(len(itens))
+        itens += [extrair_diretivas(f) if marcas else (f, []) for f in dividir_frases(par)]
+    falado = "".join(("\n\n" if i in inicio_par else " ") + limpo for i, (limpo, _) in enumerate(itens) if limpo).strip()
     try:
         if not voz_ligada() or controle_fala.SO_TEXTO.is_set():
             acumulado = ""
-            for limpo, diretivas in itens:
+            for i, (limpo, diretivas) in enumerate(itens):
                 if interromper_lote():
                     break
+                if i in inicio_par:
+                    acumulado = acumulado.rstrip() + "\n\n"
                 if diretivas:
                     executar_diretivas(diretivas, "", acoes=False)
                 if limpo:
@@ -2589,9 +2799,24 @@ def adiar_local(texto):
     return {"fala": fala} if motivo else _pedir_motivo(bloco, "motivo_adiamento", fala)
 
 
+def convite_report_local(texto):
+    """Resposta falada ao convite do report na hora de parar: sim começa o roteiro, não deixa para amanhã. Sem o Claude."""
+    c = v2.CHECKIN
+    if not c or c.get("bloco") != "report":
+        return None
+    t = _limpar_comando(texto)
+    if NAO_LOCAL.match(t) or re.search(r"\b(amanha|depois|hoje nao|agora nao|outra hora)\b", t):
+        v2.responder_checkin({"resposta": "report_depois"})  # a frase de fechamento já vai para a voz
+        return {"fala": ""}
+    if SIM_LOCAL.match(t) or re.search(r"\b(vamos|bora|fazer|faco|manda)\b", t):
+        v2.responder_checkin({"resposta": "report_agora"})
+        return {"roteiro": "report"}
+    return None
+
+
 def comando_local(texto):
     """Devolve {"fala": ..., "roteiro": ...} se o pedido é um comando da tela (modo execução, abrir uma aba, silenciar...), ou None para o Claude responder."""
-    for rapido in (resolver_pendente_local, concluir_local, estender_local, adiar_local):
+    for rapido in (convite_report_local, resolver_pendente_local, concluir_local, estender_local, adiar_local):
         feito = rapido(texto)
         if feito:
             return feito
@@ -2666,26 +2891,40 @@ def comando_local(texto):
     return None
 
 
-# ---------------- report do dia por voz (roteiro de 4 perguntas fixas; as respostas vão para a calibragem) ----------------
+# ---------------- report do dia por voz (0.11.0): o resumo do dia, depois os mesmos toques da tela, falados ----------------
+# Energia de 1 a 5, o que atrapalhou, o que ajudou, a hipótese do dia (se houver) e um recado livre. A fala vira os chips da tela em Python.
 
-ROTEIRO = None  # {"id": "report", "i": pergunta atual, "respostas": [...], "quando": time}
-PERGUNTAS_REPORT = ["Primeira: que ajustes o seu plano precisa para amanhã?", "Em que horas você rendeu mais hoje?", "O que funcionou hoje?", "Última: o que apareceu de última hora?"]
+ROTEIRO = None  # {"id": "report", "i": passo atual, "passos": [...], "report": {...}, "quando": time}
 CANCELA_ROTEIRO = re.compile(r"\b(cancela|cancelar|esquece|deixa (pra|para) la|deixa quieto|para o report|parar o report)\b")
-PULA_PERGUNTA = re.compile(r"^(pula|pular|passa|nada|nenhum|nenhuma|nao sei|sem resposta|nao teve|nao houve)$")
+PULA_PERGUNTA = re.compile(r"^(pula|pular|passa|nada|nenhum|nenhuma|nao sei|sem resposta|nao teve|nao houve|pronto|so isso|e isso)$")
+PERGUNTA_DO_PASSO = {"energia": "De 1 a 5, como foi a sua energia hoje?", "atrapalhou": "O que mais atrapalhou hoje?",
+                     "ajudou": "E o que ajudou?", "nota": "Quer deixar mais alguma coisa anotada? Se não, diga pronto."}
 
 
 def iniciar_roteiro(a):
     global ROTEIRO
-    ROTEIRO = {"id": "report", "i": 0, "respostas": [], "quando": time.time()}
-    bus.emitir("roteiro", ativo=True, id="report", passo=1, total=len(PERGUNTAS_REPORT))
-    dizer("Report do dia, quatro perguntas rápidas. " + PERGUNTAS_REPORT[0], a)
+    import calibragem_motor
+    resumo = calibragem_motor.resumo_do_dia(v2.h.OPER)
+    hipotese = calibragem_motor.hipotese_do_dia(v2.h.OPER)
+    if hipotese:
+        calibragem_motor.marcar_perguntado(v2.h.OPER, hipotese["id"])
+    passos = ["energia", "atrapalhou", "ajudou"] + (["hipotese"] if hipotese else []) + ["nota"]
+    ROTEIRO = {"id": "report", "i": 0, "passos": passos, "report": {"hipotese": None}, "hipotese": hipotese, "quando": time.time()}
+    bus.emitir("roteiro", ativo=True, id="report", passo=1, total=len(passos))
+    dizer(f"Report do dia. {resumo['frase']} Agora {len(passos)} perguntas rápidas. " + PERGUNTA_DO_PASSO["energia"], a)
     bus.emitir("estado", v="aguardando")
     return True
 
 
+def _pergunta(r):
+    passo = r["passos"][r["i"]]
+    return r["hipotese"]["texto"] + " Sim, não ou às vezes?" if passo == "hipotese" else PERGUNTA_DO_PASSO[passo]
+
+
 def tratar_roteiro(texto, a, digitado):
-    """A fala da pessoa é a resposta da pergunta atual. Devolve True se o microfone deve reabrir para a próxima."""
+    """A fala da pessoa é a resposta do passo atual. Devolve True se o microfone deve reabrir para o próximo."""
     global ROTEIRO
+    import calibragem_motor
     r = ROTEIRO
     t = re.sub(r"\s+", " ", _norm(texto)).strip()
     if CANCELA_ROTEIRO.search(t) and len(t.split()) <= 6:
@@ -2694,17 +2933,29 @@ def tratar_roteiro(texto, a, digitado):
         dizer("Tudo bem, deixei o report de lado.", a)
         bus.emitir("estado", v="aguardando")
         return False
-    r["respostas"].append("" if PULA_PERGUNTA.match(t) else texto.strip())
+    passo, rep, pulou = r["passos"][r["i"]], r["report"], bool(PULA_PERGUNTA.match(t))
+    if passo == "energia":
+        rep["energia"] = None if pulou else calibragem_motor.energia_da_fala(texto)
+    elif passo in ("atrapalhou", "ajudou"):
+        rep[passo] = [] if pulou else calibragem_motor.chips_da_fala(texto, passo)
+        if not pulou and not rep[passo]:  # disse algo que não é nenhum dos chips: fica no recado, para não se perder
+            rep["nota"] = (rep.get("nota", "") + f" {'Atrapalhou' if passo == 'atrapalhou' else 'Ajudou'}: {texto.strip()}.").strip()
+    elif passo == "hipotese":
+        resposta = calibragem_motor.resposta_da_fala(texto)
+        if resposta:
+            rep["hipotese"] = {"id": r["hipotese"]["id"], "texto": r["hipotese"]["texto"], "resposta": resposta}
+    elif passo == "nota" and not pulou:
+        rep["nota"] = (rep.get("nota", "") + " " + texto.strip()).strip()
     r["i"] += 1
     r["quando"] = time.time()
-    if r["i"] < len(PERGUNTAS_REPORT):
-        bus.emitir("roteiro", ativo=True, id=r["id"], passo=r["i"] + 1, total=len(PERGUNTAS_REPORT))
-        dizer(PERGUNTAS_REPORT[r["i"]], a)
+    if r["i"] < len(r["passos"]):
+        bus.emitir("roteiro", ativo=True, id=r["id"], passo=r["i"] + 1, total=len(r["passos"]))
+        dizer(_pergunta(r), a)
         bus.emitir("estado", v="aguardando")
         return not digitado
     ROTEIRO = None
     bus.emitir("roteiro", ativo=False)
-    res = v2.salvar_report(r["respostas"], "voz")
+    res = v2.salvar_report(rep, "voz")
     if res.get("ok"):
         fala = "Report recebido. Obrigado." + (f" Você chegou ao marco dos {res['dia']} dias." if res.get("marco") else "")
     else:
@@ -2915,7 +3166,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
     falado = ""
     sem_conta = False
     na_sessao = modo_sessao()
-    llm, motivo_llm = escolher_modelo(texto)
+    llm, motivo_llm = escolher_modelo(texto) if provedor_ia() == "claude" else ("codex", "escolha do painel")
     print("  (sessão do Claude Code)" if na_sessao else f"  (modelo: {llm}, {motivo_llm})")
 
     def pedir(pedido):
@@ -2939,7 +3190,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
             else:
                 resposta, seg2 = perguntar_claude(texto, llm)
             falado, diretivas = extrair_diretivas(resposta)
-            print(f"  Guardião (Claude, {seg2:.1f}s): {falado}")
+            print(f"  Guardião ({provedor_ia()}, {seg2:.1f}s): {falado}")
             executar_diretivas(diretivas, texto)
             bus.emitir("estado", v="falando")
             bus.emitir("guardiao_texto", texto=falado)
@@ -2964,7 +3215,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
         bus.emitir("metricas", stt=stt, primeira=primeira, total=total)
     except Exception as erro:
         print("  Erro:", erro)
-        conta = isinstance(erro, (guardiao_sessao.ErroDeConta, FileNotFoundError))  # sem Claude Code, sem login, no limite de uso...
+        conta = isinstance(erro, (guardiao_sessao.ErroDeConta, FileNotFoundError, RuntimeError))
         if conta:
             sem_conta = True
         else:
@@ -3046,13 +3297,19 @@ def main():
         a.voz_kokoro = voz_configurada()
     if a.cerebro:
         memoria_conversa.vigiar(_chamar_resumo, lambda: pessoa()["primeiro"])  # o resumo do dia é atualizado quando a pessoa fica uns minutos sem falar
-        estado = guardiao_sessao.estado_do_claude()
-        if estado["ok"]:
-            print(f"Claude Code: {estado['versao']} ({estado['de']})")
+        if provedor_ia() == "codex":
+            estado = guardiao_codex.estado()
+            print(f"Codex: {estado['versao']}" if estado["ok"] else estado["erro"])
+            if estado["ok"] and not estado["autenticado"]:
+                print("Codex instalado; rode 'codex login' uma vez no terminal.")
         else:
-            print("Não achei um Claude Code que execute. O painel abre, mas o guardião não responde até ele ser instalado: https://claude.com/claude-code")
-            if estado["erro"]:
-                print("  tentativas:", estado["erro"])
+            estado = guardiao_sessao.estado_do_claude()
+            if estado["ok"]:
+                print(f"Claude Code: {estado['versao']} ({estado['de']})")
+            else:
+                print("Não achei um Claude Code que execute. O painel abre, mas o guardião não responde até ele ser instalado: https://claude.com/claude-code")
+                if estado["erro"]:
+                    print("  tentativas:", estado["erro"])
     ACOES_ATIVAS = not a.sem_acoes
     if a.prompt_estavel:
         PROMPT_ESTAVEL = True
@@ -3089,6 +3346,7 @@ def main():
             return
         print("Tela do guardião:", url)
         threading.Thread(target=vigiar_avisos, daemon=True).start()
+        manter_planos.iniciar()  # os planos dos próximos 3 dias úteis estão sempre gerados
 
     voz_ok = a.voz
     if a.cerebro and a.voz == "kokoro":
@@ -3116,9 +3374,10 @@ def main():
     if sem_mic:
         a.sem_escuta_aberta = True  # sem microfone, ninguém fica esperando uma resposta falada
     try:
-        modo = "com o cérebro (Claude)" if a.cerebro else "só transcrevendo"
+        modo = f"com o cérebro ({provedor_ia()})" if a.cerebro else "só transcrevendo"
         print(f"Pronto, {modo}. " + ("Microfone desligado: escreva no painel." if sem_mic else "Diga 'Ei guardião', espere o bipe e fale." if continuo else "Microfone fechado: ele só liga quando você clica no botão do microfone.") + " Ctrl+C para sair.")
-        saude = {"mic": not sem_mic, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
+        saude = {"mic": not sem_mic, "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()),
+                 "codex": bool(a.cerebro and guardiao_codex.disponivel()), "voz": voz_ok}
         bus.emitir("saude", **saude)
         revisar_em = mic_em = claude_em = time.time() + 5
         supervisor_em = time.time() + 60
@@ -3158,10 +3417,12 @@ def main():
                         print("Microfone ligado. Diga 'Ei guardião', espere o bipe e fale.")
                 if not continuo:
                     a.sem_escuta_aberta = not (chave and mic.existe())
-                if a.cerebro and not achar_claude() and time.time() > claude_em:
+                if a.cerebro and provedor_ia() == "claude" and not achar_claude() and time.time() > claude_em:
                     claude_em = time.time() + 30
                     threading.Thread(target=lambda: achar_claude(refazer=True), daemon=True).start()  # a conferência executa o Claude: fora do laço do áudio
-                agora_saude = {"mic": (mic.stream is not None) if continuo else bool(chave and mic.existe()), "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()), "voz": voz_ok}
+                agora_saude = {"mic": (mic.stream is not None) if continuo else bool(chave and mic.existe()),
+                               "groq": bool(chave), "claude": bool(a.cerebro and achar_claude()),
+                               "codex": bool(a.cerebro and guardiao_codex.disponivel()), "voz": voz_ok}
                 if agora_saude != saude:
                     saude = agora_saude
                     bus.emitir("saude", **saude)

@@ -173,9 +173,9 @@ try:
     espera("document.querySelector('.prefs.open')", 3)
     js("[...document.querySelectorAll('.prefs .pg-h')].find(e => e.textContent.includes('Comportamento')).click()")
     pausa(0.7)
-    confere("a preferência 'Conversa com memória' está em Comportamento, ligada", js("document.querySelector('.prefs .sw[aria-label=\"Conversa com memória\"]').classList.contains('on')"))
+    confere("a preferência 'Conversa com memória do Claude' está em Comportamento, ligada", js("document.querySelector('.prefs .sw[aria-label=\"Conversa com memória do Claude\"]').classList.contains('on')"))  # o nome ganhou "do Claude" quando o Codex entrou
     nav.foto("sessao_preferencia")
-    js("document.querySelector('.prefs .sw[aria-label=\"Conversa com memória\"]').click()")
+    js("document.querySelector('.prefs .sw[aria-label=\"Conversa com memória do Claude\"]').click()")
     confere("desligar grava no servidor e tira a faixa da conversa da tela", pausa(1.0) and h.preferencias()["sessao"] is False and js("!document.querySelector('.cstrip')"))
     confere("sem erro de JavaScript", not nav.erros, nav.erros[:3])
 finally:

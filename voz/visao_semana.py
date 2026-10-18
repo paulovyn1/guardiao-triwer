@@ -17,6 +17,7 @@ NOBRE_MANHA = (8 * 60 + 40, 13 * 60)
 NOBRE_NOITE_INICIO = 18 * 60
 PARAR_PADRAO = {0: 19 * 60, 1: 19 * 60 + 20, 2: 19 * 60 + 20, 3: 19 * 60 + 20, 4: 19 * 60 + 20}
 _PADRAO = (CHEGADA, NOBRE_MANHA, NOBRE_NOITE_INICIO)
+ZONA_MORTA = []  # rotina.zona_morta: faixas em que só cabe tarefa leve (o roteador nunca põe pesado ou design ali)
 PARAR_CONFIG = {}  # rotina.parar_por_dia da pessoa: vale acima do perfil e do padrão
 DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 DIA_POR_NOME = {"seg": 0, "ter": 1, "qua": 2, "qui": 3, "sex": 4, "sab": 5, "sáb": 5, "dom": 6}
@@ -39,6 +40,12 @@ def aplicar_rotina(cfg):
             primeira = faixas[0]
             NOBRE_MANHA = (hm(primeira[0]), hm(primeira[1]) if str(primeira[1]).lower() != "fim" else 24 * 60)
             NOBRE_NOITE_INICIO = hm(faixas[1][0]) if len(faixas) > 1 else 24 * 60
+        except (ValueError, TypeError, IndexError):
+            pass
+    ZONA_MORTA.clear()
+    for faixa in rotina.get("zona_morta") or []:
+        try:
+            ZONA_MORTA.append((hm(faixa[0]), hm(faixa[1])))
         except (ValueError, TypeError, IndexError):
             pass
     PARAR_CONFIG.clear()
@@ -120,14 +127,25 @@ def pre_planos_do_clickup(oper, planos, hoje=None):
     hoje = hoje or date.today()
     limite = (hoje + timedelta(days=HORIZONTE_DIAS)).isoformat()
     resumo = _json(os.path.join(oper, "resumo_clickup.json")) or {}
-    em_plano = {b.get("clickup_id") for p in planos.values() for b in (p.get("blocos") or []) if b.get("clickup_id")}
+    # Só fica de fora a tarefa que já está no plano gravado DO MESMO dia. Se ela está no plano de outro dia mas o ClickUp diz este dia, vale o
+    # ClickUp (ela acabou de ser movida): antes ela sumia dos dois lados e a conferência barrava a mudança como "tarefa que some".
+    em_plano = {(d, b.get("clickup_id")) for d, p in planos.items() for b in (p.get("blocos") or []) if b.get("clickup_id")}
+    import etapas_post
+    import travas
+    maes = (_json(os.path.join(oper, "posts_maes.json")) or {}).get("maes") or []
+    cfg = _json(os.path.join(oper, "config.json")) or {}
+    marcos_travados = travas.ids_de_marcos((cfg.get("pastas") or {}).get("memoria"))
+    agendadas = travas.carregar_agendadas(oper)
+    por_mae = etapas_post.datas_por_mae(resumo.get("tarefas") or [], maes)
     pre = {}
     for t in resumo.get("tarefas") or []:
         dia = str(t.get("prazo") or "")
-        if t.get("aprovar") or t.get("id") in em_plano or dia in planos or not (hoje.isoformat() <= dia <= limite):
+        if t.get("aprovar") or (dia, t.get("id")) in em_plano or dia in planos or not (hoje.isoformat() <= dia <= limite):
+            continue
+        if etapas_post.replanejar(etapas_post.info(t, maes), travas.classe(t, cfg, marcos_travados, agendadas), t, por_mae):  # prazo é sugestão: o guardião decide (plano_base)
             continue
         p = pre.setdefault(dia, {"data": dia, "status": "pré-planejado no ClickUp", "origem": "clickup", "blocos": [], "sem_hora": []})
-        bloco = {"titulo": t.get("nome"), "clickup_id": t.get("id"), "frente": t.get("lista") or "?"}
+        bloco = {"id": t.get("id"), "titulo": t.get("nome"), "clickup_id": t.get("id"), "frente": t.get("lista") or "?"}
         if t.get("inicio") and t.get("fim"):
             p["blocos"].append(dict(bloco, inicio=t["inicio"], fim=t["fim"]))
         else:
@@ -145,7 +163,7 @@ def planos_da_semana(oper, hoje=None):
 def _intervalos(plano, ignorar=()):
     lista = []
     for b in (plano.get("blocos") or []):
-        if b.get("id") in ignorar:
+        if b.get("id") is not None and b.get("id") in ignorar:  # bloco sem id (lido do ClickUp) nunca é ignorado por engano
             continue
         try:
             lista.append((hm(b["inicio"]), hm(b["fim"])))
@@ -211,14 +229,17 @@ def texto(oper, memoria=None, hoje=None, agora_min=None, feitos_hoje=(), incluir
         if dia.weekday() >= 5 and not plano:
             continue
         parar = hora_de_parar(dia, memoria)
-        cab = f"{DIAS[dia.weekday()]} {dia:%d/%m} (para às {fmt(parar)})"
+        cab = f"{DIAS[dia.weekday()]} {dia:%d/%m} (para às {fmt(parar)})" if dia.weekday() < 5 else f"{DIAS[dia.weekday()]} {dia:%d/%m} (fim de semana: só o combinado, sem horário para encaixar)"
         if not plano:
             linhas.append(f"{cab}: nada gravado nem agendado no ClickUp. Dia livre para planejar.")
             continue
         if plano.get("origem") == "clickup":
             ids_em_plano.update(b["clickup_id"] for b in plano["blocos"] + plano["sem_hora"])
         total, nobre = livre_do_dia(plano, dia, memoria, agora_min if i == 0 else None, feitos_hoje if i == 0 else ())
-        linhas.append(f"{cab} [{plano.get('status') or '?'}]: livre {duracao(total)}, dos quais {duracao(nobre)} em horário nobre")
+        if dia.weekday() >= 5:
+            linhas.append(cab)
+        else:
+            linhas.append(f"{cab} [{plano.get('status') or '?'}]: livre {duracao(total)}, dos quais {duracao(nobre)} em horário nobre")
         for b in sorted(plano.get("blocos") or [], key=lambda x: x.get("inicio") or ""):
             if b.get("clickup_id"):
                 ids_em_plano.add(b["clickup_id"])
@@ -264,7 +285,11 @@ REGRAS_DA_SEMANA = (
     "5. Bloco que muda de dia mantém o \"prazo_final\" que já tinha.\n"
     "6. Antes de mostrar uma proposta, confira a semana inteira contra ela: cada post de seg, qua e sex tem copy e design antes do dia dele, "
     "cada prazo final é cumprido e nada pré-planejado sumiu. O servidor nega a gravação em que uma tarefa some da semana, passa do prazo final "
-    "ou toma o horário nobre de um dia cheio sendo tarefa com folga."
+    "ou toma o horário nobre de um dia cheio sendo tarefa com folga.\n"
+    "7. Tarefa de data futura (nova ou antiga) não entra em hoje e não vira pergunta de replanejar o dia: ela vai para o dia de encaixe, perguntando a ela. "
+    "Só entra em hoje o que vence hoje E é urgente depois de você abrir a tarefa e ler; se não for urgente, proponha outra data. Nunca pergunte se algo a mais de uma semana entra hoje.\n"
+    "8. Se hoje tem bloco passando da hora de parar, ou sobra horário livre antes dela, o horário vai primeiro para adiantar o que já está em hoje (termine o que estoura). "
+    "Nunca puxe tarefa de outro dia (cronograma de sexta, por exemplo) enquanto houver bloco de hoje fora da janela."
 )
 
 

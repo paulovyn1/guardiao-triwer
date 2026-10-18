@@ -50,7 +50,7 @@ confere("removido não volta", any("Caio" in p for p in cp.conferir(volta, {"rem
 # conferência de semana (2026-10-14): tarefa não some, prazo final vale, nobre é do importante
 qui = date(2026, 10, 15)
 base = {"agenda_impoe": "x", "fixos": [{"inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}], "blocos": [
-    {"id": "b1", "inicio": "08:50", "fim": "09:50", "titulo": "Copy do post de segunda", "frente": "Conteúdo", "clickup_id": "c1"},
+    {"id": "b1", "inicio": "08:50", "fim": "09:50", "titulo": "Edição de segunda", "frente": "Conteúdo", "clickup_id": "c1"},
     {"id": "b2", "inicio": "09:50", "fim": "13:00", "titulo": "Roteiro", "frente": "Rebranding"},
     {"id": "b3", "inicio": "19:45", "fim": "21:15", "titulo": "Página do Carlos", "frente": "Agência", "prazo_final": "2026-10-16"}]}
 confere("semana: plano intacto passa", cp.conferir_semana(base, qui, base, {}, {"c1"}) == [])
@@ -58,7 +58,7 @@ sumiu = dict(base, blocos=base["blocos"][1:])
 confere("semana: copy que some sem ir para outro dia barra", any("não está em nenhum outro dia" in p for p in cp.conferir_semana(sumiu, qui, base, {}, {"c1"})))
 confere("semana: copy movida para sexta passa", cp.conferir_semana(sumiu, qui, base, {"2026-10-16": {"blocos": [base["blocos"][0]]}}, {"c1"}) == [])
 confere("semana: tarefa já concluída no ClickUp pode sair", cp.conferir_semana(sumiu, qui, base, {}, set()) == [])
-confere("semana: removido a pedido pode sair", cp.conferir_semana(dict(sumiu, removidos=["Copy do post de segunda"]), qui, base, {}, {"c1"}) == [])
+confere("semana: removido a pedido pode sair", cp.conferir_semana(dict(sumiu, removidos=["Edição de segunda"]), qui, base, {}, {"c1"}) == [])
 manha = dict(base, blocos=[dict(base["blocos"][2], inicio="09:50", fim="11:20"), dict(base["blocos"][1], inicio="11:20", fim="13:00"), base["blocos"][0]])
 manha["blocos"][2] = dict(base["blocos"][0], inicio="08:40", fim="09:50")
 confere("semana: agência com folga no nobre cheio barra", any("horário nobre" in p for p in cp.conferir_semana(manha, qui, base, {}, {"c1"})))
@@ -77,14 +77,14 @@ os.makedirs(os.path.join(oper, "planos"))
 with open(os.path.join(oper, "planos", "plano_2026-10-15.json"), "w", encoding="utf-8") as f:
     json.dump(base, f)
 with open(os.path.join(oper, "resumo_clickup.json"), "w", encoding="utf-8") as f:
-    json.dump({"tarefas": [{"id": "c9", "nome": "Design do post de segunda", "prazo": "2026-10-16", "inicio": "11:00", "fim": "13:00", "lista": "Conteúdos"},
-                           {"id": "c1", "nome": "Copy do post de segunda", "prazo": "2026-10-15", "lista": "Conteúdos"},
+    json.dump({"tarefas": [{"id": "c9", "nome": "Gravação de segunda", "prazo": "2026-10-16", "inicio": "11:00", "fim": "13:00", "lista": "Conteúdos"},
+                           {"id": "c1", "nome": "Edição de segunda", "prazo": "2026-10-15", "lista": "Conteúdos"},
                            {"id": "c7", "nome": "Esquecida", "prazo": "2026-10-15", "inicio": "15:00", "fim": "16:00", "lista": "Conteúdos"}]}, f)
 t = vs.texto(oper, mem, hoje=date(2026, 10, 15))
-confere("visão: sexta sem plano mostra o pré-plano do ClickUp", "Sex 16/10" in t and "pré-planejado no ClickUp" in t and "11:00-13:00 Design do post de segunda" in t)
+confere("visão: sexta sem plano mostra o pré-plano do ClickUp", "Sex 16/10" in t and "pré-planejado no ClickUp" in t and "11:00-13:00 Gravação de segunda" in t)
 confere("visão: tarefa do dia fora do plano aparece para decidir", "Esquecida" in t and "c1" not in t.split("FORA DELE")[1].split("COMO USAR")[0])
 confere("visão: livre e nobre calculados", "Qui 15/10" in t and "horário nobre" in t)
-com_c9 = dict(base, blocos=base["blocos"] + [{"id": "b9", "titulo": "Design do post de segunda", "clickup_id": "c9", "inicio": "15:00", "fim": "16:00"}])
+com_c9 = dict(base, blocos=base["blocos"] + [{"id": "b9", "titulo": "Gravação de segunda", "clickup_id": "c9", "inicio": "15:00", "fim": "16:00"}])
 confere("semana: tarefa que já está no pré-plano de outro dia pode sair", cp.conferir_semana(base, qui, com_c9, vs.planos_da_semana(oper, qui), {"c1", "c9"}) == [])
 
 # regras que viraram conta (2026-10-14)
@@ -111,4 +111,111 @@ confere("regras: post chamado por letra é barrado", any("por letra" in x for x 
 alternado = pl(bl("a", "09:00", "Copy | Post de quinta sobre vendas", "c15"), bl("b", "10:00", "Design | Post de sexta sobre desejo", "d16"), bl("c", "11:00", "Copy | outra coisa qualquer"))
 confere("regras: copy, design, copy só é barrado com a regra pessoal ligada",
         cp.conferir_regras(alternado, qua, {}, maes, almoco) == [] and any("Agrupe" in x for x in cp.conferir_regras(alternado, qua, {}, maes, almoco, lote=True)))
+# tarefa movida no ClickUp de um dia planejado para um dia pré-planejado não é "tarefa que some" (14/10)
+oper2 = tempfile.mkdtemp()
+os.makedirs(os.path.join(oper2, "planos"))
+with open(os.path.join(oper2, "planos", "plano_2026-10-15.json"), "w", encoding="utf-8") as f:
+    json.dump({"blocos": [{"id": "b1", "inicio": "11:00", "fim": "11:30", "titulo": "Encaixar ideias", "clickup_id": "e1"}]}, f)
+with open(os.path.join(oper2, "resumo_clickup.json"), "w", encoding="utf-8") as f:
+    json.dump({"tarefas": [{"id": "e1", "nome": "Encaixar ideias", "prazo": "2026-10-16", "inicio": "09:00", "fim": "09:40"}]}, f)
+semana = vs.planos_da_semana(oper2, date(2026, 10, 14))
+antes15 = semana["2026-10-15"]
+confere("tarefa que o ClickUp já pôs na sexta aparece no pré-plano da sexta", any(b.get("clickup_id") == "e1" for b in semana.get("2026-10-16", {}).get("blocos", [])), semana.get("2026-10-16"))
+confere("e sair da quinta não é barrado", cp.conferir_semana({"blocos": []}, date(2026, 10, 15), antes15, semana, {"e1"}) == [])
+sem_consumo = pl(bl("a", "09:00", "Pensar ideias e DOPA da semana"), bl("b", "10:00", "Rascunho do Substack (só a ideia)"))
+com_consumo = pl(bl("c", "08:30", "Consumo com a pergunta"), bl("a", "09:00", "Pensar ideias e DOPA da semana"))
+confere("regra pessoal: ideia sem consumo antes é barrada só com a regra ligada",
+        cp.conferir_regras(sem_consumo, qua, {}, [], almoco) == [] and len(cp.conferir_regras(sem_consumo, qua, {}, [], almoco, consumo_antes_de_ideia=True)) == 2
+        and cp.conferir_regras(com_consumo, qua, {}, [], almoco, consumo_antes_de_ideia=True) == [])
+
+maes_rel = [{"id": "m1", "nome": "Postar várias vezes não adianta NADA", "prazo": "2026-10-15", "etapas": [{"id": "r1"}]}]
+rel = {"blocos": [{"id": "x", "inicio": "16:40", "fim": "17:05", "titulo": "Preencher relatório do Postar várias vezes não adianta NADA", "clickup_id": "r1"}]}
+confere("relatório no mesmo dia do post é barrado; no dia seguinte passa (caso real 15/10)",
+        len(cp.conferir_regras(rel, date(2026, 10, 15), {}, maes_rel, [])) == 1 and cp.conferir_regras(rel, date(2026, 10, 16), {}, maes_rel, []) == [])
+
+# alavancas: campanha pública de venda que termina em até 3 dias exige bloco que traga gente
+mem_a = tempfile.mkdtemp()
+os.makedirs(os.path.join(mem_a, "campanhas"))
+
+
+def campanha(slug, tipo, fim, extra=""):
+    with open(os.path.join(mem_a, "campanhas", slug + ".md"), "w", encoding="utf-8") as f:
+        f.write(f"---\nnome: {slug}\nslug: {slug}\ntipo: {tipo}\nstatus: em-execucao\ndata_inicio: 2026-10-01\ndata_fim: {fim}\n{extra}---\n# {slug}\n")
+
+
+campanha("venda-x", "venda-publica", "2026-10-31")
+sem_alavanca = {"blocos": [{"id": "a", "inicio": "09:00", "fim": "10:00", "titulo": "Decidir o bônus"}], "fixos": []}
+com_stories = {"blocos": [{"id": "a", "inicio": "09:00", "fim": "10:00", "titulo": "Stories de aquecimento"}], "fixos": []}
+confere("venda pública a 2 dias do fim sem bloco de alavanca é barrada", len(cp.conferir_alavancas(sem_alavanca, date(2026, 10, 29), mem_a)) == 1)
+confere("com stories no dia passa", cp.conferir_alavancas(com_stories, date(2026, 10, 29), mem_a) == [])
+confere("longe do fim (7 dias) não cobra", cp.conferir_alavancas(sem_alavanca, date(2026, 10, 24), mem_a) == [])
+campanha("interna-y", "acao-comercial", "2026-10-31")
+os.remove(os.path.join(mem_a, "campanhas", "venda-x.md"))
+confere("campanha que não é venda pública não cobra alavanca", cp.conferir_alavancas(sem_alavanca, date(2026, 10, 29), mem_a) == [])
+campanha("venda-z", "venda-ao-vivo", "2026-10-31", "alavancas: reels, convite\n")
+confere("a lista de alavancas da nota vale no lugar da padrão", len(cp.conferir_alavancas(com_stories, date(2026, 10, 29), mem_a)) == 1
+        and cp.conferir_alavancas({"blocos": [{"id": "a", "inicio": "09:00", "fim": "10:00", "titulo": "Reels de convite"}], "fixos": []}, date(2026, 10, 29), mem_a) == [])
+campanha("venda-z", "venda-publica", "2026-10-31", "publica: nao\n")
+confere("campanha marcada como interna (publica: nao) não cobra", cp.conferir_alavancas(sem_alavanca, date(2026, 10, 29), mem_a) == [])
+# erros críticos do plano de 15/10: consumo duplo, tarefa em dois planos, bloco depois do prazo
+dois_consumos = {"blocos": [{"id": "a", "inicio": "16:30", "fim": "17:10", "titulo": "Consumo com a pergunta: isso pode virar post?"}],
+                 "fixos": [{"inicio": "09:20", "fim": "09:45", "titulo": "Recarga: leitura ou curso, sem tela de trabalho"}]}
+confere("dois blocos de consumo/recarga no mesmo dia são barrados; um só passa", len(cp.conferir_consumo(dois_consumos)) == 1
+        and cp.conferir_consumo({"blocos": dois_consumos["blocos"], "fixos": []}) == [])
+plano_seg = {"blocos": [{"id": "a", "inicio": "15:30", "fim": "17:10", "titulo": "Rascunho do Substack", "clickup_id": "T1"}]}
+outros_dup = {"2026-10-16": {"blocos": [{"id": "b3", "inicio": "14:00", "fim": "15:40", "titulo": "Rascunho do Substack", "clickup_id": "T1"}]}}
+confere("tarefa que já está no plano de outro dia é barrada", len(cp.conferir_duplicadas(plano_seg, date(2026, 10, 19), outros_dup)) == 1
+        and cp.conferir_duplicadas(plano_seg, date(2026, 10, 19), {"2026-10-16": {"blocos": [{"clickup_id": "T1"}]}}) == [])
+newsletter = {"T2": {"id": "T2", "prazo": "2026-10-19", "inicio": None, "fim": "09:00"}}
+plano_news = {"blocos": [{"id": "a", "inicio": "17:10", "fim": "17:30", "titulo": "Substack - Newsletter", "clickup_id": "T2"}]}
+confere("bloco depois do horário limite da tarefa (Substack às 9h, bloco às 17h10) é barrado",
+        len(cp.conferir_prazos(plano_news, date(2026, 10, 19), newsletter)) == 1)
+confere("o mesmo trabalho na sexta, antes do prazo, passa; e tarefa com início (movível) não é cobrada",
+        cp.conferir_prazos({"blocos": [{"id": "a", "inicio": "14:00", "fim": "15:40", "titulo": "Rascunho", "clickup_id": "T2"}]}, date(2026, 10, 16), newsletter) == []
+        and cp.conferir_prazos(plano_news, date(2026, 10, 19), {"T2": {"id": "T2", "prazo": "2026-10-19", "inicio": "09:00", "fim": "10:00"}}) == [])
+# blocos diários obrigatórios (stories em todo dia de trabalho)
+cfg_d = {"rotina": {"dias_trabalho": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                    "blocos_diarios": [{"nome": "stories", "palavras": ["stories", "story"], "excluir": ["cronograma"], "minutos_minimos": 15, "bloco_max_min": 40}]}}
+b_ = lambda ini, fim, tit: {"id": "x", "inicio": ini, "fim": fim, "titulo": tit}
+segunda_ = date(2026, 10, 19)
+confere("dia de trabalho sem stories é barrado", len(cp.conferir_blocos_diarios({"blocos": [b_("09:00", "10:00", "Copy do post")], "fixos": []}, segunda_, cfg_d)) == 1)
+confere("com stories de 15 min passa; cronograma de stories (planejar) não conta", cp.conferir_blocos_diarios({"blocos": [b_("17:10", "17:25", "Stories do replay: 3 telas")], "fixos": []}, segunda_, cfg_d) == []
+        and len(cp.conferir_blocos_diarios({"blocos": [b_("09:45", "10:45", "Cronograma de stories da semana")], "fixos": []}, segunda_, cfg_d)) == 1)
+confere("stories em lote (bloco de 3h) é barrado; vários blocos curtos passam",
+        any("blocos menores" in x for x in cp.conferir_blocos_diarios({"blocos": [b_("14:00", "17:00", "Stories do dia")], "fixos": []}, segunda_, cfg_d))
+        and cp.conferir_blocos_diarios({"blocos": [b_("10:00", "10:30", "Stories 1"), b_("15:00", "15:30", "Stories 2")], "fixos": []}, segunda_, cfg_d) == [])
+confere("sábado não cobra, e sem a regra no config nada é cobrado", cp.conferir_blocos_diarios({"blocos": [], "fixos": []}, date(2026, 10, 17), cfg_d) == []
+        and cp.conferir_blocos_diarios({"blocos": [], "fixos": []}, segunda_, {"rotina": {}}) == [])
+# stories: o tipo do dia define o tempo (normal 30, caixinha 45, captação 15), quebrável em blocos curtos
+cfg_s2 = {"rotina": {"dias_trabalho": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], "stories": {"ativo": True}}}
+st_ = lambda ini, fim, tit: {"id": "s", "inicio": ini, "fim": fim, "titulo": tit}
+cx_ = lambda ini, dur=15: st_(ini, f"{int(ini[:2]) + (int(ini[3:]) + dur) // 60:02d}:{(int(ini[3:]) + dur) % 60:02d}", "Stories: respostas da caixinha (parte)")
+nm_ = lambda ini, dur=15: st_(ini, f"{int(ini[:2]) + (int(ini[3:]) + dur) // 60:02d}:{(int(ini[3:]) + dur) % 60:02d}", "Stories: sequência normal (parte)")
+sex = date(2026, 10, 16)  # sexta = caixinha pelo padrão
+replay = st_("17:10", "17:25", "Stories do replay da turma VIP: 3 telas")
+confere("sexta (caixinha) só com o replay de divulgação (caso real 16/10) é barrada", len(cp.conferir_stories({"blocos": [replay], "fixos": []}, sex, cfg_s2)) == 1)
+confere("sexta com 45 min de caixinha em 3 blocos passa; quebrada em blocos de 10 e 5 min também", cp.conferir_stories({"blocos": [cx_("10:00"), cx_("13:00"), cx_("16:00"), replay], "fixos": []}, sex, cfg_s2) == []
+        and cp.conferir_stories({"blocos": [cx_("10:00", 10), cx_("11:00", 10), cx_("13:00", 10), cx_("15:00", 10), cx_("16:00", 5)], "fixos": []}, sex, cfg_s2) == [])
+confere("30 min de caixinha é pouco em dia com folga (pede 45)", len(cp.conferir_stories({"blocos": [cx_("10:00"), cx_("15:00")], "fixos": []}, sex, cfg_s2)) == 1)
+cheio = [{"id": "x", "inicio": "08:40", "fim": "19:00", "titulo": "tudo"}]
+confere("em dia apertado a caixinha continua pedindo 45 min: 15 min é pouco, 45 em 3 blocos passa", cp.dia_apertado({"blocos": cheio, "fixos": []}, sex) is True
+        and len(cp.conferir_stories({"blocos": cheio + [cx_("15:00")], "fixos": []}, sex, cfg_s2)) == 1
+        and cp.conferir_stories({"blocos": cheio + [cx_("15:00"), cx_("16:00"), cx_("17:00")], "fixos": []}, sex, cfg_s2) == [])
+replanejado_ = {"blocos": [cx_("15:00")], "fixos": [], "modo_dia": "apertado",
+               "aviso": "Replanejado: tarefa leve passa para segunda; caixinha simplificada."}
+confere("dia apertado continua apertado depois de reagendar tarefas, e a caixinha segue pedindo 45 min (15 não basta)", cp.dia_apertado(replanejado_, sex) is True
+        and len(cp.conferir_stories(replanejado_, sex, cfg_s2)) == 1
+        and cp.conferir_stories(dict(replanejado_, blocos=[cx_("15:00"), cx_("16:00"), cx_("17:00")]), sex, cfg_s2) == [])
+qua_ = date(2026, 10, 21)  # quarta = sequência normal (30 min)
+confere("quarta (sequência normal): 30 min em 2 blocos passa; 15 min é pouco", cp.conferir_stories({"blocos": [nm_("10:00"), nm_("15:00")], "fixos": []}, qua_, cfg_s2) == []
+        and len(cp.conferir_stories({"blocos": [nm_("10:00")], "fixos": []}, qua_, cfg_s2)) == 1)
+qui_ = date(2026, 10, 15)  # quinta = captação
+cap = {"blocos": [st_("14:00", "14:15", "Stories de captação de leads (3 telas)")], "fixos": [], "stories_tipo": "captacao"}
+confere("dia de captação com 15 min passa; um segundo dia de captação na mesma semana é barrado", cp.conferir_stories(cap, qui_, cfg_s2) == []
+        and any("só em 1 dia por semana" in x for x in cp.conferir_stories(dict(cap, stories_tipo="captacao"), sex, cfg_s2, {"2026-10-15": cap})))
+confere("o plano pode declarar o tipo do dia (stories_tipo) no lugar do padrão", cp.tipo_do_dia({"stories_tipo": "normal"}, sex, cp.config_stories(cfg_s2)) == "normal"
+        and cp.tipo_do_dia({}, sex, cp.config_stories(cfg_s2)) == "caixinha")
+confere("bloco de 3h é lote e é barrado; cronograma de stories não conta", any("blocos curtos" in x for x in cp.conferir_stories({"blocos": [st_("14:00", "17:00", "Stories do dia")], "fixos": []}, qua_, cfg_s2))
+        and len(cp.conferir_stories({"blocos": [st_("09:45", "10:45", "Cronograma de stories da semana")], "fixos": []}, sex, cfg_s2)) == 1)
+confere("sem rotina.stories no config nada é cobrado; sábado não cobra", cp.conferir_stories({"blocos": [replay], "fixos": []}, sex, {"rotina": {}}) == [] and cp.conferir_stories({"blocos": []}, date(2026, 10, 17), cfg_s2) == [])
 sys.exit(1 if falhas else 0)

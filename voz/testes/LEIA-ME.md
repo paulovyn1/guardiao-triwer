@@ -26,10 +26,20 @@ As capturas de tela ficam em `testes\capturas`.
 | `teste_plano_base.py` | plano da manhã por código, quando chamar o Claude e o dossiê que ele recebe |
 | `teste_conferencia_plano.py` | conferência do plano: sobreposição, removidos, semana, regras de conteúdo |
 | `teste_checar_config.py` | verificador de configuração depois da atualização |
-| `teste_popup.py` | o aviso próprio com a janela de verdade (sem som): no canto, por cima, sem roubar o foco e sem barra de tarefas, um substitui o outro, some sozinho; a rota `/popup`, o Iniciar só da tarefa de agora e o `avisos.ps1` com a notificação do Windows de reserva (17) |
+| `teste_popup.py` | o aviso próprio com a janela de verdade (sem som): no canto, por cima, sem roubar o foco e sem barra de tarefas, um substitui o outro, some sozinho; a rota `/popup`, o Iniciar só da tarefa de agora e o `avisos.ps1` com a notificação do Windows de reserva (17). A parte com a janela de verdade aparece na tela de quem usa o computador, por isso só roda com `--janela` (sem ela, 10) |
 | `teste_tocador.py` | a velocidade da voz muda sem mudar o tom, e a placa de som de verdade (tocando silêncio) acompanha a posição, a troca de velocidade e a parada (14) |
 | `teste_catalogo_pops.py` | POPs da escola: lidos da API do Supabase da escola (aqui um servidor falso local) com a chave pública e só os publicados, cache, último catálogo guardado quando a rede cai, troca pelo `config.json`, instalar em Meus POPs, e o arquivo do pacote leva só chave pública (15) |
 | `teste_acoes_rapidas.py` | sem o Claude: "concluí" direto ou perguntando na dúvida, mais tempo, adiar, motivo perguntado e anotado, regras locais no prompt do modo rápido e o replanejamento quando o atraso passa de 30 minutos e o dia não tem folga (26) |
+| `teste_calibragem.py` | sem navegador e sem Claude: natureza da tarefa, tempo confiável, migração do `tempos.json` antigo, margem sem reunião, atraso para começar, tarefa principal, motor que aprende (vários dias sintéticos: achados, níveis, pergunta do dia, sim e não), seção do plano e dossiê, report por voz e convite na hora de parar, calibragem contínua, estatísticas, conquistas, mapeamento de rotina e a ligação com o motor da agenda e o revisor de IA (89) |
+| `teste_motor_agenda.py` | motor da agenda: o código monta a semana sem IA, nada passa da hora de parar, consumo antes da copy, tarefa com limite até o limite, o que não cabe vira a pergunta "estender ou renegociar" |
+| `teste_preparos_conserto.py` | preparo de evento recorrente (limite de cada etapa, cobrança da etapa de outra pessoa) e o conserto do plano antes da conferência (25) |
+| `teste_calibragem_semanal.py` | calibragem semanal do sábado: pergunta só com amostra, no máximo 3 por semana, e a resposta vira ação (registro fora da média ou linha em `calibragem/regras.md`) |
+| `teste_codex_planos.py` | Codex como provedor: entrega os planos na resposta e só o aplicativo grava os arquivos permitidos |
+| `teste_etapas_post.py` | etapas de post: o guardião manda na data, copy e design até o dia anterior à postagem, relatório só 24 horas depois |
+| `teste_gordura.py` | posts prontos à frente (gordura) e a auditoria das datas que o guardião já tinha marcado |
+| `teste_manter_planos.py` | planos dos próximos 3 dias úteis sempre gerados por código, sem refazer o que existe |
+| `teste_revisor.py` | revisor do plano: só em dia apertado ou replanejamento, sem a conversa de quem montou, e falha nunca bloqueia o plano |
+| `teste_travas.py` | classes de tarefa: fixa, prazo máximo, estabelecida pelo guardião e sugestão |
 | `teste_posts_etapas.py` | bloco de ideias concluído: as reservas de copy e design viram subtarefas da mãe do post, sem duplicar nem criar tarefa solta (8). ClickUp falso |
 | `teste_duplicadas.py` | tarefa que já existe no ClickUp não é criada de novo: título igual vira a mesma, mesmo assunto com outras palavras é avisado, tarefas irmãs (carrossel A e B, copy e design) continuam separadas (6). Sem ClickUp |
 | `teste_acao_falha.py` | ação por voz que não deu certo: ele diz que não conseguiu (qual tarefa e por quê), espera a ação terminar, avisa o modelo para não afirmar o contrário, pergunta quando a pessoa não pediu e o "sim" vale, e cala se a janela foi fechada. Sem Claude, sem áudio, sem ClickUp (16) |

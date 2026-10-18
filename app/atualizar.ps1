@@ -66,11 +66,12 @@ try {
     $subpasta = if ($at -and $at.PSObject.Properties['pasta']) { [string]$at.pasta } else { 'guardiao-triwer' }
     $skillLocal = Join-Path $oper '.claude\skills\guardiao-triwer'
     $skillGlobal = Join-Path $env:USERPROFILE '.claude\skills\guardiao-triwer'
-    foreach ($p in @($skillLocal, $skillGlobal)) {  # instalada a partir de um clone: o instalador deixa o caminho dele em .repo-path
+    $skillCodex = Join-Path $env:USERPROFILE '.codex\skills\guardiao-triwer'
+    foreach ($p in @($skillLocal, $skillGlobal, $skillCodex)) {  # instalada a partir de um clone: o instalador deixa o caminho dele em .repo-path
         $marcador = Join-Path $p '.repo-path'
         if (-not $Origem -and (Test-Path $marcador)) { $Origem = ([System.IO.File]::ReadAllText($marcador, $utf8)).Trim() }
     }
-    foreach ($p in @($skillLocal, $skillGlobal)) {  # endereço publicado junto com a skill
+    foreach ($p in @($skillLocal, $skillGlobal, $skillCodex)) {  # endereço publicado junto com a skill
         $arqOrigem = Join-Path $p 'origem.json'
         if (-not $Origem -and (Test-Path $arqOrigem)) {
             $o = [System.IO.File]::ReadAllText($arqOrigem, $utf8) | ConvertFrom-Json
@@ -188,6 +189,7 @@ try {
     $pastasSkill = @()
     if (Test-Path $skillLocal) { $pastasSkill += $skillLocal }
     if (Test-Path $skillGlobal) { $pastasSkill += $skillGlobal }
+    if (Test-Path $skillCodex) { $pastasSkill += $skillCodex }
     if ($at -and $at.PSObject.Properties['pastas_skill']) { foreach ($p in @($at.pastas_skill)) { if ($p -and (Test-Path $p)) { $pastasSkill += [string]$p } } }
     $feitas = @{}
     foreach ($p in $pastasSkill) {
@@ -199,6 +201,20 @@ try {
         if (-not (Test-Path (Join-Path $real 'voz'))) { $semPastas += 'voz' }  # a cópia do programa só acompanha a skill onde o instalador a deixou
         Robo $fonte $real $semPastas @('memoria.md', 'NOTAS-PARA-INSTALADOR.md', 'HISTORICO-DETALHADO.md', '.repo-path', 'extensoes-*.md', '*.pyc', 'preferencias.json', 'pronuncias.json')
         foreach ($velho in 'app\servidor_tela.ps1', 'app\tela_modelo.html') { Remove-Item (Join-Path $real $velho) -Force -ErrorAction SilentlyContinue }
+    }
+
+    # ---- 4) memória: arquivo que a skill passou a ler e que a instalação antiga não tem nasce do modelo. Nunca sobrescreve. ----
+    $memoria = if ($cfg -and $cfg.PSObject.Properties['pastas'] -and $cfg.pastas.memoria) { [string]$cfg.pastas.memoria } else { '' }
+    if ($memoria -and (Test-Path $memoria)) {
+        $nomePessoa = if ($cfg.pessoa -and $cfg.pessoa.nome) { ([string]$cfg.pessoa.nome).Split(' ')[0] } else { 'você' }
+        foreach ($arq in @('aprendizados.md')) {
+            $destino = Join-Path $memoria $arq
+            $modelo = Join-Path $fonte "templates\$arq"
+            if ((Test-Path $destino) -or -not (Test-Path $modelo)) { continue }
+            $texto = [System.IO.File]::ReadAllText($modelo, $utf8).Replace('{{nome}}', $nomePessoa).Replace('{{data}}', (Get-Date -Format 'yyyy-MM-dd'))
+            [System.IO.File]::WriteAllText($destino, $texto, $utf8)
+            Anotar "Criado na memória: $arq (a skill lê este arquivo em toda ativação)."
+        }
     }
 
     Copy-Item (Join-Path $fonte 'VERSION') (Join-Path $oper 'VERSION') -Force -ErrorAction Stop
