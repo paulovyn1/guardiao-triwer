@@ -1802,6 +1802,8 @@ def _planejar_pelo_motor(pedido):
         for d in r["delegar"][:4]:
             donos.setdefault(str(d["dono"]).split()[0], []).append(str(d["titulo"])[:50])
         partes.append(" ".join(f"Para o {dono}: {'; '.join(t)}." for dono, t in donos.items()))
+    if r.get("movidas"):
+        partes.append("Passei para outro dia, sem precisar de decisão sua: " + "; ".join(f"{str(m['titulo'])[:45]} ({m['dia'][8:10]}/{m['dia'][5:7]})" for m in r["movidas"][:4]) + ".")
     perguntas = (r.get("perguntas") or [])[:1]  # uma pergunta por vez: a próxima vem depois da resposta dela
     partes += perguntas or ["O plano novo já está na lista: confira e aprove na barra de baixo."]
     return "\n\n".join(partes)  # um parágrafo por assunto (a conversa mostra as quebras)

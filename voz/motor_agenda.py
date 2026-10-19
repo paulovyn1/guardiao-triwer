@@ -133,6 +133,29 @@ def _encolher_stories(plano, d, cfg):
     return True
 
 
+def _tirar_consumo(plano):
+    """Dia curto: o consumo do dia (rotina, 30 min) sai antes de qualquer tarefa. Cada dia tem o seu, então nada se perde."""
+    for b in plano.get("blocos") or []:
+        if "consumo" in _norm(b.get("titulo")) and b.get("status") != "feito" and not b.get("clickup_id"):
+            plano["blocos"].remove(b)
+            return True
+    return False
+
+
+def _suave(item, oper, cfg):
+    """Tarefa cujo prazo é sugestão do ClickUp (ou data que o próprio guardião pôs): o guardião pode passar para outro dia sem perguntar.
+    Prazo máximo, marco de campanha, etapa de post, preparo de live e entrega com horário limite NÃO são suaves."""
+    import travas as tv
+    if item.get("etapa") or item.get("ate") or item.get("origem") in ("preparo", "etapa", "prazo_hora", "desdobrado pela IA"):
+        return False
+    resumo = {t.get("id"): t for t in (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []}
+    t = resumo.get(item.get("id"))
+    if not t:
+        return False
+    marcos, agendadas = tv.ids_de_marcos(pb._memoria(cfg)), tv.carregar_agendadas(oper)
+    return tv.classe(t, cfg, marcos, agendadas) in (tv.SUGESTAO, tv.ESTABELECIDA)
+
+
 def _inserir_consumo(plano, d, cfg, nome, memoria):
     """Um consumo por dia, antes das copies, quando a regra pessoal está ligada e o dia ainda não tem."""
     if not (((cfg.get("rotina") or {}).get("regras") or {}).get("ideia_depois_de_consumo")):
@@ -398,7 +421,7 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             continue  # dia de folga: sem consumo de rotina, só o que ela pediu
         if any(i.get("etapa") == "copy" for i in itens):
             _inserir_consumo(plano, date.fromisoformat(iso), cfg, nome, memoria)
-    nao_coube, julgar, adiados = [], [], []
+    nao_coube, julgar, adiados, movidas = [], [], [], []
     ultimo_dia = max(rascunho) if rascunho else hoje.isoformat()
     for item in itens:
         minutos, medido = estimar(item, oper, ajustes)
@@ -436,8 +459,17 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
         validos = sorted(validos)
         if hoje_folga and validos and validos[-1] == hoje.isoformat():
             validos = []  # folga: hoje não encolhe stories nem vira hora extra
-        while not posto and validos and _encolher_stories(rascunho[validos[-1]], date.fromisoformat(validos[-1]), cfg):  # stories só encolhe se não há para onde mover
+        while not posto and validos and (_tirar_consumo(rascunho[validos[-1]]) or _encolher_stories(rascunho[validos[-1]], date.fromisoformat(validos[-1]), cfg)):  # consumo sai primeiro; stories só encolhe se não há para onde mover
             posto = _colocar(rascunho[validos[-1]], date.fromisoformat(validos[-1]), item, minutos, tipo, nome, memoria)
+        if posto:
+            continue
+        if _suave(item, oper, cfg):  # prazo é sugestão: o guardião decide, passa para o primeiro dia com espaço e avisa (não pergunta)
+            for iso in sorted(i for i in rascunho if i > (validos[-1] if validos else piso) and not (item.get("abre") and i < item["abre"].isoformat())):
+                posto = (_colocar(rascunho[iso], date.fromisoformat(iso), item, minutos, tipo, nome, memoria)
+                         or _colocar(rascunho[iso], date.fromisoformat(iso), item, minutos, tipo, nome, memoria, qualquer=True))
+                if posto:
+                    movidas.append({"id": item.get("id"), "titulo": item.get("titulo"), "dia": iso})
+                    break
         if posto:
             continue
         if item.get("limite") and item["limite"].isoformat() > ultimo_dia:  # vence depois do horizonte: fica para os próximos dias, não é "não coube"
@@ -447,7 +479,7 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
         livre = max([y - x for x, y in ra.espacos(rascunho[ultimo], date.fromisoformat(ultimo), tipo, memoria=memoria)] or [0]) if ultimo else 0  # o maior espaço contínuo
         falta = max(0, minutos - livre)
         pergunta = (f"\"{item['titulo']}\" não cabe até {item['limite']:%d/%m}" if item.get("limite") else f"\"{item['titulo']}\" não cabe nos próximos dias")
-        if ultimo and falta <= HORA_EXTRA_MAX:
+        if ultimo and 0 < falta <= HORA_EXTRA_MAX:
             pergunta += f". Você prefere estender o dia {ultimo[8:10]}/{ultimo[5:7]} em {falta} min ou renegociar o prazo?"
         else:
             pergunta += ". Precisa renegociar o prazo com quem combinou."
@@ -474,7 +506,7 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
         plano["aviso"] = ("Montei pelo motor da agenda, sem IA. " + (" ".join(dele[:3]) + " " if dele else "") + str(plano.get("aviso") or "")).strip()
         plano["status"] = "sugerido"
         plano["gerado_em"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return {"dias": rascunho, "aprovados": aprovados, "nao_coube": nao_coube, "julgar": julgar, "problemas": problemas, "adiados": adiados, "delegar": delegar}
+    return {"dias": rascunho, "aprovados": aprovados, "nao_coube": nao_coube, "julgar": julgar, "problemas": problemas, "adiados": adiados, "delegar": delegar, "movidas": movidas}
 
 
 def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True, pedido=None):
