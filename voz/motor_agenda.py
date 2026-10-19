@@ -225,6 +225,25 @@ def _sobrepoe(b, ocupado):
     return any(x < vs.hm(b["fim"]) and vs.hm(b["inicio"]) < y for x, y in ocupado)
 
 
+def _liberar_o_que_acabou_cedo(plano, d, feitos_reg):
+    """Bloco feito que acabou antes do fim planejado (hotseat de 09h às 14h que terminou 11h50) encolhe até o fim real. O almoço que o plano_base
+    tinha empurrado para depois dele volta ao horário da rotina, e o tempo liberado entra na conta."""
+    liberou = False
+    for b in plano.get("blocos") or []:
+        reg = next((f for f in feitos_reg if f.get("clickup_id") and f.get("clickup_id") == b.get("clickup_id")), None)
+        real = ((reg or {}).get("real") or {}).get("fim")
+        if reg and real and b.get("inicio") and vs.hm(real) > vs.hm(b["inicio"]) and vs.hm(real) < vs.hm(b["fim"]):
+            b["fim"] = real
+            b["status"] = "feito"
+            liberou = True
+    if liberou:
+        cfg = pb._cfg()
+        base = [f for f in ra.fixos_do_dia(d, cfg) if "almoco" in ra._norm(f.get("titulo"))]
+        if base:
+            plano["fixos"] = [f for f in plano.get("fixos") or [] if "almoco" not in ra._norm(f.get("titulo"))] + base
+            pb._mover_almoco(plano)
+
+
 def _refazer_hoje(plano, d, oper, ajustes, fila):
     """Hoje a partir de agora (pedido dela ou atraso): o que já foi feito fica como feito; o que passou sem ser feito volta para a fila; imprevistos e
     refeições com horário dito por ela entram como fixos e liberam o que estava por baixo; o que ela mandou tirar sai; stories já feitos contam."""
@@ -233,6 +252,7 @@ def _refazer_hoje(plano, d, oper, ajustes, fila):
     aj = ajustes or {}
     feitos_reg = _feitos_do_registro(oper, iso)
     feitos_ia = aj.get("feitos") or []
+    _liberar_o_que_acabou_cedo(plano, d, feitos_reg)
     for imp in aj.get("imprevistos") or []:
         fixos = plano.setdefault("fixos", [])
         mesmo = next((f for f in fixos if _parecido(f.get("titulo"), imp["titulo"])), None)
