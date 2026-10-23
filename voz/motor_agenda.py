@@ -397,6 +397,19 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             if _parecido(item.get("titulo"), titulo):
                 item["limite"] = date.fromisoformat(ate)
                 item.pop("ate", None)
+    for tid, titulo, a_partir in _adiamentos(oper, hoje, ajustes):  # ela adiou ("só depois do dia 31"): sai dos dias antes da data e só volta a partir dela
+        for iso, plano in rascunho.items():
+            for b in list(plano.get("blocos") or []) if iso < a_partir.isoformat() else []:
+                if b.get("status") != "feito" and _mesma(tid, titulo, b.get("clickup_id"), b.get("titulo")):
+                    plano["blocos"].remove(b)
+                    fila.setdefault(b.get("clickup_id") or _norm(b.get("titulo")), {"id": b.get("clickup_id"), "titulo": b.get("titulo"),
+                                                                                    "origem": "adiada por ela", "minutos": max(5, cp._minutos(b)),
+                                                                                    "lista": b.get("frente")})
+        for item in fila.values():
+            if _mesma(tid, titulo, item.get("id"), item.get("titulo")):
+                item["abre"] = max(item.get("abre") or a_partir, a_partir)
+                if item.get("limite") and item["limite"] < item["abre"]:
+                    item["limite"] = None  # o prazo antigo venceu antes da data que ela deu
     for titulo in pedidos_hoje:  # "faço hoje": sai do dia em que o plano base pôs (atrasada cai em qualquer dia) e volta à fila, que põe hoje primeiro
         for iso, plano in rascunho.items():
             for b in list(plano.get("blocos") or []) if iso != hoje.isoformat() else []:
@@ -472,7 +485,7 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
                     break
         if posto:
             continue
-        if item.get("limite") and item["limite"].isoformat() > ultimo_dia:  # vence depois do horizonte: fica para os próximos dias, não é "não coube"
+        if (item.get("limite") and item["limite"].isoformat() > ultimo_dia) or (item.get("abre") and item["abre"].isoformat() > ultimo_dia):  # vence ou só abre depois do horizonte: fica para os próximos dias, não é "não coube"
             adiados.append({"id": item.get("id"), "titulo": item.get("titulo"), "limite": item["limite"].isoformat() if item.get("limite") else None})
             continue
         ultimo = validos[-1] if validos else None
@@ -526,6 +539,8 @@ def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True
         try:
             atual = vs._json(os.path.join(oper, "plano_do_dia.json")) if pedido else None
             aj = revisor_ia.ajustes(revisor_ia.interpretar(revisor_ia.chamar(revisor_ia.montar_prompt(r, cfg, marcos, pedido, atual), oper)))
+            if pedido:
+                _gravar_decisoes(oper, hoje, aj)
             r = montar_semana(oper, cfg, hoje, dias, incluir_hoje, aj)
         except Exception as erro:  # sem IA o rascunho do motor continua valendo
             print(f"(motor: a revisão da IA falhou, fica o rascunho: {erro})", file=sys.stderr)
@@ -540,16 +555,66 @@ def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True
     return r
 
 
+DECISOES = "decisoes_atraso.json"  # o que ela já respondeu sobre uma tarefa (adiar, manter, cancelar, fazer hoje): id -> {titulo, prazo, a_partir, em}
+
+
+def _decisoes(oper):
+    dados = vs._json(os.path.join(oper, DECISOES))
+    return dados if isinstance(dados, dict) else {}
+
+
+def _mesma(tid, titulo, outro_id, outro_titulo):
+    return bool(tid and outro_id == tid) or (not tid and _parecido(outro_titulo, titulo))
+
+
+def _adiamentos(oper, hoje, ajustes):
+    """[(id, titulo, a_partir)]: o que ela adiou agora e o que adiou antes e ainda não chegou na data."""
+    saida = [(None, t, date.fromisoformat(a)) for t, a in ((ajustes or {}).get("adiar") or {}).items()]
+    for tid, d in _decisoes(oper).items():
+        if d.get("a_partir") and d["a_partir"] > hoje.isoformat():
+            saida.append((tid, d.get("titulo"), date.fromisoformat(d["a_partir"])))
+    return saida
+
+
+def _gravar_decisoes(oper, hoje, aj):
+    """Tarefa citada no pedido dela vira decisão guardada: o adiamento vale nos próximos replanejamentos e a atrasada não volta a ser perguntada."""
+    aj = aj or {}
+    citados = {str(t): None for chave in ("cancelar", "tirar", "hoje", "manter") for t in aj.get(chave) or []}
+    citados.update({str(f.get("titulo")): None for f in aj.get("feitos") or []})
+    citados.update({str(t): None for t in aj.get("limites") or {}})
+    citados.update({str(t): a for t, a in (aj.get("adiar") or {}).items()})
+    tarefas = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []
+    abertas = {str(t.get("id")) for t in tarefas}
+    dec = {k: v for k, v in _decisoes(oper).items() if k in abertas}  # tarefa fechada no ClickUp sai daqui
+    for t in tarefas:
+        for titulo, a_partir in citados.items():
+            if t.get("id") and _parecido(t.get("nome"), titulo):
+                antes = dec.get(str(t["id"])) or {}
+                manter_data = None if any(_parecido(titulo, h) for h in aj.get("hoje") or []) else antes.get("a_partir")
+                dec[str(t["id"])] = {"titulo": t.get("nome"), "prazo": t.get("prazo"), "a_partir": a_partir or manter_data, "em": hoje.isoformat()}
+    try:
+        with open(os.path.join(oper, DECISOES), "w", encoding="utf-8") as f:
+            json.dump(dec, f, ensure_ascii=False, indent=2)
+    except OSError as erro:
+        print(f"(motor: não gravei as decisões: {erro})", file=sys.stderr)
+
+
 def _perguntas_de_atraso(oper, hoje, aj):
-    """Tarefa vencida há 2 dias ou mais, ainda aberta: o guardião não decide sozinho se ela ainda vale (replay depois da live, por exemplo)."""
-    cancelados = [_norm(t) for t in (aj or {}).get("cancelar") or []]
+    """Tarefa vencida há 2 dias ou mais, ainda aberta: o guardião não decide sozinho se ela ainda vale (replay depois da live, por exemplo).
+    Pergunta UMA vez: depois que ela respondeu (adiar, manter, cancelar, fazer hoje), só volta se o prazo do ClickUp mudar e vencer de novo."""
+    aj = aj or {}
+    citados = [str(t) for chave in ("cancelar", "tirar", "hoje", "manter") for t in aj.get(chave) or []]
+    citados += [str(t) for t in list(aj.get("limites") or {}) + list(aj.get("adiar") or {})] + [str(f.get("titulo")) for f in aj.get("feitos") or []]
+    dec = _decisoes(oper)
     saida = []
     for t in (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []:
         try:
             atraso = (hoje - date.fromisoformat(str(t.get("prazo")))).days
         except ValueError:
             continue
-        if atraso >= 2 and not t.get("aprovar") and not any(c and c in _norm(t.get("nome")) for c in cancelados):
+        if (dec.get(str(t.get("id"))) or {}).get("prazo") == t.get("prazo"):
+            continue  # ela já respondeu sobre esta tarefa com este prazo
+        if atraso >= 2 and not t.get("aprovar") and not any(_parecido(t.get("nome"), c) for c in citados):
             saida.append(f"\"{t.get('nome')}\" está atrasada desde {t['prazo'][8:10]}/{t['prazo'][5:7]}. Ainda vale fazer? Se não vale mais, diga \"cancela\" que eu fecho no ClickUp.")
     return saida[:2]
 

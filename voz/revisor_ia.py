@@ -19,8 +19,9 @@ from datetime import date
 
 OPER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPO = 240
-ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar", "feito", "tirar", "imprevisto", "limite", "cancelar", "hoje"}
-SO_TITULO = {"feito", "tirar", "imprevisto", "limite", "cancelar", "hoje"}
+ACOES = {"estimar", "janela", "prioridade", "desdobrar", "perguntar", "explicar", "feito", "tirar", "imprevisto", "limite", "cancelar", "hoje", "adiar",
+         "manter"}
+SO_TITULO = {"feito", "tirar", "imprevisto", "limite", "cancelar", "hoje", "adiar", "manter"}
 
 REGRAS = """REGRAS DA AGENDA (o código já aplica as de horário; você só julga):
 - Quem decide a agenda é o guardião. Pergunte à pessoa SÓ quando for impossível: até 2h de hora extra a pergunta é "você prefere estender o dia ou renegociar o prazo?"; acima disso, renegociar o prazo com quem combinou. Nunca pergunte onde colocar algo.
@@ -53,6 +54,10 @@ PEDIDO = """PEDIDO DA PESSOA (traduza em instruções; não monte horário, o c�
   Num dia de folga (fim de semana) SÓ entra hoje o que vier com "hoje"; o resto vai para o próximo dia de trabalho sem pergunta.
 - tarefa que ela quer em outro momento ou com outro prazo ("joga mais pra frente", "pronta antes do dia 27"): {"acao":"limite","titulo":"..","ate":"AAAA-MM-DD"}
   (o código acha o melhor dia até essa data; "mais pra frente" sem data: use a data da entrega ligada a ela, se houver, ou 7 dias depois de hoje)
+- tarefa que ela adiou para DEPOIS de uma data ("adia", "vai pra semana depois do dia 31", "só a partir de segunda", "não sai semana que vem"):
+  {"acao":"adiar","titulo":"..","a_partir":"AAAA-MM-DD"} com o PRIMEIRO dia de trabalho em que ela pode entrar (não use limite nesse caso).
+  Adiou a copy de um post: adie também o design do mesmo post, com a mesma data. O adiamento fica guardado; ela não precisa repetir.
+- resposta a "ainda vale fazer?" de tarefa atrasada dizendo que vale, sem data nem "hoje" ("vale", "não cancela", "mantém"): {"acao":"manter","titulo":".."}
 Use o título como aparece no plano atual quando for o mesmo item."""
 
 
@@ -153,6 +158,8 @@ def interpretar(texto):
             continue
         if i["acao"] == "limite" and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(i.get("ate") or "")):
             continue
+        if i["acao"] == "adiar" and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(i.get("a_partir") or "")):
+            continue
         if i["acao"] == "imprevisto" and not all(re.fullmatch(r"\d{1,2}:\d{2}", str(i.get(k) or "")) for k in ("inicio", "fim")):
             continue
         if i["acao"] == "estimar" and not (isinstance(i.get("minutos"), (int, float)) and 5 <= i["minutos"] <= 480):
@@ -190,6 +197,10 @@ def ajustes(instrucoes):
             a.setdefault("hoje", []).append(str(i["titulo"]))
         elif acao == "limite":
             a["limites"][str(i["titulo"])] = i["ate"]
+        elif acao == "adiar":
+            a.setdefault("adiar", {})[str(i["titulo"])] = i["a_partir"]
+        elif acao == "manter":
+            a.setdefault("manter", []).append(str(i["titulo"]))
         elif acao == "imprevisto":
             a["imprevistos"].append({"titulo": str(i["titulo"])[:80], "inicio": i["inicio"].zfill(5), "fim": i["fim"].zfill(5)})
     return a
