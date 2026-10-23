@@ -779,7 +779,8 @@ INTENCAO = {  # a ação só acontece se o que a pessoa disse realmente pede aqu
     # ajustes do plano: valem sempre que a revisão está aberta; fora dela, só se a frase pedir
     "mover": re.compile(r"\bmov|\btroc|\bpass[ae]\b|\badi[ae]\b|antecip|desloc|\bmuda|\balter|\bjoga|empurr|\bremarc|\breagend"),
     "editar": re.compile(r"renome|\bmuda|\balter|\btroc|\bedit|corrig|\bajust|\bchama"),
-    "remover": re.compile(r"remov|\btira\b|\btirar\b|\bexclu|\bapag|\bcorta|nao vou|nao da pra|nao preciso|esquece|de fora"),
+    "remover": re.compile(r"remov|\btira\b|\btirar\b|\bexclu|\bapag|\bcorta|nao vou|nao da pra|nao preciso|esquece|de fora"
+                          r"|cancel|desnecess|nao precisa|nao e (mais )?necessari|nao faz (mais )?sentido|sem necessidade|dispens"),
     "adicionar": re.compile(r"adicion|\binclu|acrescent|\bcri[ae]|novo bloco|mais um|encaix|\bcoloc|\bbota|(fazer|faco|faz|ver|vejo|resolv\w*|decid\w*) (\w+ ){0,3}hoje"),
     "desfazer": re.compile(r"desfaz|\bvolt|como estava|errei|\banul"),
     "aprovar": re.compile(r"aprov"),
@@ -975,7 +976,8 @@ def texto_acoes(sessao=False):
         "Nesta leitura você pode falar até 14 frases curtas.\n"
         "- Ajustes que ele pedir (confirme cada um em voz alta, em uma frase): "
         "{{mover:ID|HH:MM-HH:MM}} muda o horário (se ele só disser o começo, escreva o começo e a mesma duração); "
-        "{{editar:ID|titulo=...|descricao=...}} muda o texto; {{remover:ID}} tira do plano de hoje; "
+        "{{editar:ID|titulo=...|descricao=...}} muda o texto; {{remover:ID}} tira do plano de hoje (a tarefa continua aberta e vai para outro dia); "
+        "{{remover:ID|cancelar}} quando ele cancela de vez (\"cancela\", \"é desnecessária\", \"não precisa mais\"): tira do plano e fecha a tarefa no ClickUp; "
         "{{adicionar:titulo=...|inicio=HH:MM|fim=HH:MM|descricao=...|lista=nome da lista|dono=nome}} inclui um bloco novo "
         "(vira tarefa no ClickUp quando o plano for aprovado); {{desfazer}} volta o último ajuste. Horários sempre em 24 horas.\n"
         "- Antes de mover ou adicionar, confira os CONFLITOS ATUAIS e os compromissos fixos do plano. Se o horário bater com outro bloco, avise "
@@ -1658,6 +1660,8 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
                 dados = campos(resto)
             elif nome == "adicionar":
                 ref, dados = None, campos(arg)
+            elif nome == "remover":
+                dados = {"cancelar": resto.strip().lower().startswith("cancel")}  # {{remover:ID|cancelar}}: cancelada de vez, fecha no ClickUp
             else:
                 dados = {}
             r = editar_plano(nome, ref or None, dados)

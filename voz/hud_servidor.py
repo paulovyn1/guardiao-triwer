@@ -872,6 +872,9 @@ def editar_plano(op, ref=None, dados=None):
         plano.setdefault("removidos", []).append({"id": b.get("id"), "titulo": b.get("titulo"), "clickup_id": b.get("clickup_id"), "removido_em": time.strftime("%Y-%m-%d %H:%M")})
         titulo = b.get("titulo")
         depois = "fora do plano de hoje"
+        if dados.get("cancelar") and b.get("clickup_id"):  # cancelada de vez: fecha no ClickUp (na hora se o plano já foi aprovado, senão ao aprovar)
+            plano.setdefault("cancelar", []).append(b["clickup_id"])
+            depois = "cancelada: sai do plano e fecha no ClickUp"
     elif op == "adicionar":
         origem = str(dados.get("id") or "").strip()
         alvo = resolver_ref(origem) if origem else None
