@@ -11,6 +11,7 @@ Abre em `http://localhost:8767/v2/` (atalho: `..\abrir_guardiao_v2.bat`; `..\cri
 | `support.js`, `vendor\` | runtime do Claude Design e React 18, guardados aqui para o painel abrir sem internet. Não editar |
 | `palco.js` | encaixa o palco na janela. A altura é fixa (900); no computador a largura acompanha o formato da janela, do 16:10 ao ultrawide, e chega ao painel em `window.GD_W` (o conteúdo cresce até 1920 e depois fica centralizado) |
 | `..\guardiao_janela.py` | fixa a janela compacta por cima das outras, no canto inferior direito (o navegador sozinho não consegue) |
+| `..\tutorial.json`, `..\tutorial.py` | o tour guiado do primeiro acesso: o texto dos 9 passos (editável sem mexer no painel), o estado da pessoa e as dicas. Os destaques usam `data-tour` no `Main.dc.html` |
 | `..\guardiao_atualizacao.py` | versão instalada, aviso de versão nova (botão discreto no topo) e o botão de atualizar |
 | `fontes.css`, `fontes\` | as três fontes, empacotadas |
 

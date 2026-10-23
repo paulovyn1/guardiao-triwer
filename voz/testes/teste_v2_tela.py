@@ -268,8 +268,8 @@ try:
     time.sleep(1.0)
     foto("16b_calibragem_estatisticas")
     js("[...document.querySelectorAll('.st.cur .cal-tabs .seg-b')].find(b => b.textContent.includes('Conquistas')).click()")
-    confere("aba Conquistas: as 21 com regra e progresso, e o primeiro report já desbloqueado",
-            espera("document.querySelectorAll('.st.cur .cq').length === 21", 4) and js("[...document.querySelectorAll('.st.cur .cq.ok')].some(c => c.innerText.includes('Primeiro report'))")
+    confere("aba Conquistas: as 22 com regra e progresso, e o primeiro report já desbloqueado",
+            espera("document.querySelectorAll('.st.cur .cq').length === 22", 4) and js("[...document.querySelectorAll('.st.cur .cq.ok')].some(c => c.innerText.includes('Primeiro report'))")
             and contem(".st.cur .cal-conq", "Cinco dias no que importa"), texto(".st.cur .cal-conq")[:300])
     time.sleep(1.0)
     foto("16c_calibragem_conquistas")

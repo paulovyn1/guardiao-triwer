@@ -1,0 +1,247 @@
+{
+  "observacao": "Texto do tutorial guiado do primeiro acesso. Editar aqui, sem mexer no painel. {agente} vira o nome do guardião da pessoa. alvo: destaque no painel (atributo data-tour). lado: só \"centro\" tem efeito (cartão no meio da tela, sem destaque); nos demais o painel põe o cartão ao lado do destaque, onde houver espaço. tela: aba que o tour abre (home, dia, plan, cal, pops). prefs: abre as Preferências; grupo: a seção aberta (som, comp, apar). menu: mostra o menu do topo. faz: a prática do passo (escrever ou microfone). cobre: chaves de preferencia.json que o cartão explica; rotulos: nomes que o painel mostra e que o cartão cita. O teste_tutorial.py confere tudo isso contra o painel: preferência nova, rótulo ou destaque que mudou exigem atualizar este arquivo.",
+  "versao": 1,
+  "total_passos": 9,
+  "convite": {
+    "titulo": "Quer um tour de 4 minutos?",
+    "texto": "Eu te mostro como escrever, falar, usar o seu dia e ajustar as preferências. Você pode sair a qualquer momento e refazer depois em Preferências, em Rever o tutorial.",
+    "fala": "Quer um tour rápido pelo painel? Leva uns 4 minutos e você pode sair quando quiser.",
+    "comecar": "Começar o tour",
+    "depois": "Agora não"
+  },
+  "convite_continuar": {
+    "titulo": "Continuar o tour?",
+    "texto": "Você parou no meio do tour. Quer continuar de onde parou?",
+    "comecar": "Continuar de onde parei",
+    "depois": "Agora não"
+  },
+  "passos": [
+    {
+      "id": "boas_vindas",
+      "passo": 1,
+      "titulo": "Bem-vindo ao {agente}",
+      "texto": "Eu monto o seu plano do dia, aviso quando o tempo de uma tarefa está acabando e aprendo com o seu jeito de trabalhar. Nada vai para o ClickUp sem o seu ok. Este tour leva uns 4 minutos e você pode sair quando quiser.",
+      "fala": "Oi, eu sou o {agente}. Vou te mostrar o painel em poucos minutos. Pode sair do tour quando quiser.",
+      "tela": "home",
+      "lado": "centro"
+    },
+    {
+      "id": "escrever",
+      "passo": 2,
+      "titulo": "Escreva para o {agente}",
+      "texto": "Esta é a barra de conversa. Escreva o que precisa e aperte Enter. Experimente agora: digite \"o que eu faço agora?\" e envie.",
+      "itens": [
+        {"r": "Mais de uma linha", "t": "Shift+Enter quebra a linha. A caixa cresce até 10 linhas e depois rola por dentro."},
+        {"r": "Roteiros prontos", "t": "No Planejador, botões como \"Surgiu um imprevisto\" e \"Nova tarefa\" começam a conversa por você."}
+      ],
+      "fala": "Esta é a barra de conversa. Escreva o que precisa e aperte Enter. Experimente agora.",
+      "feito": "Isso. A resposta aparece na conversa. Quando quiser, siga para o próximo passo.",
+      "alvo": "campo",
+      "faz": "escrever",
+      "rotulos": ["Roteiros prontos"]
+    },
+    {
+      "id": "anexar",
+      "passo": 2,
+      "titulo": "Anexe imagens, PDFs e áudios",
+      "texto": "O clipe, ao lado da barra de conversa, anexa arquivos à sua próxima mensagem, escrita ou falada. Também vale colar um print com Ctrl+V ou arrastar o arquivo para a janela.",
+      "itens": [
+        {"r": "Imagem, PDF e texto", "t": "O {agente} abre e lê o conteúdo."},
+        {"r": "Áudio e vídeo", "t": "Ele transcreve o que é dito e responde sobre isso."},
+        {"r": "Só no Claude", "t": "Com o Codex escolhido nas Preferências, o clipe fica apagado."}
+      ],
+      "fala": "O clipe anexa imagem, PDF, áudio e texto. Também dá para colar um print com Control V, ou arrastar o arquivo para a janela.",
+      "alvo": "anexo"
+    },
+    {
+      "id": "microfone",
+      "passo": 3,
+      "titulo": "Fale em vez de digitar",
+      "texto": "Clique no microfone, fale e pare: ele fecha sozinho quando você fica em silêncio. Clicar de novo, ou apertar Esc, cancela. Experimente agora: clique e diga \"oi\".",
+      "itens": [
+        {"r": "Ei guardião", "t": "Com a escuta contínua ligada, nas Preferências, o microfone fica aberto esperando você chamar. Ela vem desligada."}
+      ],
+      "fala": "Clique no microfone e fale. Ele fecha sozinho quando você para de falar.",
+      "feito": "Isso. Se ele não entendeu, é só repetir.",
+      "alvo": "mic",
+      "faz": "microfone",
+      "avisos": {
+        "sem_microfone": "O painel não encontrou o microfone. Confira o microfone do Windows e abra o painel de novo. Enquanto isso, você escreve normalmente.",
+        "sem_transcricao": "Falta a chave da transcrição (Groq), então o microfone ainda não funciona. Peça ajuda a quem instalou o guardião. Enquanto isso, você escreve normalmente."
+      }
+    },
+    {
+      "id": "calar",
+      "passo": 4,
+      "titulo": "Calar, parar e acelerar",
+      "texto": "Você controla quando o {agente} fala e quando ele para.",
+      "itens": [
+        {"r": "Esc", "t": "Interrompe, uma camada por vez: primeiro a leitura do plano, depois a voz, depois a resposta, por fim o trabalho em segundo plano."},
+        {"r": "Parar", "t": "Enquanto ele trabalha, o botão de enviar vira Parar."},
+        {"r": "Velocidade da voz", "t": "O botão ao lado da barra de conversa troca entre 1x, 1,5x e 2x enquanto ele fala."},
+        {"r": "Silenciar", "t": "O botão do alto, ou dizer \"silencia a voz\", deixa só o texto. \"Pode falar\" liga de novo."}
+      ],
+      "fala": "Esc interrompe. Enquanto eu trabalho, o botão de enviar vira Parar. E o botão do alto silencia a minha voz.",
+      "alvo": "voz",
+      "menu": true
+    },
+    {
+      "id": "dia",
+      "passo": 5,
+      "titulo": "O seu dia",
+      "texto": "Aqui fica o plano de hoje, com horário em cada tarefa. Toque em uma para ver os detalhes. Com o plano aprovado, ao abrir o app o {agente} já mostra a tarefa de agora.",
+      "fala": "Aqui fica o plano de hoje. Toque em uma tarefa para ver os detalhes.",
+      "tela": "dia",
+      "alvo": "dia"
+    },
+    {
+      "id": "aprovar",
+      "passo": 5,
+      "titulo": "Quem aprova é você",
+      "texto": "O plano novo espera o seu ok na barra de baixo da lista, e só depois que você aprova é que o ClickUp muda. Na tarefa de agora, Iniciar começa a medir o tempo e Concluir pede uma frase do que foi feito. Se precisar, peça mais tempo ou adie.",
+      "fala": "Só depois que você aprova o plano é que o ClickUp muda. Iniciar mede o tempo da tarefa, e concluir pede uma frase do que foi feito.",
+      "tela": "dia",
+      "alvo": "aprovar"
+    },
+    {
+      "id": "planejador",
+      "passo": 6,
+      "titulo": "Planejador: converse para mudar o dia",
+      "texto": "Peça as mudanças como falaria com uma pessoa: \"move a reunião para amanhã\", \"tira o relatório de hoje\". Imprevisto nunca é recusado: o {agente} encaixa e mostra o que mudou.",
+      "itens": [
+        {"r": "Resposta na hora", "t": "Alguns pedidos não esperam a IA: \"próximas\", \"abre o dia\", \"abre o planejador\", \"nova conversa\" e \"fecha\"."}
+      ],
+      "fala": "No planejador você pede as mudanças como falaria com uma pessoa. Imprevisto eu sempre encaixo.",
+      "tela": "plan",
+      "alvo": "roteiros",
+      "rotulos": ["Surgiu um imprevisto", "Nova tarefa"]
+    },
+    {
+      "id": "prefs_topo",
+      "passo": 7,
+      "titulo": "Preferências: o essencial",
+      "texto": "O botão Preferências, no menu do alto, abre esta janela. No começo ficam as coisas que você mais precisa ver.",
+      "itens": [
+        {"r": "Procurar versão nova", "t": "Confere se há versão nova. O {agente} também confere sozinho na primeira abertura do dia."},
+        {"r": "Serviços", "t": "Mostra se o guardião, o microfone, a transcrição, o Claude e o plano estão funcionando. Se algo estiver em vermelho, é aqui que você descobre."},
+        {"r": "Modo leve", "t": "Menos animação, sem vidro, bolinha 2D e sem a animação de abertura. Bom para computador fraco."},
+        {"r": "Rever o tutorial", "t": "Refaz este tour quando quiser."}
+      ],
+      "fala": "Estas são as Preferências. No alto ficam a versão, os serviços e o modo leve.",
+      "prefs": true,
+      "alvo": "prefs-topo",
+      "cobre": ["modo_leve"],
+      "rotulos": ["Procurar versão nova", "Serviços", "Modo leve", "Rever o tutorial"]
+    },
+    {
+      "id": "prefs_som",
+      "passo": 7,
+      "titulo": "Voz e sons",
+      "texto": "Como o {agente} soa para você.",
+      "itens": [
+        {"r": "Voz do Guardião", "t": "Desligada, ele só escreve. O seu microfone continua valendo."},
+        {"r": "Velocidade da voz", "t": "1x, 1,5x ou 2x."},
+        {"r": "Sons", "t": "Cliques, telas, avisos e a trilha da abertura."},
+        {"r": "Volume", "t": "O volume dos sons."},
+        {"r": "Som de digitação", "t": "Teclas quando você digita e quando ele escreve a resposta."}
+      ],
+      "fala": "Em voz e sons você decide se eu falo, a velocidade e o volume dos sons.",
+      "prefs": true,
+      "grupo": "som",
+      "alvo": "prefs-som",
+      "cobre": ["voz_guardiao", "voz_velocidade", "sons", "volume", "som_digitacao"],
+      "rotulos": ["Voz do Guardião", "Velocidade da voz", "Sons", "Volume", "Som de digitação"]
+    },
+    {
+      "id": "prefs_comp",
+      "passo": 7,
+      "titulo": "Comportamento",
+      "texto": "Como o {agente} trabalha.",
+      "itens": [
+        {"r": "Quem pensa pelo Guardião", "t": "Claude ou Codex responde às conversas e monta os planos. Cada um usa o seu próprio login."},
+        {"r": "Escuta contínua (Ei guardião)", "t": "Desligada, o microfone só abre quando você clica. Ligada, fica aberto esperando você chamar."},
+        {"r": "Reabrir depois de uma pergunta", "t": "Só vale com a escuta contínua: o microfone reabre sozinho quando ele espera uma resposta."},
+        {"r": "Ir direto para a execução", "t": "Com o plano aprovado, ao abrir o app já mostra a tarefa de agora."},
+        {"r": "Modo Auto (sem pedir permissão)", "t": "Só na conversa com memória do Claude. Ligado, ele faz tudo sem pedir o seu ok: roda comandos, edita arquivos, envia, publica e apaga. Fica desligado até você ligar, também pelo botão Auto, acima da barra de conversa."},
+        {"r": "Conversa com memória do Claude", "t": "No Claude, a conversa vira uma sessão que lembra do que foi dito e usa conectores, skills e agentes."}
+      ],
+      "fala": "Em comportamento você escolhe quem pensa por mim, se o microfone fica aberto, se o app abre direto na tarefa de agora e se eu rodo comandos sem pedir permissão.",
+      "prefs": true,
+      "grupo": "comp",
+      "alvo": "prefs-comp",
+      "cobre": ["provedor_ia", "mic_sempre_ligado", "escuta_aberta", "execucao_ao_abrir", "sessao", "permissao_auto"],
+      "rotulos": ["Quem pensa pelo Guardião", "Escuta contínua (Ei guardião)", "Reabrir depois de uma pergunta", "Ir direto para a execução", "Modo Auto (sem pedir permissão)", "Conversa com memória do Claude"]
+    },
+    {
+      "id": "prefs_apar",
+      "passo": 7,
+      "titulo": "Aparência",
+      "texto": "O jeito do painel na sua tela.",
+      "itens": [
+        {"r": "Bolinha", "t": "Núcleo 3D, um cristal com onda de voz, ou Relógio, o instrumento clássico com o dia em volta."},
+        {"r": "Formato da janela", "t": "Completa ou compacta, uma janela pequena para deixar num canto da tela, por cima das outras."}
+      ],
+      "fala": "Em aparência você escolhe a bolinha e o formato da janela.",
+      "prefs": true,
+      "grupo": "apar",
+      "alvo": "prefs-apar",
+      "cobre": ["bolinha"],
+      "rotulos": ["Bolinha", "Formato da janela"]
+    },
+    {
+      "id": "calibragem",
+      "passo": 8,
+      "titulo": "Fim do dia: o report e o que o {agente} aprende",
+      "texto": "Na hora de parar, o {agente} convida para o report, que leva 1 minuto: a sua energia, o que atrapalhou, o que ajudou, e uma frase se quiser (pode ditar). Com o tempo ele aprende a sua rotina e faz uma pergunta por dia. Só o que você confirma vira regra.",
+      "itens": [
+        {"r": "Report e aprendizados", "t": "O report do dia e o que ele já aprendeu sobre você."},
+        {"r": "Estatísticas", "t": "Plano cumprido, tarefa principal, precisão das estimativas e foco."},
+        {"r": "Conquistas", "t": "Marcos de quem ajuda o guardião a acertar: constância, foco e previsão."}
+      ],
+      "fala": "No fim do dia eu convido para o report de um minuto. Com o tempo eu aprendo a sua rotina, e só o que você confirma vira regra.",
+      "tela": "cal",
+      "alvo": "cal-abas",
+      "rotulos": ["Report e aprendizados", "Estatísticas", "Conquistas"]
+    },
+    {
+      "id": "pops",
+      "passo": 8,
+      "titulo": "POPs: processos prontos",
+      "texto": "POP é o passo a passo de uma tarefa que se repete. Aqui ficam os seus e os da escola, e você instala um da escola para virar rotina sua.",
+      "fala": "POPs são passos a passos de tarefas que se repetem. Os da escola você instala na sua rotina.",
+      "tela": "pops",
+      "alvo": "pops",
+      "rotulos": ["POPs da escola"]
+    },
+    {
+      "id": "fim",
+      "passo": 9,
+      "titulo": "Pronto, você já sabe o essencial",
+      "texto": "O tour fica nas Preferências, em Rever o tutorial. Estes são os atalhos do dia a dia:",
+      "itens": [
+        {"r": "Escrever", "t": "Digite na barra de conversa e aperte Enter."},
+        {"r": "Falar", "t": "Clique no microfone. Esc cancela."},
+        {"r": "O que eu faço agora?", "t": "Pergunte quando não souber por onde começar."},
+        {"r": "Aprovar", "t": "O plano novo só vale depois do seu ok na barra de baixo."},
+        {"r": "Iniciar e concluir", "t": "Na tarefa de agora, para medir o tempo de verdade."},
+        {"r": "Report", "t": "No fim do dia, um minuto para o {agente} aprender com você."}
+      ],
+      "fala": "Pronto, você já sabe o essencial. Se esquecer alguma coisa, o tour fica nas Preferências.",
+      "tela": "home",
+      "lado": "centro"
+    }
+  ],
+  "dicas": [
+    {"id": "tarefa_iniciada", "texto": "Quando o tempo planejado está acabando, o {agente} avisa e pergunta se você precisa de mais tempo ou vai concluir."},
+    {"id": "report", "texto": "O report leva 1 minuto: toque nas opções e, se quiser, escreva ou dite uma frase. Só o que você confirma vira regra."},
+    {"id": "pops", "texto": "POP é um processo pronto. Instale um da escola para virar rotina sua."},
+    {"id": "compacta", "texto": "A janela compacta fica por cima das outras, no canto da tela. O mesmo botão volta para a completa."}
+  ],
+  "fora_do_tour": {
+    "som_movimento": "sem controle no painel atual: entra na chave geral Sons",
+    "som_toques": "sem controle no painel atual: entra na chave geral Sons",
+    "som_avisos": "sem controle no painel atual: entra na chave geral Sons",
+    "som_abertura": "sem controle no painel atual: entra na chave geral Sons",
+    "som_estados": "sem controle no painel atual: entra na chave geral Sons"
+  }
+}

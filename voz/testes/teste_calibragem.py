@@ -163,7 +163,7 @@ resumo = os.path.join(tmp, "resumo_clickup.json")
 
 def renovar():
     dados = h._ler_json(resumo)
-    dados["tarefas"].append({"id": "z9", "prazo": "2026-12-01", "nome": "Enviar o contrato do cliente novo", "lista": "[ZAPIA] Baú de Tarefas", "status": "to do"})
+    dados["tarefas"].append({"id": "z9", "prazo": "2026-12-01", "nome": "Enviar o contrato do cliente novo", "lista": "[CAIXA] Baú de Tarefas", "status": "to do"})
     with open(resumo, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False)
     return True
@@ -175,7 +175,7 @@ h.sincronizar_com_clickup(espaco=0)
 h.atualizar_resumo_clickup = antes_resumo
 nova = [e for e in v2._eventos() if e["tipo"] == "tarefas_novas"]
 confere("tarefa nova fora do plano é gravada com nome, lista e prazo", nova and nova[-1]["tarefas"][0] == {"id": "z9", "nome": "Enviar o contrato do cliente novo",
-                                                                                                        "lista": "[ZAPIA] Baú de Tarefas", "prazo": "2026-12-01"}, nova)
+                                                                                                        "lista": "[CAIXA] Baú de Tarefas", "prazo": "2026-12-01"}, nova)
 
 # ======================= o motor que aprende (vários dias de dados sintéticos) =======================
 from datetime import date, timedelta  # noqa: E402
@@ -208,7 +208,7 @@ for i, dia in enumerate(uteis):
     with open(os.path.join(mot, "registros", f"registro_{dia.isoformat()}.json"), "w", encoding="utf-8") as f:
         json.dump({"data": dia.isoformat(), "blocos": blocos}, f, ensure_ascii=False)
     ev(dia, ini_copy, "inicio_bloco", bloco="b1", titulo="Copy da página de vendas", natureza="copy", planejado=ini_copy, atraso=35 if manha else 2)
-    ev(dia, "10:15", "tarefas_novas", quantidade=3, tarefas=[{"id": f"z{i}", "nome": f"Aviso {i} com o link do Zoom da turma", "lista": "[ZAPIA] Baú", "prazo": None},
+    ev(dia, "10:15", "tarefas_novas", quantidade=3, tarefas=[{"id": f"z{i}", "nome": f"Aviso {i} com o link do Zoom da turma", "lista": "[CAIXA] Baú", "prazo": None},
                                                              {"id": f"y{i}", "nome": "Pedido do cliente", "lista": "Clientes"}, {"id": f"x{i}", "nome": f"Outra coisa {i}", "lista": "Clientes"}])
     if i < 3:
         ev(dia, "11:20", "extensao", bloco="b2", titulo="Subir os vídeos da aula", natureza="operacional", minutos=15, motivo="Interrupções")
@@ -355,7 +355,7 @@ confere("entregas só aparecem com 3 tarefas com prazo concluídas", est["entreg
 
 c1 = conquistas.calcular(mot, memoria=mot)
 cq = {c["id"]: c for c in c1["lista"]}
-confere("21 conquistas, com grupo, regra e meta", c1["total"] == 21 and all(c["regra"] and c["meta"] >= 1 for c in c1["lista"]))
+confere("22 conquistas, com grupo, regra e meta", c1["total"] == 22 and all(c["regra"] and c["meta"] >= 1 for c in c1["lista"]))
 confere("na primeira vez, o que já estava cumprido entra sem anúncio (retroativo)", cq["primeiro_report"]["desbloqueada"] and not c1["novas"] and not cq["primeiro_report"]["nova"])
 confere("progresso do que falta: 6 de 7 reports, sem desbloquear antes da hora", cq["calib_7"]["progresso"] == 6 and not cq["calib_7"]["desbloqueada"], cq["calib_7"])
 confere("conquista de padrão confirmado vem da resposta sim à pergunta do dia", cq["padrao_confirmado"]["desbloqueada"])
@@ -372,7 +372,7 @@ comandos_antes = []
 while not h.bus.comandos.empty():
     comandos_antes.append(h.bus.comandos.get_nowait())
 k = v2.calibragem()
-confere("a calibragem do painel traz as estatísticas e as conquistas", k["estatisticas"] and len(k["estatisticas"]["kpis"]) == 4 and k["conquistas"]["total"] == 21)
+confere("a calibragem do painel traz as estatísticas e as conquistas", k["estatisticas"] and len(k["estatisticas"]["kpis"]) == 4 and k["conquistas"]["total"] == 22)
 confere("no painel de teste, 45 reports já desbloquearam as de constância até 30 dias", all({c["id"]: c for c in k["conquistas"]["lista"]}[i]["desbloqueada"] for i in ("calib_7", "calib_14", "calib_21", "calib_30")))
 with open(os.path.join(tmp, "memoria", "aprendizados.md"), "w", encoding="utf-8") as f:
     f.write("## Regras\n- Quando X, faça Y. Teste: sim?\n")

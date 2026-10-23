@@ -80,6 +80,12 @@ else:
         with open(os.path.join(oper, "config.json"), encoding="utf-8-sig") as f:
             cfg = json.load(f)
     confere("configurar.ps1 -Respostas termina bem e avisa que o painel ainda não está instalado", codigo == 0 and "instalar_painel.ps1" in saida, saida[-500:])
+    try:
+        with open(os.path.join(oper, "tutorial_estado.json"), encoding="utf-8-sig") as f:
+            tut = json.load(f)
+    except (OSError, ValueError):
+        tut = {}
+    confere("instalação nova: o onboarding deixa o convite do tour guiado para a primeira abertura do painel", tut.get("convidar") is True, tut)
     confere("o config.json leva tratamento, nome e voz do guardião",
             cfg.get("pessoa") == {"nome": "Marina Souza", "artigo": "a"} and cfg.get("agente") == {"nome": "Sentinela", "voz": "pf_dora"}, (cfg.get("pessoa"), cfg.get("agente")))
     confere("os campos opcionais entram só quando respondidos (abrir o painel, tarefas vencidas, sessão)",

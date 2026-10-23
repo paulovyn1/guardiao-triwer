@@ -45,6 +45,8 @@ import nativo
 import registro
 import tarefas
 import tocador
+import anexos
+import quebras
 from fala import normalizar_para_fala
 from hud_servidor import (_config, _ler_json, _norm, _plano_de_hoje, _registro_de_hoje, agir, bus, conflitos_do_plano, editar_plano, iniciar_servidor,
                           pendencias_texto, pessoa, preferencias, refs_conhecidas, resolver_lista, resumo_aprovacao, salvar_preferencias)
@@ -548,7 +550,9 @@ def avisar_modelo(texto):
 # Aqui o programa fecha a conta. Se a ação falhou, ou foi recusada porque a pessoa não a pediu, ele mesmo diz isso em voz alta no fim
 # da resposta e avisa o modelo, que não deve repetir nem afirmar que deu certo. (O toast de erro na tela já existia.)
 VERBO_ACAO = {"concluir": ("concluir", "conclua"), "reabrir": ("reabrir", "reabra"), "comentar": ("anotar em", "anote em"),
-              "criar": ("criar a tarefa", "crie a tarefa"), "aprovar": ("aprovar o plano", "aprove o plano")}
+              "criar": ("criar a tarefa", "crie a tarefa"), "aprovar": ("aprovar o plano", "aprove o plano"),
+              "mover": ("mover no plano", "mova no plano"), "editar": ("mudar no plano", "mude no plano"), "remover": ("tirar do plano", "tire do plano"),
+              "adicionar": ("pôr no plano", "ponha no plano"), "desfazer": ("desfazer no plano", "desfaça no plano")}
 ACOES_EM_CURSO = 0
 _TRAVA_ACOES = threading.Lock()
 CORRECOES = []  # frases a dizer quando a resposta termina
@@ -784,8 +788,9 @@ INTENCAO = {  # a ação só acontece se o que a pessoa disse realmente pede aqu
     # ajustes do plano: valem sempre que a revisão está aberta; fora dela, só se a frase pedir
     "mover": re.compile(r"\bmov|\btroc|\bpass[ae]\b|\badi[ae]\b|antecip|desloc|\bmuda|\balter|\bjoga|empurr|\bremarc|\breagend"),
     "editar": re.compile(r"renome|\bmuda|\balter|\btroc|\bedit|corrig|\bajust|\bchama"),
-    "remover": re.compile(r"remov|\btira\b|\btirar\b|\bexclu|\bapag|\bcorta|nao vou|nao da pra|nao preciso|esquece|de fora"),
-    "adicionar": re.compile(r"adicion|\binclu|acrescent|\bcri[ae]|novo bloco|mais um|encaix|\bcoloc|\bbota"),
+    "remover": re.compile(r"remov|\btira\b|\btirar\b|\bexclu|\bapag|\bcorta|nao vou|nao da pra|nao preciso|esquece|de fora"
+                          r"|cancel|desnecess|nao precisa|nao e (mais )?necessari|nao faz (mais )?sentido|sem necessidade|dispens"),
+    "adicionar": re.compile(r"adicion|\binclu|acrescent|\bcri[ae]|novo bloco|mais um|encaix|\bcoloc|\bbota|(fazer|faco|faz|ver|vejo|resolv\w*|decid\w*) (\w+ ){0,3}hoje"),
     "desfazer": re.compile(r"desfaz|\bvolt|como estava|errei|\banul"),
     "aprovar": re.compile(r"aprov"),
     # acompanhamento da execução: valem sempre que há um aviso de tempo em aberto; fora dele, só se a frase pedir
@@ -794,7 +799,7 @@ INTENCAO = {  # a ação só acontece se o que a pessoa disse realmente pede aqu
     "motivo": re.compile(r"."),
     # guardião completo: pedidos de planejar, refazer ou organizar várias coisas de uma vez
     "completo": re.compile(r"refa[zc]|replanej|reorganiz|planej|\bmont|remont|\bsemana|\bamanha|destrinch|\bquebr|encaix|redistribu|reprogram|prioriz|organiz"
-                           r"|penden|atras|\bplano\b|\bdia\b|\bagenda|complet"),
+                           r"|penden|atras|\bplano\b|\bdia\b|\bagenda|complet|(fazer|faco|faz|ver|vejo|resolv\w*|decid\w*) (\w+ ){0,3}hoje"),
 }
 EDITA = re.compile(r"mov|troc|pass[ae]|adi[ae]|remov|tira|inclu|acrescent|mud|alter|antes|depois|hora|cedo|tarde|renome|apag")
 SIM_APROVAR = {"sim", "sim pode", "pode", "pode sim", "pode aprovar", "aprova", "aprove", "aprovado", "aprova sim", "isso", "isso mesmo", "claro",
@@ -879,7 +884,9 @@ def extrair_diretivas(frase):
     diretivas = [(m.group(1), m.group(2)) for m in DIRETIVA.finditer(frase)]
     limpo = DIRETIVA.sub("", frase)
     limpo = re.sub(r"\{\{.*", "", limpo, flags=re.S)  # marca que ficou aberta
-    return re.sub(r"\s+", " ", limpo).strip(), diretivas
+    limpo = quebras.marcar(limpo)  # a lista e o parágrafo da resposta seguem até a tela como marcas; a voz as ignora
+    limpo = re.sub(r" ?([\ue000\ue001][\ue002]*) ?", r"\1", re.sub(r"\s+", " ", limpo))
+    return limpo.strip(), diretivas
 
 
 def campos(arg):
@@ -980,7 +987,8 @@ def texto_acoes(sessao=False):
         "Nesta leitura você pode falar até 14 frases curtas.\n"
         "- Ajustes que ele pedir (confirme cada um em voz alta, em uma frase): "
         "{{mover:ID|HH:MM-HH:MM}} muda o horário (se ele só disser o começo, escreva o começo e a mesma duração); "
-        "{{editar:ID|titulo=...|descricao=...}} muda o texto; {{remover:ID}} tira do plano de hoje; "
+        "{{editar:ID|titulo=...|descricao=...}} muda o texto; {{remover:ID}} tira do plano de hoje (a tarefa continua aberta e vai para outro dia); "
+        "{{remover:ID|cancelar}} quando ele cancela de vez (\"cancela\", \"é desnecessária\", \"não precisa mais\"): tira do plano e fecha a tarefa no ClickUp; "
         "{{adicionar:titulo=...|inicio=HH:MM|fim=HH:MM|descricao=...|lista=nome da lista|dono=nome}} inclui um bloco novo "
         "(vira tarefa no ClickUp quando o plano for aprovado); {{desfazer}} volta o último ajuste. Horários sempre em 24 horas.\n"
         "- Antes de mover ou adicionar, confira os CONFLITOS ATUAIS e os compromissos fixos do plano. Se o horário bater com outro bloco, avise "
@@ -1344,11 +1352,18 @@ class Cortador:
     def __init__(self):
         self.buf = ""
         self.pendente = ""
+        self.ws = ""  # os espaços (e quebras de linha) que vieram antes do que está em buf
 
     def alimentar(self, pedaco):
         self.buf += pedaco or ""
         prontas = []
         while True:
+            inicio = re.match(r"\s+", self.buf)
+            if inicio:
+                self.ws += inicio.group(0)
+                self.buf = self.buf[inicio.end():]
+            if not self.buf:
+                return prontas
             # corta no fim da frase ou, se a frase for comprida, na primeira vírgula depois de 35 letras
             # (nunca dentro de uma diretiva: a conta é feita no texto mascarado, que tem o mesmo tamanho)
             mascarado = mascarar(self.buf)
@@ -1362,8 +1377,10 @@ class Cortador:
             if not cortes:
                 return prontas
             corte = min(cortes)
-            frase = (self.pendente + " " + self.buf[:corte]).strip()
-            self.buf = self.buf[corte:].lstrip()
+            antes = quebras.marca_de(self.ws)  # a quebra de linha que veio antes desta frase continua antes dela
+            frase = ((self.pendente + (antes or " ") + self.buf[:corte]) if self.pendente else (antes + self.buf[:corte])).strip()
+            self.ws = ""
+            self.buf = self.buf[corte:]
             if len(extrair_diretivas(frase)[0]) < 15 and not DIRETIVA.search(frase):  # frase curtinha demais, junta com a próxima
                 self.pendente = frase
                 continue
@@ -1372,8 +1389,13 @@ class Cortador:
 
     def resto(self):
         """O que sobrou sem ponto final (o fim da resposta, ou o que foi dito antes de uma pausa para usar uma ferramenta)."""
-        resto = (self.pendente + " " + self.buf).strip()
-        self.buf = self.pendente = ""
+        inicio = re.match(r"\s+", self.buf)
+        if inicio:
+            self.ws += inicio.group(0)
+            self.buf = self.buf[inicio.end():]
+        antes = quebras.marca_de(self.ws)
+        resto = ((self.pendente + ((antes or " ") + self.buf if self.buf else "")) if self.pendente else (antes + self.buf)).strip()
+        self.buf = self.pendente = self.ws = ""
         return resto
 
 
@@ -1653,6 +1675,7 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
         elif nome in ("mover", "editar", "remover", "adicionar", "desfazer"):
             if not plano_permitido(nome, texto_usuario):
                 print(f"  (ignorei o ajuste '{nome}': a pessoa não pediu isso)")
+                registrar_recusa_de_acao(nome, None if nome == "adicionar" else arg.partition("|")[0].strip())  # ele já disse que fez: no fim conta que não fez
                 continue
             ref, _, resto = arg.partition("|")
             ref = ref.strip()
@@ -1662,6 +1685,8 @@ def executar_diretivas(diretivas, texto_usuario, acoes=True):
                 dados = campos(resto)
             elif nome == "adicionar":
                 ref, dados = None, campos(arg)
+            elif nome == "remover":
+                dados = {"cancelar": resto.strip().lower().startswith("cancel")}  # {{remover:ID|cancelar}}: cancelada de vez, fecha no ClickUp
             else:
                 dados = {}
             r = editar_plano(nome, ref or None, dados)
@@ -1794,6 +1819,7 @@ def _planejar_pelo_motor(pedido):
     bus.emitir("progresso", modo="completo", ativo=True, rotulo="Montando a agenda", inicio=inicio)
     r = motor_agenda.planejar(OPER, incluir_hoje=True, ia=True, pedido=pedido)
     motor_agenda.gravar(r, OPER, hoje_mesmo_aprovado=True)
+    bus.emitir("plano")  # sem isso a tela não relia o arquivo e o plano novo nunca aparecia para aprovar
     bus.emitir("ui", cmd="tela", id="dia")  # a lista do Hoje mostra o plano novo; a aprovação é na barra de baixo
     PELO_MOTOR["ultimo"] = True
     hoje = time.strftime("%Y-%m-%d")
@@ -1805,6 +1831,8 @@ def _planejar_pelo_motor(pedido):
         for d in r["delegar"][:4]:
             donos.setdefault(str(d["dono"]).split()[0], []).append(str(d["titulo"])[:50])
         partes.append(" ".join(f"Para o {dono}: {'; '.join(t)}." for dono, t in donos.items()))
+    if r.get("movidas"):
+        partes.append("Passei para outro dia, sem precisar de decisão sua: " + "; ".join(f"{str(m['titulo'])[:45]} ({m['dia'][8:10]}/{m['dia'][5:7]})" for m in r["movidas"][:4]) + ".")
     perguntas = (r.get("perguntas") or [])[:1]  # uma pergunta por vez: a próxima vem depois da resposta dela
     partes += perguntas or ["O plano novo já está na lista: confira e aprove na barra de baixo."]
     return "\n\n".join(partes)  # um parágrafo por assunto (a conversa mostra as quebras)
@@ -2205,6 +2233,9 @@ def abrir_o_dia(a, primeira):
     """O que o guardião faz quando o app abre (a tela pede no começo da animação e libera a fala no fim dela).
     Devolve True quando ele fez uma pergunta e espera resposta."""
     bus.portao_saudacao.wait(timeout=20)
+    import tutorial
+    if tutorial.convidar():  # instalação nova: o convite do tour vem antes da leitura do plano
+        return False
     esperar_som_do_computador()
     if PROPOSTA or revisao_ativa() or controle_fala.FALANDO.is_set():
         return False
@@ -2461,7 +2492,7 @@ def responder_falando(pergunta, voz_kokoro, texto_usuario=None, acoes=True, port
             bus.emitir("guardiao_fim", texto=acumulado.strip())
             dito.append(acumulado.strip())
         bus.emitir("foco_fim")
-        return primeira or 0.0, time.time() - t0, " ".join(dito)
+        return primeira or 0.0, time.time() - t0, quebras.para_tela(" ".join(dito))
     except Exception as erro:
         erro_final = f"{type(erro).__name__}: {erro}"
         raise
@@ -2616,6 +2647,8 @@ NAVEGAR = re.compile(r"^(?:abre|abrir|vai para|ir para|vai pra|mostra|mostrar)\s
 TELAS = {"home": "home", "inicio": "home", "dia": "dia", "planejador": "plan", "calibragem": "cal", "pops": "pops", "pop": "pops"}
 MUDO = re.compile(r"^(fica|fique|ficar) (mudo|quieto|calado|em silencio)$|^silenci\w+( a (sua )?voz)?$|^(modo )?sem voz$|^deslig\w+ a (sua )?voz$")
 FALAR = re.compile(r"^(pode falar|pode voltar a falar|lig\w+ a (sua )?voz|volt\w+ a falar)$")
+PEDE_TUTORIAL = re.compile(r"^(quero |vamos |bora )?(abre |abrir |inicia |iniciar |comeca |comecar |refaz |refazer |ver |rever )?(o |um )?(tutorial|tour)( do guardiao| guiado| do painel)?$"
+                           r"|^(me )?ensina(r)?( a)? (usar|mexer)( o guardiao| no guardiao| o painel| no painel)?$")
 PEDE_REPORT = re.compile(r"^(quero |vamos |bora )?(fazer |mandar |enviar )?(o |meu )?report( do dia| de hoje)?$")
 DETALHES = re.compile(r"^(abre |abrir |mostra |me mostra )?(os )?detalhes?( da tarefa| dessa tarefa| desta tarefa)?$")
 E_PERGUNTA = re.compile(r"^(o que|como|por ?que|quando|quanto|onde|quem)\b")
@@ -2876,6 +2909,9 @@ def comando_local(texto):
     if FALAR.search(t):
         salvar_preferencias({"voz_guardiao": True})
         return {"fala": "Voz ligada."}
+    if PEDE_TUTORIAL.search(t):
+        bus.emitir("ui", cmd="tutorial")  # a tela abre o tour guiado
+        return {"fala": ""}
     if PEDE_REPORT.search(t):
         return {"fala": "", "roteiro": "report"}
     if NOVA_CONVERSA.search(t):
@@ -3167,6 +3203,15 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
     sem_conta = False
     na_sessao = modo_sessao()
     llm, motivo_llm = escolher_modelo(texto) if provedor_ia() == "claude" else ("codex", "escolha do painel")
+    itens_anexos = anexos.consumir()  # o que a pessoa anexou desde a última pergunta vai com esta
+    pergunta_claude = texto
+    if itens_anexos:
+        bus.emitir("anexos", itens=[])
+        bus.emitir("anexos_enviados", nomes=anexos.nomes(itens_anexos))
+        if provedor_ia() == "claude":
+            llm, motivo_llm = MODELO_PADRAO, "tem anexo"  # ler imagem e PDF pede o modelo completo
+        pergunta_claude = anexos.compor(texto, itens_anexos, chave_groq(), provedor_ia())
+    texto_lembrado = texto + (f" (anexos: {', '.join(anexos.nomes(itens_anexos))})" if itens_anexos else "")
     print("  (sessão do Claude Code)" if na_sessao else f"  (modelo: {llm}, {motivo_llm})")
 
     def pedir(pedido):
@@ -3174,21 +3219,21 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
     plano_antes = ler_plano() if na_sessao else None
     try:
         if a.voz == "kokoro":
-            primeira, total, falado = responder_falando(texto, a.voz_kokoro, texto, modelo=llm, motivo=motivo_llm,
-                                                        fonte=(lambda: frases_da_sessao(texto)) if na_sessao else None, pedir=pedir if na_sessao else None,
+            primeira, total, falado = responder_falando(pergunta_claude, a.voz_kokoro, texto, modelo=llm, motivo=motivo_llm,
+                                                        fonte=(lambda: frases_da_sessao(pergunta_claude)) if na_sessao else None, pedir=pedir if na_sessao else None,
                                                         modo="sessao" if na_sessao else "rapido")
             print(f"  (voz começou em {primeira:.1f}s, resposta completa em {total:.1f}s)")
         else:
             if na_sessao:
                 t0, partes = time.time(), []
-                for frase in frases_da_sessao(texto):
+                for frase in frases_da_sessao(pergunta_claude):
                     if isinstance(frase, str):
                         partes.append(frase)
                     else:
                         guardiao_sessao.decidir(frase[1], *pedir(frase[1]))
                 resposta, seg2 = " ".join(partes), time.time() - t0
             else:
-                resposta, seg2 = perguntar_claude(texto, llm)
+                resposta, seg2 = perguntar_claude(pergunta_claude, llm)
             falado, diretivas = extrair_diretivas(resposta)
             print(f"  Guardião ({provedor_ia()}, {seg2:.1f}s): {falado}")
             executar_diretivas(diretivas, texto)
@@ -3198,7 +3243,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
             bus.emitir("guardiao_fim", texto=falado)
             bus.emitir("foco_fim")
             primeira = total = seg2
-        lembrar(texto, falado, na_sessao=na_sessao)
+        lembrar(texto_lembrado, falado, na_sessao=na_sessao)
         if na_sessao:  # a sessão pode ter gravado o plano de hoje: confere, devolve para aprovação e avisa a tela
             conferido = conferir_plano(plano_antes)
             if conferido == "mudou":
@@ -3209,7 +3254,7 @@ def atender(a, q, modelo, chave, piso, texto_digitado=None, seguimento=False):
         if na_sessao and falado:  # guarda a troca para a conversa poder ser reaberta na tela
             conversa = guardiao_sessao.atual(criar=False)
             if conversa:
-                guardiao_sessao.anotar(conversa["id"], "u", texto)
+                guardiao_sessao.anotar(conversa["id"], "u", texto_lembrado)
                 guardiao_sessao.anotar(conversa["id"], "g", falado)
                 guardiao_sessao.avisar_tela()
         bus.emitir("metricas", stt=stt, primeira=primeira, total=total)
@@ -3460,6 +3505,15 @@ def main():
                     if a.cerebro and valor:
                         dizer(str(valor), a)
                         lembrar("(resposta pelos botões da tela)", str(valor))
+                        drenar(q)
+                        bus.emitir("estado", v="aguardando")
+                elif tipo == "narrar":  # o tutorial fala o cartão do passo; o texto fica fora da conversa (o painel ignora o que vem marcado)
+                    if a.cerebro and valor and voz_ligada():
+                        bus.narrando = True
+                        try:
+                            dizer(str(valor), a)
+                        finally:
+                            bus.narrando = False
                         drenar(q)
                         bus.emitir("estado", v="aguardando")
                 elif tipo == "roteiro":

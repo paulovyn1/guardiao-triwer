@@ -142,7 +142,7 @@ body{margin:0;background:#07080a}
 .gd .cstrip .cs-n{flex:none}
 .gd .cstrip svg{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .gd .cstrip i{flex:none;width:3px;height:3px;border-radius:50%;background:var(--gold)}
-.gd .cs-home{position:absolute;left:50%;bottom:80px;width:600px;margin-left:-300px;padding:0 18px;justify-content:center;transition:translate var(--dcam) var(--eout)}
+.gd .cs-home{position:absolute;left:50%;bottom:calc(80px + var(--cmd-extra,0px));width:660px;margin-left:-330px;padding:0 18px;justify-content:center;transition:translate var(--dcam) var(--eout)}
 .gd.has-detail.scr-home .cs-home{translate:calc(-1 * var(--hshift,160px)) 0}
 .gd.m-mobile .cs-home{display:none}
 .gd .cs-col{margin:0 4px 6px}
@@ -224,8 +224,8 @@ body{margin:0;background:#07080a}
 .gd .chip:hover{border-color:var(--gold);color:var(--ivory)}
 .gd .chip.on{border-color:var(--gold2);color:var(--gold2)}
 .gd .chip.ember{border-color:rgba(210,96,58,.55);color:var(--ember)}
-.gd .cmd{position:absolute;left:50%;bottom:24px;width:600px;margin-left:-300px;height:50px;display:flex;align-items:center;gap:10px}
-.gd .cmd .fld{flex:1;min-width:0;height:50px;padding:0 18px;border-radius:var(--r-pill);background:rgba(16,18,22,.85);border:1px solid var(--line);font-size:14px}
+.gd .cmd{position:absolute;left:50%;bottom:24px;width:660px;margin-left:-330px;min-height:50px;display:flex;align-items:flex-end;gap:10px}
+.gd .cmd .fld{flex:1;min-width:0;display:block;box-sizing:border-box;min-height:50px;height:50px;padding:13px 18px;border-radius:25px;background:rgba(16,18,22,.85);border:1px solid var(--line);font-family:inherit;font-size:14px;line-height:22px;resize:none;overflow-y:hidden}
 .gd .cmd .snd{width:50px;height:50px;border-radius:50%;background:linear-gradient(180deg,#efcb78,#d3a445);color:#15110a;display:inline-flex;align-items:center;justify-content:center;flex:none}
 .gd .cmd .snd svg{width:20px;height:20px;fill:currentColor}
 .gd .cmd .mic{height:50px;padding:0 20px;border-radius:var(--r-pill);border:1px solid var(--line2);display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);flex:none}
@@ -366,7 +366,7 @@ body{margin:0;background:#07080a}
 .gd .chips-row{display:flex;gap:8px;overflow-x:auto;padding:10px 0 12px;scrollbar-width:none}
 .gd .chips-row::-webkit-scrollbar{display:none}
 .gd .chips-row .chip{flex:none;height:36px}
-.gd .pl .cmd{position:static;width:auto;margin:0;height:50px}
+.gd .pl .cmd{position:static;width:auto;margin:0;min-height:50px}
 /* ===== CALIBRAGEM ===== */
 .gd .cal{position:absolute;left:calc(388px + var(--ox,0px));width:calc(1028px + var(--xw,0px));top:92px;bottom:18px;display:flex;flex-direction:column;gap:18px}
 .gd .cal-hd{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
@@ -524,6 +524,79 @@ body{margin:0;background:#07080a}
 .gd .scene .sbar i{position:absolute;left:0;top:0;bottom:0;width:100%;transform-origin:0 0;background:var(--gold2)}
 .gd .scene .sseal{position:absolute;right:22px;bottom:22px;width:64px;height:64px}
 .gd .scene .sprop{margin-top:6px}
+.gd .m-u p{white-space:pre-wrap;overflow-wrap:anywhere}
+.gd .m-g .md{margin-top:5px;font-family:var(--f-display);font-style:italic;font-size:22px;line-height:1.22;color:var(--ivory);overflow-wrap:anywhere}
+.gd .gcol .m-g .md,.gd .dsheet .m-g .md{margin-top:0;font-size:18px;line-height:1.25}
+.gd .gcol.v-on .m-g .md{font-size:20px}
+.gd.m-mobile .m-g .md{font-size:19px}
+.gd .gl-g .md ul,.gd .gl-g .md ol{display:inline-block;text-align:left}
+.gd .md>*{margin:0 0 .5em}
+.gd .md>:last-child{margin-bottom:0}
+.gd .md p{white-space:normal}
+.gd .md strong{font-weight:700;color:#fff6dc}
+.gd .md em{font-style:italic;color:var(--gold2)}
+.gd .md del{opacity:.6}
+.gd .md ul,.gd .md ol{padding-left:1.25em}
+.gd .md li{margin:.18em 0;padding-left:.1em}
+.gd .md li::marker{color:var(--gold2);font-style:normal}
+.gd .md li>ul,.gd .md li>ol{margin:.15em 0 .1em}
+.gd .md .mdh{font-weight:700;font-size:1.05em;color:var(--gold2)}
+.gd .md a{color:var(--gold2);text-decoration:underline;text-underline-offset:3px}
+.gd .md code{font-family:var(--f-mono);font-style:normal;font-size:.62em;letter-spacing:0;background:rgba(255,255,255,.08);padding:.12em .45em;border-radius:6px}
+.gd .md pre{margin:.2em 0 .6em;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.38);border:1px solid var(--line);overflow:auto;max-height:260px}
+.gd .md pre code{display:block;padding:0;background:none;font-size:.6em;line-height:1.5;white-space:pre}
+.gd .md blockquote{padding-left:12px;border-left:2px solid var(--gold);color:var(--ivory2)}
+.gd .md hr{border:0;border-top:1px solid var(--line2)}
+.gd .md .mdt{overflow-x:auto}
+.gd .md table{border-collapse:collapse;font-family:var(--f-ui);font-style:normal;font-size:.62em;line-height:1.35}
+.gd .md th,.gd .md td{padding:5px 10px;border:1px solid var(--line);text-align:left;vertical-align:top}
+.gd .md th{color:var(--gold2);font-weight:600}
+.gd .cmd{flex-wrap:wrap}
+.gd .anx{flex:0 0 100%;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:2px}
+.gd .anx-i{position:relative;display:inline-flex;align-items:center;gap:8px;max-width:280px;height:44px;padding:0 8px 0 6px;border-radius:12px;border:1px solid var(--line2);background:rgba(16,18,22,.94);font-size:12.5px;color:var(--ivory2)}
+.gd .anx-t{width:32px;height:32px;border-radius:7px;object-fit:cover;flex:none}
+.gd .anx-ic{width:22px;height:22px;margin:0 4px;stroke:var(--gold2);fill:none;stroke-width:1.6;flex:none}
+.gd .anx-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ivory)}
+.gd .anx-s{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.08em;color:var(--ivory3);white-space:nowrap;text-transform:uppercase}
+.gd .anx-x{flex:none;width:22px;height:22px;border-radius:50%;color:var(--ivory3);font-size:17px;line-height:1}
+.gd .anx-x:hover{color:var(--ivory);background:rgba(255,255,255,.1)}
+.gd .anx-i.up{opacity:.7}
+.gd .anx-i.up .anx-x{display:none}
+.gd .anx-i.warn{border-color:rgba(210,96,58,.55)}
+.gd .clip{flex:none;width:50px;height:50px;border-radius:50%;border:1px solid var(--line2);display:inline-flex;align-items:center;justify-content:center;color:var(--gold2);background:rgba(16,18,22,.85)}
+.gd .clip svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.gd .clip:hover{border-color:var(--gold2)}
+.gd .clip.off{opacity:.45}
+.gd .clip:disabled{opacity:.4}
+.gd .gcol .cmd .clip{width:46px;height:46px}
+.gd.m-mobile .cmd .clip,.gd.m-mobile .anx{display:none}
+.gd .anx-file{display:none}
+.gd .anx-drop{position:absolute;inset:0;z-index:58;display:flex;align-items:center;justify-content:center;background:rgba(5,6,8,.74);border:2px dashed var(--gold2);border-radius:18px;color:var(--gold2);font-family:var(--f-display);font-style:italic;font-size:34px;opacity:0;pointer-events:none;transition:opacity 160ms}
+.gd .anx-drop.on{opacity:1}
+.gd .m-anx{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-top:6px}
+.gd .m-anx span{font-family:var(--f-mono);font-size:10px;letter-spacing:.06em;color:var(--ivory3);border:1px solid var(--line);border-radius:999px;padding:3px 10px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gd .auto-b{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line2);font-family:var(--f-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ivory3);background:rgba(16,18,22,.94)}
+.gd .auto-b i{width:7px;height:7px;border-radius:50%;background:var(--ivory3)}
+.gd .auto-b:hover{border-color:var(--gold2);color:var(--gold2)}
+.gd .auto-b.on{color:#1a1409;background:linear-gradient(180deg,#efcb78,#d3a445);border-color:transparent}
+.gd .auto-b.on i{background:#1a1409}
+.gd .tour-hl{position:absolute;z-index:54;pointer-events:none;border-radius:14px;border:2px solid var(--gold2);box-shadow:0 0 0 9999px rgba(5,6,8,.62),0 0 22px rgba(227,185,100,.45);opacity:0;transition:opacity 220ms var(--eout)}
+.gd .tour-hl.nobox{border-color:transparent;box-shadow:0 0 0 9999px rgba(5,6,8,.7)}
+.gd .tour-card{position:absolute;z-index:56;width:440px;max-height:calc(100% - 110px);overflow:auto;padding:22px 24px 18px;opacity:0;pointer-events:none;visibility:hidden;transition:opacity 220ms var(--eout)}
+.gd .tour-card.on{opacity:1;pointer-events:auto;visibility:visible}
+.gd .tour-card .tk{display:flex;align-items:center;justify-content:space-between;color:var(--gold2)}
+.gd .tour-card h3{font-family:var(--f-display);font-weight:500;font-size:26px;line-height:1.1;margin:8px 0 8px}
+.gd .tour-card .tx{font-size:14.5px;line-height:1.5;color:var(--ivory2)}
+.gd .tour-card .tit{margin-top:10px;display:flex;flex-direction:column;gap:7px}
+.gd .tour-card .tit div{font-size:13.5px;line-height:1.42;color:var(--ivory2)}
+.gd .tour-card .tit b{color:var(--ivory);font-weight:600}
+.gd .tour-card .tok{margin-top:10px;font-size:13.5px;color:var(--gold2)}
+.gd .tour-card .twarn{margin-top:10px;font-size:13.5px;color:var(--ember)}
+.gd .tour-card .tbar{height:2px;margin-top:14px;background:rgba(178,132,49,.2);border-radius:2px;overflow:hidden;position:relative}
+.gd .tour-card .tbar i{position:absolute;left:0;top:0;bottom:0;width:100%;transform-origin:0 0;background:var(--gold2);transition:transform 260ms var(--emove)}
+.gd .tour-card .tacts{display:flex;align-items:center;gap:10px;margin-top:14px}
+.gd .tour-card .tacts .sp{flex:1}
+.gd.m-mobile .tour-card{width:350px}
 .gd .toasts{position:absolute;right:calc(24px + var(--ox,0px));bottom:72px;width:340px;display:flex;flex-direction:column;gap:10px;z-index:60;pointer-events:none}
 .gd .toast{padding:13px 16px;border-radius:14px;border:1px solid var(--line2);background:linear-gradient(180deg,rgba(32,27,16,.97),rgba(18,16,11,.97));font-size:14px;color:var(--ivory);animation:toastIn 420ms var(--eout) both;display:flex;gap:10px;align-items:flex-start;box-shadow:0 20px 50px -20px rgba(0,0,0,.9)}
 .gd .toast i{width:8px;height:8px;border-radius:50%;background:var(--gold2);margin-top:7px;flex:none}
@@ -747,8 +820,8 @@ body{margin:0;background:#07080a}
 .gd .gcol .prop h4,.gd .dsheet .prop h4{font-size:20px;margin:6px 0 10px}
 .gd .gcol .askf,.gd .dsheet .askf{margin-top:10px}
 .gd .gc-in{flex:none;padding:10px 14px 14px;border-top:1px solid rgba(178,132,49,.14)}
-.gd .gcol .cmd{position:static;width:auto;margin:0;height:46px;gap:8px;left:auto;bottom:auto}
-.gd .gcol .cmd .fld{height:46px;padding:0 16px}
+.gd .gcol .cmd{position:static;width:auto;margin:0;min-height:46px;gap:8px;left:auto;bottom:auto}
+.gd .gcol .cmd .fld{min-height:46px;height:46px;padding:11px 16px}
 .gd .gcol .cmd .mic,.gd .dock .cmd .mic{width:46px;height:46px;padding:0;justify-content:center}
 .gd .gcol .cmd .mic span,.gd .dock .cmd .mic span{display:none}
 .gd .gcol .cmd .snd,.gd .dock .cmd .snd{width:46px;height:46px}
@@ -765,7 +838,7 @@ body{margin:0;background:#07080a}
 .gd .dk-tx{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-family:var(--f-display);font-style:italic;font-size:17px;line-height:1.2;color:var(--ivory)}
 .gd .dock.v-off .dk-tx{-webkit-line-clamp:3;font-size:16px}
 .gd .dock .cmd{position:static;width:auto;margin:6px 0 0;height:46px;gap:8px;left:auto;right:auto;bottom:auto}
-.gd .dock .cmd .fld{height:46px;padding:0 16px}
+.gd .dock .cmd .fld{min-height:46px;height:46px;max-height:46px;padding:11px 16px}
 .gd .dock.v-off .cmd .fld{border-color:var(--line2);background:rgba(23,25,31,.95)}
 .gd .dk-chips{position:absolute;left:0;right:0;bottom:calc(100% + 10px);display:flex;gap:8px;overflow-x:auto;padding:0 12px;scrollbar-width:none}
 .gd .dk-chips .chip{flex:none;background:rgba(16,18,22,.94)}
@@ -865,7 +938,7 @@ body{margin:0;background:#07080a}
             <div class="hstack {{stageCls}}">
               <div class="gline">
                 <div class="gl-u" aria-hidden="true"><b>{{glTag}}</b>{{glU}}</div>
-                <div class="gl-g {{glCls}}" aria-hidden="true">{{glG}}</div>
+                <div class="gl-g {{glCls}}" aria-hidden="true"><div class="md" ref="{{glRef}}"></div></div>
               </div>
               <div class="fwrap" aria-hidden="{{fwrapHidden}}">
                 <div class="focus {{focus.cls}}" data-tid="{{focus.id}}">
@@ -923,9 +996,11 @@ body{margin:0;background:#07080a}
             </div>
             </sc-if>
             <div class="cmd">
-              <input class="fld" placeholder="{{cmdPh}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Fale ou escreva para o Guardião">
+              <sc-if value="{{anx.faixa}}" hint-placeholder-val="{{false}}"><div class="anx" role="list" aria-label="Anexos desta mensagem"><sc-if value="{{auto.on}}" hint-placeholder-val="{{false}}"><button class="auto-b {{auto.cls}}" data-tour="auto" onClick="{{auto.go}}" aria-pressed="{{auto.press}}" title="{{auto.titulo}}"><i></i>Auto</button></sc-if><sc-for list="{{anx.itens}}" as="a" hint-placeholder-count="2"><span class="anx-i {{a.cls}}" role="listitem" title="{{a.titulo}}"><sc-if value="{{a.isImg}}" hint-placeholder-val="{{false}}"><img class="anx-t" src="{{a.src}}" alt=""></sc-if><sc-if value="{{a.noImg}}" hint-placeholder-val="{{true}}"><svg class="anx-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5H7.5a.5.5 0 0 1-.5-.5z"></path><path d="M14 3.5V8h4"></path></svg></sc-if><span class="anx-n">{{a.nome}}</span><span class="anx-s">{{a.info}}</span><button class="anx-x" onClick="{{a.rm}}" aria-label="Remover anexo">&times;</button></span></sc-for></div></sc-if>
+              <button class="clip {{anx.cls}}" data-tour="anexo" onClick="{{anx.abrir}}" aria-label="Anexar arquivo" title="{{anx.titulo}}" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-7.8 7.8a4.5 4.5 0 0 1-6.4-6.4l8.2-8.2a3 3 0 0 1 4.2 4.2l-8.2 8.2a1.5 1.5 0 0 1-2.1-2.1L15 8.4"></path></svg></button>
+              <textarea class="fld" rows="1" data-tour="campo" ref="{{fitRef}}" placeholder="{{cmdPh}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Fale ou escreva para o Guardião"></textarea>
               <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
-              <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
+              <button class="mic {{micCls}}" data-tour="mic" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
                 <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
                 <span>{{micLabel}}</span>
               </button>
@@ -959,7 +1034,7 @@ body{margin:0;background:#07080a}
                     <p>{{dia.notice}}</p>
                   </div>
                 </sc-if>
-                <div class="layers">
+                <div class="layers" data-tour="dia">
                   <div class="ly {{dia.ly0}}">
                     <sc-if value="{{dia.empty}}" hint-placeholder-val="{{false}}">
                       <div class="pstate"><h3>Sem plano para hoje</h3><p>O plano do dia ainda não foi montado. Peça ao Guardião: ele sugere, você aprova.</p><button class="btn-pri sm" onClick="{{askPlan}}">Montar o dia</button></div>
@@ -1027,17 +1102,17 @@ body{margin:0;background:#07080a}
                 <sc-for list="{{chatMsgs}}" as="m" hint-placeholder-count="3">
                   <div class="mw">
                     <sc-if value="{{m.isU}}" hint-placeholder-val="{{false}}">
-                      <div class="m-u"><span class="mono">Você</span><p>{{m.text}}</p></div>
+                      <div class="m-u"><span class="mono">Você</span><p>{{m.text}}</p><sc-if value="{{m.hasAnx}}" hint-placeholder-val="{{false}}"><div class="m-anx"><sc-for list="{{m.anx}}" as="x" hint-placeholder-count="1"><span>{{x}}</span></sc-for></div></sc-if></div>
                     </sc-if>
                     <sc-if value="{{m.isG}}" hint-placeholder-val="{{true}}">
                       <div class="m-g">
                         <span class="mono">Guardião</span>
-                        <p>{{m.text}}<span class="caret" style="{{m.caretSt}}"></span></p><sc-if value="{{m.hasVia}}" hint-placeholder-val="{{false}}"><div class="m-via">{{m.via}}</div></sc-if>
+                        <div class="md" ref="{{m.mdRef}}"></div><sc-if value="{{m.hasVia}}" hint-placeholder-val="{{false}}"><div class="m-via">{{m.via}}</div></sc-if>
                         <sc-if value="{{m.hasAsk}}" hint-placeholder-val="{{false}}">
                           <div class="askf"><div class="row"><sc-for list="{{m.ask}}" as="c" hint-placeholder-count="3"><button class="chip" onClick="{{c.go}}">{{c.label}}</button></sc-for></div></div>
                         </sc-if>
                         <sc-if value="{{m.hasProp}}" hint-placeholder-val="{{false}}">
-                          <div class="prop">
+                          <div class="prop" data-tour="aprovar">
                             <div class="pk mono"><span>{{m.prop.kicker}}</span><span class="{{m.prop.tagCls}}">{{m.prop.status}}</span></div>
                             <h4>{{m.prop.title}}</h4>
                             <div class="pf">
@@ -1059,17 +1134,19 @@ body{margin:0;background:#07080a}
                   </div>
                 </sc-for>
               </div>
-              <div class="chips-row" role="group" aria-label="Roteiros prontos">
+              <div class="chips-row" data-tour="roteiros" role="group" aria-label="Roteiros prontos">
                 <sc-for list="{{flows}}" as="f" hint-placeholder-count="6"><button class="chip" onClick="{{f.go}}">{{f.label}}</button></sc-for>
               </div>
               <div class="cmd">
-                <input class="fld" placeholder="{{plPh}}" value="{{plText}}" onChange="{{onPlInput}}" onKeyDown="{{onPlKey}}" disabled="{{cmdDis}}" aria-label="Mensagem para o Guardião">
+                <sc-if value="{{anx.faixa}}" hint-placeholder-val="{{false}}"><div class="anx" role="list" aria-label="Anexos desta mensagem"><sc-if value="{{auto.on}}" hint-placeholder-val="{{false}}"><button class="auto-b {{auto.cls}}" data-tour="auto" onClick="{{auto.go}}" aria-pressed="{{auto.press}}" title="{{auto.titulo}}"><i></i>Auto</button></sc-if><sc-for list="{{anx.itens}}" as="a" hint-placeholder-count="2"><span class="anx-i {{a.cls}}" role="listitem" title="{{a.titulo}}"><sc-if value="{{a.isImg}}" hint-placeholder-val="{{false}}"><img class="anx-t" src="{{a.src}}" alt=""></sc-if><sc-if value="{{a.noImg}}" hint-placeholder-val="{{true}}"><svg class="anx-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5H7.5a.5.5 0 0 1-.5-.5z"></path><path d="M14 3.5V8h4"></path></svg></sc-if><span class="anx-n">{{a.nome}}</span><span class="anx-s">{{a.info}}</span><button class="anx-x" onClick="{{a.rm}}" aria-label="Remover anexo">&times;</button></span></sc-for></div></sc-if>
+                <button class="clip {{anx.cls}}" data-tour="anexo" onClick="{{anx.abrir}}" aria-label="Anexar arquivo" title="{{anx.titulo}}" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-7.8 7.8a4.5 4.5 0 0 1-6.4-6.4l8.2-8.2a3 3 0 0 1 4.2 4.2l-8.2 8.2a1.5 1.5 0 0 1-2.1-2.1L15 8.4"></path></svg></button>
+                <textarea class="fld" rows="1" data-tour="campo" ref="{{fitRef}}" placeholder="{{plPh}}" value="{{plText}}" onChange="{{onPlInput}}" onKeyDown="{{onPlKey}}" disabled="{{cmdDis}}" aria-label="Mensagem para o Guardião"></textarea>
                 <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
-                <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
+                <button class="mic {{micCls}}" data-tour="mic" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
                   <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
                   <span>{{micLabel}}</span>
                 </button>
-                <button class="ibtn {{voiceCls}}" onClick="{{toggleVoice}}" aria-pressed="{{voiceMuted}}" aria-label="{{voiceLabel}}">
+                <button class="ibtn {{voiceCls}}" data-tour="voz" onClick="{{toggleVoice}}" aria-pressed="{{voiceMuted}}" aria-label="{{voiceLabel}}">
                   <svg viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z"></path><path d="M15.5 9a4 4 0 0 1 0 6"></path><path d="M18 6.5a7.5 7.5 0 0 1 0 11"></path></svg>
                 </button>
                 <button class="snd" onClick="{{onPlSend}}" aria-label="Enviar" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24"><path d="M3 11.5 20.5 4 14 20l-3-6.5L3 11.5z"></path></svg></button>
@@ -1094,7 +1171,7 @@ body{margin:0;background:#07080a}
                   <div class="tdw"><i class="td {{d.cls}}"></i><span class="tl {{d.lcls}}">{{d.lbl}}</span></div>
                 </sc-for>
               </div>
-              <div class="cal-tabs"><div class="seg" role="tablist" aria-label="Calibragem"><sc-for list="{{cal.tabs}}" as="t" hint-placeholder-count="3"><button class="seg-b {{t.cls}}" role="tab" aria-selected="{{t.on}}" onClick="{{t.go}}">{{t.label}}</button></sc-for></div></div>
+              <div class="cal-tabs" data-tour="cal-abas"><div class="seg" role="tablist" aria-label="Calibragem"><sc-for list="{{cal.tabs}}" as="t" hint-placeholder-count="3"><button class="seg-b {{t.cls}}" role="tab" aria-selected="{{t.on}}" onClick="{{t.go}}">{{t.label}}</button></sc-for></div></div>
               <sc-if value="{{cal.tabEst}}" hint-placeholder-val="{{false}}">
                 <div class="cal-est" aria-label="Estatísticas">
                   <sc-if value="{{cal.estVazio}}" hint-placeholder-val="{{false}}"><div class="ph-empty">{{cal.estVazioTxt}}</div></sc-if>
@@ -1231,7 +1308,7 @@ body{margin:0;background:#07080a}
                     <div class="mono kk">Procedimentos operacionais</div>
                     <h2 class="h2 serif">POPs</h2>
                   </div>
-                  <div class="pop-tools">
+                  <div class="pop-tools" data-tour="pops">
                     <div class="seg" role="tablist" aria-label="Origem dos POPs">
                       <sc-for list="{{pops.tabs}}" as="t" hint-placeholder-count="2"><button class="seg-b {{t.cls}}" role="tab" aria-selected="{{t.on}}" onClick="{{t.go}}">{{t.label}}</button></sc-for>
                     </div>
@@ -1297,7 +1374,7 @@ body{margin:0;background:#07080a}
       <i class="tabline" style="{{tablineSt}}"></i>
       <div class="hd-r">
         <sc-if value="{{upd.on}}" hint-placeholder-val="{{false}}"><button class="upd {{upd.cls}}" onClick="{{upd.go}}" aria-label="{{upd.aria}}"><i></i><span>{{upd.label}}</span></button></sc-if>
-        <button class="ibtn {{voiceCls}}" onClick="{{toggleVoice}}" aria-pressed="{{voiceMuted}}" aria-label="{{voiceLabel}}">
+        <button class="ibtn {{voiceCls}}" data-tour="voz" onClick="{{toggleVoice}}" aria-pressed="{{voiceMuted}}" aria-label="{{voiceLabel}}">
           <svg viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z"></path><path d="M15.5 9a4 4 0 0 1 0 6"></path><path d="M18 6.5a7.5 7.5 0 0 1 0 11"></path></svg>
         </button>
         <button class="ibtn btn-compact" onClick="{{toggleCompact}}" aria-label="Janela compacta">
@@ -1330,13 +1407,13 @@ body{margin:0;background:#07080a}
         <sc-if value="{{col.empty}}" hint-placeholder-val="{{false}}"><p class="gc-empty">{{col.emptyTxt}}</p></sc-if>
         <sc-for list="{{colMsgs}}" as="m" hint-placeholder-count="3">
         <div class="mw {{m.oldCls}}">
-          <sc-if value="{{m.isU}}" hint-placeholder-val="{{false}}"><div class="m-u"><p>{{m.text}}</p></div></sc-if>
+          <sc-if value="{{m.isU}}" hint-placeholder-val="{{false}}"><div class="m-u"><p>{{m.text}}</p><sc-if value="{{m.hasAnx}}" hint-placeholder-val="{{false}}"><div class="m-anx"><sc-for list="{{m.anx}}" as="x" hint-placeholder-count="1"><span>{{x}}</span></sc-for></div></sc-if></div></sc-if>
           <sc-if value="{{m.isG}}" hint-placeholder-val="{{true}}">
             <div class="m-g">
-              <p>{{m.text}}<span class="caret" style="{{m.caretSt}}"></span></p><sc-if value="{{m.hasVia}}" hint-placeholder-val="{{false}}"><div class="m-via">{{m.via}}</div></sc-if>
+              <div class="md" ref="{{m.mdRef}}"></div><sc-if value="{{m.hasVia}}" hint-placeholder-val="{{false}}"><div class="m-via">{{m.via}}</div></sc-if>
               <sc-if value="{{m.hasAsk}}" hint-placeholder-val="{{false}}"><div class="askf"><div class="row"><sc-for list="{{m.ask}}" as="c" hint-placeholder-count="3"><button class="chip" onClick="{{c.go}}">{{c.label}}</button></sc-for></div></div></sc-if>
               <sc-if value="{{m.hasProp}}" hint-placeholder-val="{{false}}">
-                <div class="prop">
+                <div class="prop" data-tour="aprovar">
                   <div class="pk mono"><span>{{m.prop.kicker}}</span><span class="{{m.prop.tagCls}}">{{m.prop.status}}</span></div>
                   <h4>{{m.prop.title}}</h4>
                   <sc-if value="{{m.prop.open}}" hint-placeholder-val="{{true}}"><div class="pb"><button class="btn-pri sm" onClick="{{m.prop.create}}">{{m.prop.createLbl}}</button><button class="btn-gh" onClick="{{m.prop.discard}}">{{m.prop.discardLbl}}</button></div></sc-if>
@@ -1357,9 +1434,11 @@ body{margin:0;background:#07080a}
         </div>
         </sc-if>
         <div class="cmd">
-          <input class="fld" placeholder="{{col.ph}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Escreva para o Guardião">
+          <sc-if value="{{anx.faixa}}" hint-placeholder-val="{{false}}"><div class="anx" role="list" aria-label="Anexos desta mensagem"><sc-if value="{{auto.on}}" hint-placeholder-val="{{false}}"><button class="auto-b {{auto.cls}}" data-tour="auto" onClick="{{auto.go}}" aria-pressed="{{auto.press}}" title="{{auto.titulo}}"><i></i>Auto</button></sc-if><sc-for list="{{anx.itens}}" as="a" hint-placeholder-count="2"><span class="anx-i {{a.cls}}" role="listitem" title="{{a.titulo}}"><sc-if value="{{a.isImg}}" hint-placeholder-val="{{false}}"><img class="anx-t" src="{{a.src}}" alt=""></sc-if><sc-if value="{{a.noImg}}" hint-placeholder-val="{{true}}"><svg class="anx-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5H7.5a.5.5 0 0 1-.5-.5z"></path><path d="M14 3.5V8h4"></path></svg></sc-if><span class="anx-n">{{a.nome}}</span><span class="anx-s">{{a.info}}</span><button class="anx-x" onClick="{{a.rm}}" aria-label="Remover anexo">&times;</button></span></sc-for></div></sc-if>
+          <button class="clip {{anx.cls}}" data-tour="anexo" onClick="{{anx.abrir}}" aria-label="Anexar arquivo" title="{{anx.titulo}}" disabled="{{cmdDis}}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-7.8 7.8a4.5 4.5 0 0 1-6.4-6.4l8.2-8.2a3 3 0 0 1 4.2 4.2l-8.2 8.2a1.5 1.5 0 0 1-2.1-2.1L15 8.4"></path></svg></button>
+          <textarea class="fld" rows="1" data-tour="campo" ref="{{fitRef}}" placeholder="{{col.ph}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Escreva para o Guardião"></textarea>
           <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
-          <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
+          <button class="mic {{micCls}}" data-tour="mic" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
             <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
             <span>{{micLabel}}</span>
           </button>
@@ -1380,9 +1459,9 @@ body{margin:0;background:#07080a}
         </button>
       </div>
       <div class="cmd">
-        <input class="fld" placeholder="{{col.ph}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Escreva para o Guardião">
+        <textarea class="fld" rows="1" data-tour="campo" ref="{{fitRef}}" placeholder="{{col.ph}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Escreva para o Guardião"></textarea>
         <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
-        <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
+        <button class="mic {{micCls}}" data-tour="mic" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
           <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
           <span>{{micLabel}}</span>
         </button>
@@ -1395,13 +1474,13 @@ body{margin:0;background:#07080a}
       <div class="gc-log" role="log" aria-live="off" aria-label="Histórico da conversa" ref="{{setMsgsS}}">
         <sc-for list="{{colMsgs}}" as="m" hint-placeholder-count="3">
         <div class="mw {{m.oldCls}}">
-          <sc-if value="{{m.isU}}" hint-placeholder-val="{{false}}"><div class="m-u"><p>{{m.text}}</p></div></sc-if>
+          <sc-if value="{{m.isU}}" hint-placeholder-val="{{false}}"><div class="m-u"><p>{{m.text}}</p><sc-if value="{{m.hasAnx}}" hint-placeholder-val="{{false}}"><div class="m-anx"><sc-for list="{{m.anx}}" as="x" hint-placeholder-count="1"><span>{{x}}</span></sc-for></div></sc-if></div></sc-if>
           <sc-if value="{{m.isG}}" hint-placeholder-val="{{true}}">
             <div class="m-g">
-              <p>{{m.text}}<span class="caret" style="{{m.caretSt}}"></span></p><sc-if value="{{m.hasVia}}" hint-placeholder-val="{{false}}"><div class="m-via">{{m.via}}</div></sc-if>
+              <div class="md" ref="{{m.mdRef}}"></div><sc-if value="{{m.hasVia}}" hint-placeholder-val="{{false}}"><div class="m-via">{{m.via}}</div></sc-if>
               <sc-if value="{{m.hasAsk}}" hint-placeholder-val="{{false}}"><div class="askf"><div class="row"><sc-for list="{{m.ask}}" as="c" hint-placeholder-count="3"><button class="chip" onClick="{{c.go}}">{{c.label}}</button></sc-for></div></div></sc-if>
               <sc-if value="{{m.hasProp}}" hint-placeholder-val="{{false}}">
-                <div class="prop">
+                <div class="prop" data-tour="aprovar">
                   <div class="pk mono"><span>{{m.prop.kicker}}</span><span class="{{m.prop.tagCls}}">{{m.prop.status}}</span></div>
                   <h4>{{m.prop.title}}</h4>
                   <sc-if value="{{m.prop.open}}" hint-placeholder-val="{{true}}"><div class="pb"><button class="btn-pri sm" onClick="{{m.prop.create}}">{{m.prop.createLbl}}</button><button class="btn-gh" onClick="{{m.prop.discard}}">{{m.prop.discardLbl}}</button></div></sc-if>
@@ -1455,7 +1534,7 @@ body{margin:0;background:#07080a}
       <button class="dt-x" onClick="{{closePrefs}}" aria-label="Fechar preferências">×</button>
       <h2>Preferências</h2>
       <div class="pver mono">{{prefs.ver}}</div>
-      <div class="ptop">
+      <div class="ptop" data-tour="prefs-topo">
       <sc-for list="{{prefs.top}}" as="r" hint-placeholder-count="4">
         <div class="pr">
           <div><div class="pl2">{{r.label}}</div><div class="ph">{{r.hint}}</div></div>
@@ -1467,7 +1546,7 @@ body{margin:0;background:#07080a}
       </sc-for>
       </div>
       <sc-for list="{{prefs.groups}}" as="g" hint-placeholder-count="5">
-        <div class="pg {{g.cls}}">
+        <div class="pg {{g.cls}}" data-tour="{{g.tour}}">
           <button class="pg-h" onClick="{{g.go}}" aria-expanded="{{g.open}}">
             <span class="mono">{{g.title}}</span><span class="pg-s {{g.sumCls}}">{{g.sum}}</span>
             <svg class="pg-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 10l4.5 4.5 4.5-4.5"></path></svg>
@@ -1514,13 +1593,30 @@ body{margin:0;background:#07080a}
       </div>
       <div class="dt-acts"><button class="btn-pri sm" onClick="{{inst.done}}">Entendi</button><button class="btn-gh" onClick="{{inst.later}}">Agora não</button></div>
     </div>
+    <div class="anx-drop {{anx.dropCls}}" aria-hidden="true"><div>Solte o arquivo para anexar</div></div>
+    <div class="tour-hl {{tour.hlCls}}" style="{{tour.hlSt}}" aria-hidden="true"></div>
+    <div class="tour-card glass {{tour.cls}}" style="{{tour.cardSt}}" role="dialog" aria-label="Tutorial" aria-hidden="{{tour.hidden}}">
+      <div class="tk mono"><span>{{tour.kicker}}</span><sc-if value="{{tour.hasSair}}" hint-placeholder-val="{{true}}"><button class="btn-lnk" onClick="{{tour.sair}}">Sair do tour</button></sc-if></div>
+      <h3>{{tour.titulo}}</h3>
+      <p class="tx">{{tour.texto}}</p>
+      <sc-if value="{{tour.hasItens}}" hint-placeholder-val="{{false}}"><div class="tit"><sc-for list="{{tour.itens}}" as="i" hint-placeholder-count="3"><div><b>{{i.r}}</b> {{i.t}}</div></sc-for></div></sc-if>
+      <sc-if value="{{tour.hasOk}}" hint-placeholder-val="{{false}}"><p class="tok">{{tour.ok}}</p></sc-if>
+      <sc-if value="{{tour.hasAviso}}" hint-placeholder-val="{{false}}"><p class="twarn">{{tour.aviso}}</p></sc-if>
+      <div class="tbar" style="{{tour.barBox}}"><i style="{{tour.barSt}}"></i></div>
+      <div class="tacts">
+        <sc-if value="{{tour.hasVoltar}}" hint-placeholder-val="{{false}}"><button class="btn-gh" onClick="{{tour.voltar}}">Voltar</button></sc-if>
+        <span class="sp"></span>
+        <sc-for list="{{tour.btns}}" as="b" hint-placeholder-count="2"><button class="{{b.cls}}" onClick="{{b.go}}">{{b.label}}</button></sc-for>
+      </div>
+    </div>
   </div>
+  <input type="file" class="anx-file" multiple ref="{{anx.fileRef}}" onChange="{{anx.onFiles}}" accept="image/*,application/pdf,audio/*,video/*,.txt,.md,.csv,.tsv,.json,.xml,.html,.log,.yml,.yaml,.py,.js,.ts,.sql,.srt,.vtt,.docx,.xlsx,.pptx" tabindex="-1" aria-hidden="true">
   <div class="wall" aria-hidden="true"></div>
   <div class="mini" role="region" aria-label="Guardião compacto">
     <div class="mi-hd">
       <span class="brand-w">{{brandName}}</span>
       <div style="display:flex">
-        <button class="ibtn {{voiceCls}}" onClick="{{toggleVoice}}" aria-pressed="{{voiceMuted}}" aria-label="{{voiceLabel}}">
+        <button class="ibtn {{voiceCls}}" data-tour="voz" onClick="{{toggleVoice}}" aria-pressed="{{voiceMuted}}" aria-label="{{voiceLabel}}">
           <svg viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z"></path><path d="M15.5 9a4 4 0 0 1 0 6"></path><path d="M18 6.5a7.5 7.5 0 0 1 0 11"></path></svg>
         </button>
         <sc-if value="{{isMiniBoard}}" hint-placeholder-val="{{false}}">
@@ -1545,7 +1641,7 @@ body{margin:0;background:#07080a}
       <div class="cmd mi-in">
         <input class="fld" placeholder="{{mini.ph}}" value="{{cmdText}}" onChange="{{onCmdInput}}" onKeyDown="{{onCmdKey}}" disabled="{{cmdDis}}" aria-label="Escreva para o Guardião">
         <sc-if value="{{spd.on}}" hint-placeholder-val="{{false}}"><button class="spd" onClick="{{spd.go}}" aria-label="{{spd.aria}}" title="Velocidade da voz">{{spd.label}}</button></sc-if>
-        <button class="mic {{micCls}}" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
+        <button class="mic {{micCls}}" data-tour="mic" onClick="{{onMic}}" aria-pressed="{{micOn}}" aria-label="{{micAria}}" disabled="{{micDis}}">
           <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
           <span>{{micLabel}}</span>
         </button>
@@ -1818,7 +1914,7 @@ const SEM_PLACA_DE_VIDEO = (() => {
 })();
 const ESTADOS = { aguardando: 'idle', ouvindo: 'listening', transcrevendo: 'transcribing', pensando: 'thinking', falando: 'speaking' };
 /* preferências: nome na tela -> chave no servidor (voz\preferencias.json) */
-const PF_MAP = { sound: 'sons', typing: 'som_digitacao', motion: 'som_movimento', touch: 'som_toques', confirm: 'som_avisos', stateSnd: 'som_estados', track: 'som_abertura', alwaysMic: 'mic_sempre_ligado', openMic: 'escuta_aberta', openExec: 'execucao_ao_abrir', session: 'sessao', provider: 'provedor_ia', voice: 'voz_guardiao', light: 'modo_leve' };
+const PF_MAP = { sound: 'sons', typing: 'som_digitacao', motion: 'som_movimento', touch: 'som_toques', confirm: 'som_avisos', stateSnd: 'som_estados', track: 'som_abertura', alwaysMic: 'mic_sempre_ligado', openMic: 'escuta_aberta', openExec: 'execucao_ao_abrir', session: 'sessao', provider: 'provedor_ia', voice: 'voz_guardiao', light: 'modo_leve', auto: 'permissao_auto' };
 const SONS_DO_GRUPO = ['motion', 'touch', 'confirm', 'stateSnd', 'track'];  // a chave Sons liga e desliga todos eles juntos (a digitação tem chave própria)
 const VELOCIDADES = [1, 1.5, 2];
 const QS = (() => { try { return new URLSearchParams(location.search); } catch (e) { return new URLSearchParams(''); } })();
@@ -1830,6 +1926,96 @@ const API = {
   get(caminho) { return fetch(caminho, { cache: 'no-store' }).then((r) => r.json()); },
   post(caminho, corpo) { return fetch(caminho, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}) }).then((r) => r.json().catch(() => ({ ok: r.ok }))); }
 };
+
+/* ---------- texto formatado das respostas (markdown) ----------
+   O texto é escapado primeiro e só depois ganha as marcas permitidas (negrito, itálico, código, lista, título, citação, tabela, link http), então nada do que
+   chega do Claude vira HTML de verdade. Escrever errado nunca quebra: marca que não fecha fica como texto. */
+const MD_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const mdEsc = (s) => String(s).replace(/[&<>"']/g, (c) => MD_ESC[c]);
+function mdInline(bruto) {
+  const guarda = [];
+  const poe = (html) => { guarda.push(html); return '\u0000' + (guarda.length - 1) + '\u0000'; };
+  let s = mdEsc(bruto);
+  s = s.replace(/`([^`\n]+)`/g, (m, c) => poe('<code>' + c + '</code>'));
+  s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, (m, tx, u) => poe('<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + tx + '</a>'));
+  s = s.replace(/(^|[\s(])(https?:\/\/[^\s<]+[^\s<).,;:!?])/g, (m, a, u) => a + poe('<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + u + '</a>'));
+  s = s.replace(/\*\*(?=\S)([^\n]+?)(?<=\S)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^\w])__(?=\S)([^\n]+?)(?<=\S)__(?!\w)/g, '$1<strong>$2</strong>');
+  s = s.replace(/(^|[^\w*])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?!\*)/g, '$1<em>$2</em>');
+  s = s.replace(/(^|[^\w])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?!\w)/g, '$1<em>$2</em>');
+  s = s.replace(/~~(?=\S)([^\n]+?)(?<=\S)~~/g, '<del>$1</del>');
+  return s.replace(/\u0000(\d+)\u0000/g, (m, i) => guarda[+i]);
+}
+function mdHtml(texto, cursor) {
+  const linhas = String(texto == null ? '' : texto).replace(/\r\n?/g, '\n').split('\n');
+  const saida = [];
+  const reLi = /^(\s*)([-*+\u2022])\s+(.*)$/, reOl = /^(\s*)(\d{1,3})[.)]\s+(.*)$/;
+  const celulas = (l) => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map((c) => c.trim());
+  const ehSeparador = (l) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+  let par = [], i = 0;
+  const fechaPar = () => { if (par.length) { saida.push('<p>' + par.map(mdInline).join('<br>') + '</p>'); par = []; } };
+  while (i < linhas.length) {
+    const l = linhas[i];
+    let m;
+    if (/^\s*```/.test(l)) {
+      fechaPar();
+      const cod = []; i++;
+      while (i < linhas.length && !/^\s*```/.test(linhas[i])) cod.push(linhas[i++]);
+      i++;
+      saida.push('<pre><code>' + mdEsc(cod.join('\n')) + '</code></pre>');
+      continue;
+    }
+    if (!l.trim()) { fechaPar(); i++; continue; }
+    if ((m = /^\s{0,3}(#{1,4})\s+(.*)$/.exec(l))) { fechaPar(); saida.push('<p class="mdh">' + mdInline(m[2]) + '</p>'); i++; continue; }
+    if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(l)) { fechaPar(); saida.push('<hr>'); i++; continue; }
+    if (/^\s{0,3}>/.test(l)) {
+      fechaPar();
+      const cit = [];
+      while (i < linhas.length && /^\s{0,3}>/.test(linhas[i])) cit.push(linhas[i++].replace(/^\s{0,3}>\s?/, ''));
+      saida.push('<blockquote>' + cit.map(mdInline).join('<br>') + '</blockquote>');
+      continue;
+    }
+    if (l.indexOf('|') >= 0 && i + 1 < linhas.length && linhas[i + 1].indexOf('-') >= 0 && ehSeparador(linhas[i + 1])) {
+      fechaPar();
+      const cab = celulas(l), corpo = [];
+      i += 2;
+      while (i < linhas.length && linhas[i].trim() && linhas[i].indexOf('|') >= 0) corpo.push(celulas(linhas[i++]));
+      saida.push('<div class="mdt"><table><thead><tr>' + cab.map((c) => '<th>' + mdInline(c) + '</th>').join('') + '</tr></thead><tbody>'
+        + corpo.map((r) => '<tr>' + r.map((c) => '<td>' + mdInline(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>');
+      continue;
+    }
+    if (reLi.test(l) || reOl.test(l)) {
+      fechaPar();
+      const pilha = [];
+      let html = '';
+      while (i < linhas.length) {
+        const a = reLi.exec(linhas[i]) || reOl.exec(linhas[i]);
+        if (!a) break;
+        const ind = a[1].replace(/\t/g, '    ').length, tipo = /^\d/.test(a[2]) ? 'ol' : 'ul';
+        while (pilha.length && ind < pilha[pilha.length - 1].ind) html += '</li></' + pilha.pop().tipo + '>';
+        const topo = pilha[pilha.length - 1];
+        const abre = () => { pilha.push({ tipo, ind }); html += tipo === 'ol' && +a[2] !== 1 ? '<ol start="' + (+a[2]) + '">' : '<' + tipo + '>'; };
+        if (topo && ind === topo.ind) { if (topo.tipo !== tipo) { html += '</li></' + pilha.pop().tipo + '>'; abre(); } else html += '</li>'; }
+        else abre();
+        html += '<li>' + mdInline(a[3]);
+        i++;
+        while (i < linhas.length && /^\s{2,}\S/.test(linhas[i]) && !reLi.test(linhas[i]) && !reOl.test(linhas[i])) html += '<br>' + mdInline(linhas[i++].trim());
+      }
+      while (pilha.length) html += '</li></' + pilha.pop().tipo + '>';
+      saida.push(html);
+      continue;
+    }
+    par.push(l); i++;
+  }
+  fechaPar();
+  let html = saida.join('');
+  if (cursor) {
+    const fim = /((?:<\/li><\/(?:ul|ol)>)+|<\/p>|<\/blockquote>)$/;
+    html = fim.test(html) ? html.replace(fim, cursor + '$1') : html + cursor;
+  }
+  return html;
+}
+window.__mdHtml = mdHtml;  // para os testes da tela
 
 class Component extends DCLogic {
   constructor(props) {
@@ -1844,6 +2030,7 @@ class Component extends DCLogic {
     this.setRoot = (el) => { this.rootEl = el; };
     this.setScene = (el) => { this.sceneEl = el; };
     this.setMsgs = (el) => { this.msgsEl = el; };
+    this.setFileEl = (el) => { this.fileEl = el; }; this.anxN = 0;
     this.logEls = {};
     this.setMsgsC = (el) => { this.logEls.c = el; };
     this.setMsgsS = (el) => { this.logEls.s = el; };
@@ -1867,8 +2054,8 @@ class Component extends DCLogic {
       cmdText: '', plText: '',
       diaLayer: 0, noticeOpen: false,
       detail: null, detailOpen: false, extra: {}, dForm: { a: '', b: '', note: '', open: false },
-      prefsOpen: false, pfSec: '', hdPin: false, hdPeek: false,
-      pf: { sound: true, stateSnd: true, volume: 70, typing: true, motion: true, touch: true, confirm: true, track: true, alwaysMic: false, openMic: true, openExec: true, session: false, provider: 'claude', voice: true, speed: 1, light: false, variant: 'N' },
+      prefsOpen: false, pfSec: '', hdPin: false, hdPeek: false, tour: null, tourTxt: null, tourBox: null, tourPos: null, anexos: [], anxUp: [], dragOn: false,
+      pf: { sound: true, stateSnd: true, volume: 70, typing: true, motion: true, touch: true, confirm: true, track: true, alwaysMic: false, openMic: true, openExec: true, session: false, auto: false, provider: 'claude', voice: true, speed: 1, light: false, variant: 'N' },
       saude: null, pessoa: 'você', gname: 'Guardião',
       scene: null, sceneOn: false, toasts: [],
       cal: null, calForm: false, calRep: null, calBusy: false, calTab: 'rep',
@@ -1884,6 +2071,7 @@ class Component extends DCLogic {
   /* ---------- ciclo de vida ---------- */
   componentDidMount() {
     this.clockIv = setInterval(() => this.tickClock(), 5000);
+    this.planoIv = setInterval(() => { if (!document.hidden) this.carregarPlano(); }, 30000);  // plano gravado por fora (motor, outra janela) aparece mesmo sem o aviso "plano"
     this.onInputSnd = (e) => { const t = e.target; if (!t || !/^(INPUT|TEXTAREA)$/.test(t.tagName) || t.type === 'range' || t.type === 'checkbox') return; this.sfx('type'); };
     this.onClickSnd = (e) => {
       const b = e.target && e.target.closest && e.target.closest('button,[role="button"],[role="switch"]'); if (!b) return;
@@ -1895,6 +2083,13 @@ class Component extends DCLogic {
     if (r) { r.addEventListener('input', this.onInputSnd, true); r.addEventListener('click', this.onClickSnd, true); r.addEventListener('pointerdown', this.onDownSnd, true); }
     this.onWinKey = (e) => { if (!this.rootEl || (e.target && e.target.nodeType && this.rootEl.contains(e.target))) return; this.onKey(e); };  // teclas valem mesmo sem o foco no palco
     window.addEventListener('keydown', this.onWinKey);
+    // anexos: colar um print (Ctrl+V) e arrastar arquivos para a janela
+    this.onPaste = (e) => { const fs = e.clipboardData && e.clipboardData.files; if (fs && fs.length) { e.preventDefault(); this.anxArquivos(fs); } };
+    const comArquivo = (e) => !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0);
+    this.onDragOver = (e) => { if (!comArquivo(e)) return; e.preventDefault(); if (!this.state.dragOn) this.setState({ dragOn: true }); };
+    this.onDragLeave = (e) => { if (!e.relatedTarget && this.state.dragOn) this.setState({ dragOn: false }); };
+    this.onDrop = (e) => { if (!comArquivo(e)) return; e.preventDefault(); this.setState({ dragOn: false }); this.anxArquivos(e.dataTransfer.files); };
+    window.addEventListener('paste', this.onPaste); window.addEventListener('dragover', this.onDragOver); window.addEventListener('dragleave', this.onDragLeave); window.addEventListener('drop', this.onDrop);
     this.onPalco = () => this.setState({ palcoW: window.GD_W });
     window.addEventListener('gd-palco', this.onPalco);
     window.GD_NIVEL = window.GD_NIVEL || { vivo: false, mic: 0, voz: 0 };
@@ -1920,6 +2115,7 @@ class Component extends DCLogic {
     const r = this.rootEl;
     if (r) { r.removeEventListener('input', this.onInputSnd, true); r.removeEventListener('click', this.onClickSnd, true); r.removeEventListener('pointerdown', this.onDownSnd, true); }
     window.removeEventListener('keydown', this.onWinKey);
+    window.removeEventListener('paste', this.onPaste); window.removeEventListener('dragover', this.onDragOver); window.removeEventListener('dragleave', this.onDragLeave); window.removeEventListener('drop', this.onDrop);
     window.removeEventListener('gd-palco', this.onPalco);
     if (this.onMiniSai) window.removeEventListener('pagehide', this.onMiniSai);
     clearInterval(this.clockIv); clearInterval(this.typeIv); clearInterval(this.sceneIv); clearTimeout(this.liveT);
@@ -1969,12 +2165,12 @@ class Component extends DCLogic {
     if (name !== 'type' && name !== 'write') this.lastSfxT = now;
     SFX.setVolume((pf.volume / 100) * 0.95); SFX.play(name, arg);
   }
-  toast(text, err) {
+  toast(text, err, ms) {
     if (!text) return;
     const id = ++this.tid;
     this.setState({ toasts: this.state.toasts.concat([{ id, text, err: !!err, out: false }]).slice(-3) });
     this.beep(err ? 'error' : 'notice');
-    const fica = err ? 6200 : 3600;
+    const fica = ms || (err ? 6200 : 3600);
     this._t(() => this.setState({ toasts: this.state.toasts.map((t) => (t.id === id ? Object.assign({}, t, { out: true }) : t)) }), fica - 300);
     this._t(() => this.setState({ toasts: this.state.toasts.filter((t) => t.id !== id) }), fica);
   }
@@ -2004,7 +2200,7 @@ class Component extends DCLogic {
       this.setState(Object.assign({ pronto: true, pf, pessoa: ses.pessoa || 'você', gname: ses.agente || 'Guardião', saude: ses.saude || null, review: !!ses.revisao,
         orbState: ESTADOS[ses.estado] || 'idle', listening: ses.estado === 'ouvindo', exec: !!(ses.execucao && ses.execucao.ativo), sessao: ses.execucao ? ses.execucao.sessao : null }, this.mapPlano(plano, ses.pessoa)), () => {
         this.conectar();
-        this.carregarCal(); this.carregarPops(); this.carregarVersao(); this.carregarConversas();
+        this.carregarCal(); this.carregarPops(); this.carregarVersao(); this.carregarConversas(); this.anxLer();
         const falta = Object.keys(this.pend)[0], tf = falta ? this.findTask(falta) : null;  // conclusão que ficou esperando a frase do que foi feito
         if (tf && tf.aguarda) { const pd = this.pend[falta]; this.setState({ done: { id: falta, at: pd.b, title: tf.title, needNote: true, sent: false, a: pd.a, b: pd.b, medido: !!pd.medido } }); }
         const mini = this.M === 'mini', forcar = QS.get('abertura') === '1', nunca = QS.get('semabertura') === '1' || mini;
@@ -2145,8 +2341,10 @@ class Component extends DCLogic {
       case 'completo': if (ev.ativo && !this.state.fullJob && this.M !== 'mini') this.toast('Guardião completo trabalhando. Ele avisa quando terminar.'); this.setState({ fullJob: !!ev.ativo, progressFull: ev.ativo ? this.state.progressFull : null }); break;
       case 'progresso': this.setState(ev.modo === 'completo' ? { progressFull: ev.ativo ? ev : null } : { progressQuick: ev.ativo ? ev : null }); break;
       case 'voce': this.chegouVoce(String(ev.texto || '')); break;
-      case 'guardiao_texto': this.chegouFala(String(ev.texto || '')); break;
-      case 'guardiao_fim': this.fimDaFala(String(ev.texto || '')); break;
+      case 'anexos': this.setState({ anexos: ev.itens || [] }); break;
+      case 'anexos_enviados': this.anxEnviados(ev.nomes || []); break;
+      case 'guardiao_texto': if (!ev.tutorial) this.chegouFala(String(ev.texto || '')); break;
+      case 'guardiao_fim': if (!ev.tutorial) this.fimDaFala(String(ev.texto || '')); break;
       case 'saude': this.setState({ saude: ev }); break;
       case 'plano': this.carregarPlano(); break;
       case 'preferencias': this.setState({ pf: this.pfDoServidor(ev) }); break;
@@ -2412,6 +2610,7 @@ class Component extends DCLogic {
     else if (ev.cmd === 'fechar') { if (this.state.sceneOn) this.closeScene(); this.closeDetail(); this.closePrefs(); }
     else if (ev.cmd === 'detalhe') { const p = this.curTask(); if (p) this.openDetail('task', p.id); }
     else if (ev.cmd === 'compacta') this.toggleCompact();
+    else if (ev.cmd === 'tutorial') this.tourComecar();
   }
 
   /* ---------- abertura ---------- */
@@ -2462,6 +2661,7 @@ class Component extends DCLogic {
     if (this.abriu) API.get('/sessao?marcar=1').catch(() => {});  // a abertura rodou até o fim (ou foi pulada por clique): a do dia está vista
     if (this.M === 'desktop') { this.setState({ hdPeek: true }); this._t(() => this.setState({ hdPeek: false }), 2600); }  // a barra do topo se mostra um instante e se recolhe
     if (QS.get('semabertura') !== '1' && QS.get('demo') !== '1') API.post('/saudacao', { fase: 'liberar' }).catch(() => {});
+    this._t(() => this.tourConvite(), 1400);  // instalação nova: o convite do tour vem antes de qualquer outra conversa
     if (this.state.pf.openExec && this.actionable() && !this.state.exec) this.enterExec(true);
   }
 
@@ -2474,18 +2674,20 @@ class Component extends DCLogic {
     this.setState({ screen: id, dolly: S.dolly === 'a' ? 'b' : 'a', detailOpen: false, prefsOpen: false, dockOpen: false, hdPin: false });
     this.sfx('tab');
     if (id === 'cal') this.carregarCal();
-    if (id === 'pops') this.carregarPops();
+    if (id === 'pops') { this.carregarPops(); this.dica('pops'); }
   }
   onKey(e) {
     const S = this.state, tag = (e.target && e.target.tagName) || '';
     if (S.introPhase === 'run' || S.introPhase === 'home') { if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); this.skipIntro(); } return; }
     if (e.key === 'Escape') {
       if (S.listening) { API.post('/escuta', {}).catch(() => {}); return; }
+      if (S.tour) { e.preventDefault(); this.tourSair(); return; }  // Esc sai do tour (e cala a fala dele)
       if (this.ocupado()) { e.preventDefault(); this.esc(); return; }  // falando, pensando ou trabalhando: o Esc é do guardião
       if (S.sceneOn) this.closeSceneBtn(); else if (S.prefsOpen) this.closePrefs(); else if (S.detailOpen) this.closeDetail(); else if (S.instOpen) this.setState({ instOpen: false }); else if (S.dockOpen) this.setState({ dockOpen: false }); else if (S.hdPin) this.setState({ hdPin: false }); else if (this.execOn() && S.screen === 'home') this.exitExec();
       return;
     }
     if (tag === 'INPUT' || tag === 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (S.tour && S.tour.fase === 'passo' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); if (e.key === 'ArrowRight') this.tourProx(); else this.tourVolta(); return; }
     const n = '12345'.indexOf(e.key);
     if (n >= 0 && e.key.length === 1) { e.preventDefault(); this.go(SCREENS[n]); return; }
     if (e.key === ' ' && tag !== 'BUTTON' && tag !== 'A') { e.preventDefault(); this.onMic(); }
@@ -2501,7 +2703,7 @@ class Component extends DCLogic {
   }
   onRootClick(e) {
     const ph = this.state.introPhase; if (ph === 'run' || ph === 'home') this.skipIntro();
-    if (this.state.hdPin && !(e && e.target && e.target.closest && e.target.closest('.hd,.hdm'))) this.setState({ hdPin: false });  // menu fixado: um clique fora o recolhe
+    if (this.state.hdPin && !(e && e.target && e.target.closest && e.target.closest('.hd,.hdm,.tour-card'))) this.setState({ hdPin: false });  // menu fixado: um clique fora o recolhe
   }
   toggleHd() { this.setState({ hdPin: !this.state.hdPin }); }
   toggleCompact() {
@@ -2510,7 +2712,7 @@ class Component extends DCLogic {
     if (!S.compact) {  // a janela pequena é uma janela de verdade, para ficar num canto da tela
       let w = null;
       try { const l = (screen.availWidth || 1400) - 356, t = (screen.availHeight || 900) - 500; w = window.open('mini.html', 'guardiao-mini', 'popup=yes,width=336,height=460,left=' + l + ',top=' + t); } catch (e) { w = null; }
-      if (w) { this.beep('whoosh'); this.miniWin = w; if (S.sceneOn) this.closeScene(true); return; }  // a própria janela compacta pede ao guardião para ficar por cima, no canto
+      if (w) { this.beep('whoosh'); this.miniWin = w; if (S.sceneOn) this.closeScene(true); this.dica('compacta'); return; }  // a própria janela compacta pede ao guardião para ficar por cima, no canto
     }
     if (S.sceneOn) this.closeScene(true);
     this.setState({ compact: !S.compact, detailOpen: false, prefsOpen: false });
@@ -2637,6 +2839,7 @@ class Component extends DCLogic {
     this._t(() => { this.setState({ phase: 'enter', exec: true }); this.sayLocal('Valendo. O horário desta tarefa vai até as ' + hhmm(p.e) + '.'); }, 320);
     this._t(() => this.setState({ phase: 'idle' }), 1000);
     this.beep('tap');
+    this.dica('tarefa_iniciada');
   }
   onPostpone() {
     const S = this.state; if (S.phase !== 'idle') return;
@@ -2757,19 +2960,23 @@ class Component extends DCLogic {
 
   /* ---------- falar com o Guardião ---------- */
   enviar(text) {
-    text = String(text || '').trim(); if (!text) return;
+    text = String(text || '').trim();
+    if (!text && this.state.anexos.length) text = 'Veja o que anexei.';
+    if (!text) return;
     const S = this.state;
+    if (S.anxUp.length) { this.toast('Espere o envio dos anexos terminar.'); return; }
     if (S.net === 'offline') { this.toast('O guardião está desligado neste computador. Abra pelo atalho Guardião.', true); return; }
     this.finishTyping(); this.clearGl();
     this.setState({ cmdText: '', plText: '' });
+    this.tourFez('escrever');
     API.post('/perguntar', { texto: text }).catch((e) => this.falha(e));
   }
   onCmdInput(e) { this.pararDeOuvirParaEscrever(); this.setState({ cmdText: e.target.value }); }
   pararDeOuvirParaEscrever() { if (this.state.listening) API.post('/escuta', {}).catch(() => {}); }
-  onCmdKey(e) { if (e.key === 'Enter') { e.preventDefault(); this.enviar(e.target && e.target.value != null ? e.target.value : this.state.cmdText); } }
+  onCmdKey(e) { if (e.key === 'Enter' && !e.shiftKey && !(e.nativeEvent && e.nativeEvent.isComposing)) { e.preventDefault(); this.enviar(e.target && e.target.value != null ? e.target.value : this.state.cmdText); } }
   onSend() { this.enviar(this.state.cmdText); }
   onPlInput(e) { this.pararDeOuvirParaEscrever(); this.setState({ plText: e.target.value }); }
-  onPlKey(e) { if (e.key === 'Enter') { e.preventDefault(); this.enviar(e.target && e.target.value != null ? e.target.value : this.state.plText); } }
+  onPlKey(e) { if (e.key === 'Enter' && !e.shiftKey && !(e.nativeEvent && e.nativeEvent.isComposing)) { e.preventDefault(); this.enviar(e.target && e.target.value != null ? e.target.value : this.state.plText); } }
   onPlSend() { this.enviar(this.state.plText); }
   onMic() {
     const S = this.state;
@@ -2778,6 +2985,7 @@ class Component extends DCLogic {
     if (S.listening) { API.post('/escuta', {}).catch(() => {}); return; }  // clicar de novo (ou Esc) cancela a escuta
     if (S.orbState !== 'idle') return;
     if (S.saude && S.saude.mic === false) { this.toast('O microfone não está ligado no guardião.', true); return; }
+    this.tourFez('microfone');
     API.post('/acionar', {}).catch((e) => this.falha(e));
   }
   onOrbTap() { this.onMic(); }
@@ -2943,7 +3151,7 @@ class Component extends DCLogic {
       this.toast(r.marco ? 'Report recebido. Marco dos ' + r.dia + ' dias alcançado.' : 'Report recebido. Obrigado.');
     }).catch((e) => { this.setState({ calBusy: false }); this.falha(e); });
   }
-  openCalForm() { this.setState({ calForm: true, calRep: null }); }
+  openCalForm() { this.setState({ calForm: true, calRep: null }); this.dica('report'); }
   calDictate() {
     const S = this.state;
     if (S.net === 'offline') { this.toast('O guardião está desligado neste computador.', true); return; }
@@ -2953,6 +3161,165 @@ class Component extends DCLogic {
   }
   calRestart() { API.post('/calibragem/reiniciar', {}).then(() => { this.setState({ calForm: false, calRep: null }); this.carregarCal(); }).catch((e) => this.falha(e)); }
   calAba(id) { this.beep('tap'); this.setState({ calTab: id }); if (id !== 'rep') this.carregarCal(); }
+
+  /* ---------- tutorial guiado: o texto fica em tutorial.json e o servidor guarda onde a pessoa parou; nada aqui chama o Claude ---------- */
+  tourSub(s) { return String(s == null ? '' : s).replace(/\{agente\}/g, this.state.gname || 'Guardião'); }
+  tourCards() { return (this.state.tourTxt && this.state.tourTxt.passos) || []; }
+  carregarTutorial() { return API.get('/tutorial').then((r) => { if (r && r.passos) this.setState({ tourTxt: r }); return r; }).catch(() => null); }
+  tourConvite() {  // instalação nova: o convite vem logo depois da abertura; quem já usava o guardião não recebe, e acha o tour em Preferências
+    if (this.M !== 'desktop' || this.state.tour || this.state.compact) return;
+    this.carregarTutorial().then((r) => {
+      if (!r || this.state.tour) return;
+      if (r.continuar && !r.convidar) {  // fechou a janela no meio do tour: oferece continuar de onde parou
+        this.setState({ tour: { fase: 'convite', retomar: r.estado.cartao }, tourPos: null });
+        this.tourLigar(); return;
+      }
+      if (!r.convidar) return;
+      API.post('/tutorial', { acao: 'convite_mostrado' }).catch(() => {});
+      this.setState({ tour: { fase: 'convite' }, tourPos: null });
+      this.tourLigar(); this.tourFalar('convite');
+    });
+  }
+  tourFalar(id) {  // a voz do cartão sai um instante depois: quem vai clicando adiante não enfileira fala
+    clearTimeout(this.tourFalaT);
+    if (!this.state.pf.voice) return;
+    this.tourFalaT = setTimeout(() => API.post('/tutorial', { acao: 'falar', id }).catch(() => {}), 650);
+  }
+  tourLigar() { this.tourVisto = ''; this.tourSig = ''; clearInterval(this.tourIv); this.tourIv = setInterval(() => this.tourMedir(), 250); this._t(() => this.tourMedir(), 90); }
+  tourAceitar() {
+    const T = this.state.tour;
+    if (T && T.retomar > 0) { this.tourIr(T.retomar); return; }  // continuar de onde parou
+    API.post('/tutorial', { acao: 'convite', resposta: 'aceitou' }).catch(() => {}); this.tourIr(0);
+  }
+  tourRecusar() {
+    if (this.state.tour && this.state.tour.retomar > 0) { this.tourSair(); this.toast('Tudo bem. O tour fica nas Preferências, em Rever o tutorial.'); return; }
+    API.post('/tutorial', { acao: 'convite', resposta: 'recusou' }).catch(() => {});
+    this.tourParar(); this.toast('Tudo bem. O tour fica nas Preferências, em Rever o tutorial.');
+  }
+  tourComecar() {  // o botão das Preferências, o pedido por voz ("tutorial") e o convite aceito
+    const S = this.state;
+    if (this.M !== 'desktop') { this.toast('O tour é feito na janela completa, no computador.', true); return; }
+    if (S.compact) { this.toast('Abra a janela completa para fazer o tour.', true); return; }
+    if (S.introPhase !== 'done' || S.sceneOn) { this.toast('Responda ao aviso do guardião e peça o tour de novo.', true); return; }
+    this.carregarTutorial().then((r) => {
+      if (!r || !(r.passos || []).length) { this.toast('Não achei o texto do tour nesta instalação.', true); return; }
+      this.closeDetail(); this.setState({ prefsOpen: false });
+      API.post('/tutorial', { acao: 'iniciar' }).catch(() => {});
+      this.tourIr(0);
+    });
+  }
+  tourIr(n) {
+    const cards = this.tourCards();
+    if (n >= cards.length) { this.tourFim(); return; }
+    n = Math.max(0, n);
+    const c = cards[n], S = this.state;
+    if (c.tela && S.screen !== c.tela) this.go(c.tela);
+    this.setState({ tour: { fase: 'passo', i: n, feito: false }, tourPos: null, hdPin: !!c.menu, prefsOpen: !!c.prefs, pfSec: c.prefs ? (c.grupo || '') : S.pfSec, detailOpen: false });
+    API.post('/tutorial', { acao: 'cartao', n }).catch(() => {});
+    this.tourLigar(); this.tourFalar(c.id);
+  }
+  tourProx() { const T = this.state.tour; if (T && T.fase === 'passo') this.tourIr(T.i + 1); }
+  tourVolta() { const T = this.state.tour; if (T && T.fase === 'passo') this.tourIr(Math.max(0, T.i - 1)); }
+  tourFim() {
+    API.post('/tutorial', { acao: 'concluir' }).catch(() => {});
+    this.tourParar(); this.go('home');
+    this.toast('Tour concluído. Ele fica nas Preferências, em Rever o tutorial.');
+  }
+  tourSair() { API.post('/tutorial', { acao: 'sair' }).catch(() => {}); this.tourParar(); }
+  tourParar() {
+    clearInterval(this.tourIv); clearTimeout(this.tourFalaT); this.tourSig = ''; this.tourVisto = '';
+    this.setState({ tour: null, tourBox: null, tourPos: null, hdPin: false, prefsOpen: false });
+  }
+  tourFez(k) {  // a prática do passo (escrever, falar): destrava a mensagem de "isso" e o botão Próximo
+    const T = this.state.tour; if (!T || T.fase !== 'passo' || T.feito) return;
+    const c = this.tourCards()[T.i]; if (c && c.faz === k) this.setState({ tour: Object.assign({}, T, { feito: true }) });
+  }
+  tourVisivel(e) {
+    const r = e.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return false;
+    if (e.closest('[aria-hidden="true"]')) return false;
+    const cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none') return false;
+    const rr = this.rootEl.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    return cx > rr.left && cx < rr.right && cy > rr.top && cy < rr.bottom;
+  }
+  tourMedir() {  // acha o destaque do cartão no palco (a tela é escalada, então as medidas voltam à escala do palco) e põe o cartão ao lado dele
+    const T = this.state.tour, root = this.rootEl; if (!T || !root) return;
+    const W = root.offsetWidth || 1440, H = root.offsetHeight || 900, cardEl = root.querySelector('.tour-card'), ch = (cardEl && cardEl.offsetHeight) || 320, cw = cardEl && cardEl.offsetWidth || 440;
+    let box = null;
+    const c = T.fase === 'passo' ? this.tourCards()[T.i] : null;
+    if (c && c.alvo && c.lado !== 'centro') {
+      const el = Array.from(root.querySelectorAll('[data-tour="' + c.alvo + '"]')).find((x) => this.tourVisivel(x));
+      if (el) {
+        const r = el.getBoundingClientRect(), rr = root.getBoundingClientRect(), k = (rr.width / W) || 1, pad = 6;
+        box = { x: Math.round((r.left - rr.left) / k - pad), y: Math.round((r.top - rr.top) / k - pad), w: Math.round(r.width / k + pad * 2), h: Math.round(r.height / k + pad * 2) };
+      }
+    }
+    let x = (W - cw) / 2, y = (H - ch) / 2;
+    if (box) {
+      const cx = box.x + box.w / 2, cy = box.y + box.h / 2, dir = W - (box.x + box.w), esq = box.x;
+      if (box.w < W * 0.55 && dir >= cw + 36) { x = box.x + box.w + 24; y = cy - ch / 2; }
+      else if (box.w < W * 0.55 && esq >= cw + 36) { x = box.x - cw - 24; y = cy - ch / 2; }
+      else if (cy > H / 2) { x = cx - cw / 2; y = box.y - ch - 20; }
+      else { x = cx - cw / 2; y = box.y + box.h + 20; }
+      x = Math.max(16, Math.min(W - cw - 16, x)); y = Math.max(78, Math.min(H - ch - 16, y));
+    }
+    const pos = { x: Math.round(x), y: Math.round(y) }, sig = JSON.stringify([box, pos, Math.round(ch)]);
+    if (sig !== this.tourVisto) { this.tourVisto = sig; return; }  // a aba nova entra animada: só vale quando duas medidas seguidas dão o mesmo lugar
+    if (sig === this.tourSig && this.state.tourPos) return;
+    this.tourSig = sig;
+    this.setState({ tourBox: box, tourPos: pos });
+  }
+  dica(id) {  // frase de uma vez só, na hora em que a pessoa encontra o recurso (só para quem fez ou foi convidada ao tour)
+    if (this.M !== 'desktop' || this.state.tour) return;
+    this.dicasPed = this.dicasPed || new Set(); if (this.dicasPed.has(id)) return; this.dicasPed.add(id);
+    this._t(() => API.post('/tutorial', { acao: 'dica', id }).then((r) => { if (r && r.texto) this.toast(r.texto, false, 7500); }).catch(() => {}), 900);
+  }
+
+  fit(el) {  // a caixa de texto acompanha o que foi digitado, até 10 linhas (3 no celular); depois disso rola por dentro
+    const cs = getComputedStyle(el), lh = parseFloat(cs.lineHeight) || 22;
+    const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0), bor = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    const min = parseFloat(cs.minHeight) || 0, max = lh * (this.M === 'mobile' ? 3 : 10) + pad + bor;
+    el.style.height = 'auto';
+    const cheio = el.value ? el.scrollHeight + bor : 0;  // vazia, a caixa fica de uma linha (o texto de exemplo comprido não a aumenta)
+    el.style.height = Math.max(min, Math.min(cheio, max)) + 'px';
+    el.style.overflowY = cheio > max ? 'auto' : 'hidden';
+    const cmd = el.closest('.cmd');  // a faixa da conversa na Home sobe junto com a caixa de escrever
+    if (cmd && this.rootEl && getComputedStyle(cmd).position === 'absolute') this.rootEl.style.setProperty('--cmd-extra', Math.max(0, cmd.offsetHeight - 50) + 'px');
+  }
+  /* ---------- anexos: imagem, PDF, texto, áudio e vídeo vão com a próxima pergunta (escrita ou falada) ---------- */
+  alternarAuto() {
+    const v = !this.state.pf.auto;
+    this.setPf('auto', v);
+    this.toast(v ? 'Modo Auto ligado. O Guardião faz tudo sem pedir permissão: comandos, edições, envio de mensagens, publicação e exclusão.' : 'Modo Auto desligado. O Guardião volta a pedir permissão.', false, v ? 6500 : 0);
+  }
+  anxLer() { API.get('/anexos').then((r) => { if (r && r.itens) this.setState({ anexos: r.itens }); }).catch(() => {}); }
+  anxBloqueado() {
+    const S = this.state;
+    if (S.net === 'offline') { this.toast('O guardião está desligado neste computador. Abra pelo atalho Guardião.', true); return true; }
+    if (S.pf.provider === 'codex') { this.toast('Anexos funcionam com o Claude. Troque em Preferências, em Quem pensa pelo Guardião.', true); return true; }
+    return false;
+  }
+  anxAbrir() { if (!this.anxBloqueado() && this.fileEl) this.fileEl.click(); }
+  anxArquivos(lista) { if (this.anxBloqueado()) return; Array.from(lista || []).forEach((f) => this.anxEnviar(f)); }
+  anxEnviar(f) {
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { this.toast('"' + (f.name || 'O arquivo') + '" passa de 25 MB.', true); return; }
+    const id = 'up' + (++this.anxN), nome = f.name || 'arquivo colado';
+    this.setState({ anxUp: this.state.anxUp.concat([{ id, nome, tam: f.size }]) });
+    fetch('/anexo?nome=' + encodeURIComponent(nome), { method: 'POST', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f })
+      .then((r) => r.json()).then((r) => { if (!r.ok) this.toast(r.erro || 'Não consegui anexar.', true); })
+      .catch(() => this.toast('Não consegui anexar o arquivo.', true))
+      .then(() => this.setState({ anxUp: this.state.anxUp.filter((u) => u.id !== id) }));
+  }
+  anxRemover(id) { API.post('/anexos', { id }).catch(() => {}); this.setState({ anexos: this.state.anexos.filter((a) => a.id !== id) }); }
+  anxEnviados(nomes) {  // a pergunta seguiu com os anexos: a fila esvazia e o balão da pessoa mostra o que foi junto
+    const chat = this.state.chat.slice();
+    for (let i = chat.length - 1; i >= 0; i--) { if (chat[i].who === 'u') { chat[i] = Object.assign({}, chat[i], { anx: nomes }); break; } }
+    this.setState({ chat, anexos: [] });
+  }
+
+  mdRef(html) {  // o texto formatado da resposta é escrito no elemento só quando muda (o React não mexe nos filhos dele)
+    return (el) => { if (el && el.__md !== html) { el.innerHTML = html; el.__md = html; } };
+  }
 
   /* ---------- preferências ---------- */
   openPrefs() { this.setState({ prefsOpen: true, detailOpen: false, hdPin: false }); }
@@ -3253,7 +3620,7 @@ class Component extends DCLogic {
     /* ----- planejador e colunas de conversa ----- */
     const chatMsgs = S.chat.map((m, i) => {
       const done = m.n >= m.text.length && !m.live, isLast = i === S.chat.length - 1;
-      const o2 = { hasVia: !!m.via && done, via: m.via || '', isU: m.who === 'u', isG: m.who === 'g', text: m.who === 'g' ? m.text.slice(0, m.n) : m.text, caretSt: m.who === 'g' && !done ? 'display:inline-block' : 'display:none', hasAsk: false, ask: [], hasProp: false, prop: null, hasAct: false, act: null };
+      const o2 = { hasVia: !!m.via && done, via: m.via || '', isU: m.who === 'u', isG: m.who === 'g', hasAnx: !!(m.anx && m.anx.length), anx: m.anx || [], text: m.who === 'g' ? m.text.slice(0, m.n) : m.text, mdRef: m.who === 'g' ? this.mdRef(mdHtml(m.text.slice(0, m.n), !done ? '<span class="caret"></span>' : '')) : null, caretSt: m.who === 'g' && !done ? 'display:inline-block' : 'display:none', hasAsk: false, ask: [], hasProp: false, prop: null, hasAct: false, act: null };
       if (m.who === 'g') {
         if (m.ask && m.ask.length && done && isLast) { o2.hasAsk = true; o2.ask = m.ask.map((c) => ({ label: c.label, go: () => this.pickAsk(m, c) })); }
         if (m.prop && done) {
@@ -3430,10 +3797,10 @@ class Component extends DCLogic {
       cls: S.prefsOpen ? 'open' : '', shadeCls: S.prefsOpen ? 'on' : '', hidden: S.prefsOpen ? 'false' : 'true',
       ver: vTem ? 'Versão ' + V.instalada + (V.nova ? ' · nova: ' + V.remota : '') : '',
       // à vista, sem abrir seção: a versão, como estão os serviços e o modo leve
-      top: vRows.concat([chips(servicos), sw('light', 'Modo leve', 'Menos animação, sem vidro, bolinha 2D e sem a animação de abertura. Bom para computadores fracos.')]),
+      top: vRows.concat([chips(servicos), sw('light', 'Modo leve', 'Menos animação, sem vidro, bolinha 2D e sem a animação de abertura. Bom para computadores fracos.'), btn('Rever o tutorial', 'Refaz o tour guiado do painel, quando quiser.', 'Começar', C('tourComecar'))]),
       groups: [
         { id: 'som', title: 'Voz e sons', rows: [sw('voice', 'Voz do Guardião', 'Desligada, ele só escreve. O seu microfone continua valendo. Esc enquanto ele fala também desliga.'), velSeg, sw('sound', 'Sons', 'Cliques, telas, avisos e a trilha da abertura.'), rng('volume', 'Volume'), sw('typing', 'Som de digitação', 'Teclas quando você digita e o Guardião escrevendo a resposta.')] },
-        { id: 'comp', title: 'Comportamento', rows: [seg('Quem pensa pelo Guardião', 'Escolha quem responde às conversas e monta os planos. Codex usa GPT-6 Sol com esforço médio. A troca vale no próximo pedido; cada provedor usa seu próprio login.', ['claude', 'codex'].map((v) => ({ label: v === 'claude' ? 'Claude' : 'Codex', on: pf.provider === v, cls: pf.provider === v ? 'on' : '', go: () => { this.setPf('provider', v); this.sfx('click'); } }))), sw('alwaysMic', 'Escuta contínua (Ei guardião)', 'Desligada, o microfone fica fechado e só abre quando você clica no botão dele. Ligada, ele fica aberto esperando você chamar o Guardião.'), sw('openMic', 'Reabrir depois de uma pergunta', 'Só vale com a escuta contínua ligada: reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Ir direto para a execução', 'Com o plano aprovado, quando você abre o app de novo no mesmo dia, ele já mostra a tarefa de agora.'), sw('session', 'Conversa com memória do Claude', 'No Claude, cada conversa usa a sessão com conectores e agentes. No Codex, o Guardião usa o resumo e as últimas trocas; este botão não ativa uma sessão persistente.')] },
+        { id: 'comp', title: 'Comportamento', rows: [seg('Quem pensa pelo Guardião', 'Escolha quem responde às conversas e monta os planos. Codex usa GPT-6 Sol com esforço médio. A troca vale no próximo pedido; cada provedor usa seu próprio login.', ['claude', 'codex'].map((v) => ({ label: v === 'claude' ? 'Claude' : 'Codex', on: pf.provider === v, cls: pf.provider === v ? 'on' : '', go: () => { this.setPf('provider', v); this.sfx('click'); } }))), sw('alwaysMic', 'Escuta contínua (Ei guardião)', 'Desligada, o microfone fica fechado e só abre quando você clica no botão dele. Ligada, ele fica aberto esperando você chamar o Guardião.'), sw('openMic', 'Reabrir depois de uma pergunta', 'Só vale com a escuta contínua ligada: reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Ir direto para a execução', 'Com o plano aprovado, quando você abre o app de novo no mesmo dia, ele já mostra a tarefa de agora.'), sw('auto', 'Modo Auto (sem pedir permissão)', 'Só vale na conversa com memória do Claude. Ligado, ele faz tudo o que for preciso sem perguntar antes: roda comandos, edita arquivos, envia mensagens, publica e apaga, como o modo Auto do Claude Code. Fica desligado até você ligar. Também liga e desliga pelo botão Auto, acima da barra de escrever.'), sw('session', 'Conversa com memória do Claude', 'No Claude, cada conversa usa a sessão com conectores e agentes. No Codex, o Guardião usa o resumo e as últimas trocas; este botão não ativa uma sessão persistente.')] },
         { id: 'apar', title: 'Aparência', rows: [seg('Bolinha', 'Núcleo: cristal 3D com onda de voz. Relógio: o instrumento clássico, com o dia em volta e o tempo no centro.', ['N', 'A'].map((v) => ({ label: v === 'N' ? 'Núcleo 3D' : 'Relógio', on: pf.variant === v, cls: pf.variant === v ? 'on' : '', go: () => { this.setPf('variant', v); this.sfx('click'); } }))), seg('Formato da janela', 'Compacta é a janela pequena, para deixar num canto da tela.', [{ label: 'Completa', on: !compact, cls: !compact ? 'on' : '', go: () => { if (compact) this.toggleCompact(); } }, { label: 'Compacta', on: compact, cls: compact ? 'on' : '', go: () => { if (!compact) this.toggleCompact(); } }])] }
       ]
     };
@@ -3444,7 +3811,7 @@ class Component extends DCLogic {
       comp: nLig(prefs.groups[1].rows),
       apar: (pf.variant === 'N' ? 'Núcleo 3D' : 'Relógio') + (compact ? ' · compacta' : '')
     };
-    prefs.groups = prefs.groups.map((g) => { const open = S.pfSec === g.id; return Object.assign(g, { cls: open ? 'open' : '', open, hidden: open ? 'false' : 'true', sum: pgSum[g.id], sumCls: '', go: () => this.setPfSec(g.id) }); });
+    prefs.groups = prefs.groups.map((g) => { const open = S.pfSec === g.id; return Object.assign(g, { cls: open ? 'open' : '', open, hidden: open ? 'false' : 'true', sum: pgSum[g.id], sumCls: '', tour: 'prefs-' + g.id, go: () => this.setPfSec(g.id) }); });
 
     /* ----- abertura ----- */
     const introOn = introRun || introHome || S.introPhase === 'skip';
@@ -3458,6 +3825,47 @@ class Component extends DCLogic {
       logs: ['servidor local · porta ' + (location.port || '80'), 'versão · ' + (V.instalada || '...'), 'idioma · pt-BR', 'clickup · ' + S.dues.length + ' prazos nos próximos 3 dias', 'agenda · ' + S.tasks.length + ' blocos para hoje', 'calibragem · dia ' + K.dia + ' de 30', 'pops · ' + PP.meus.length + ' na sua biblioteca', 'plano · ' + (S.planState === 'approved' ? 'aprovado' : S.planState === 'suggested' ? 'aguardando aprovação' : 'ainda não montado'), 'tudo pronto, ' + String(S.pessoa || '').toLowerCase()]
     };
 
+    /* ----- tutorial guiado ----- */
+    const TT = S.tourTxt, TR = S.tour;
+    const tour = { cls: '', hidden: 'true', hlCls: 'nobox', hlSt: 'opacity:0', cardSt: '', kicker: '', hasSair: false, sair: C('tourSair'), titulo: '', texto: '', hasItens: false, itens: [], hasOk: false, ok: '', hasAviso: false, aviso: '',
+      barBox: 'display:none', barSt: '', hasVoltar: false, voltar: C('tourVolta'), btns: [] };
+    if (TR && TT) {
+      const sub = (x) => this.tourSub(x), pos = S.tourPos, box = S.tourBox;
+      tour.cls = pos ? 'on' : ''; tour.hidden = pos ? 'false' : 'true';
+      tour.cardSt = pos ? 'left:' + pos.x + 'px;top:' + pos.y + 'px' : 'left:50%;top:50%';
+      tour.hlCls = box ? '' : 'nobox';
+      tour.hlSt = box ? 'left:' + box.x + 'px;top:' + box.y + 'px;width:' + box.w + 'px;height:' + box.h + 'px;opacity:1' : 'left:50%;top:50%;width:0;height:0;opacity:' + (pos ? 1 : 0);
+      if (TR.fase === 'convite') {
+        const cv = (TR.retomar > 0 ? TT.convite_continuar : TT.convite) || {};
+        tour.kicker = 'Tour guiado'; tour.titulo = sub(cv.titulo); tour.texto = sub(cv.texto);
+        tour.btns = [{ label: cv.comecar || 'Começar o tour', cls: 'btn-pri sm', go: C('tourAceitar') }, { label: cv.depois || 'Agora não', cls: 'btn-gh', go: C('tourRecusar') }];
+      } else {
+        const cards = this.tourCards(), c = cards[TR.i] || {}, ultimo = TR.i >= cards.length - 1;
+        tour.kicker = 'Passo ' + c.passo + ' de ' + (TT.total_passos || 9); tour.hasSair = true;
+        tour.titulo = sub(c.titulo); tour.texto = sub(c.texto);
+        tour.itens = (c.itens || []).map((i) => ({ r: sub(i.r) + (/[?!.]$/.test(i.r) ? '' : ':'), t: sub(i.t) })); tour.hasItens = tour.itens.length > 0;
+        tour.ok = TR.feito ? sub(c.feito) : ''; tour.hasOk = !!tour.ok;
+        const sd = S.saude || {}, av = c.avisos || {};
+        tour.aviso = c.faz === 'microfone' ? (sd.mic === false ? av.sem_microfone : sd.groq === false ? av.sem_transcricao : '') || '' : ''; tour.hasAviso = !!tour.aviso;
+        tour.barBox = ''; tour.barSt = 'transform:scaleX(' + ((TR.i + 1) / Math.max(1, cards.length)).toFixed(3) + ')';
+        tour.hasVoltar = TR.i > 0;
+        tour.btns = c.faz && !TR.feito ? [{ label: 'Pular este passo', cls: 'btn-gh', go: C('tourProx') }]
+          : [{ label: ultimo ? 'Concluir o tour' : 'Próximo', cls: 'btn-pri sm', go: ultimo ? C('tourFim') : C('tourProx') }];
+      }
+    }
+
+    /* ----- anexos ----- */
+    const tamanho = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+    const curto = (n) => (n.length > 28 ? n.slice(0, 20) + '…' + n.slice(-6) : n);
+    const anxItens = S.anexos.map((a) => ({ nome: curto(a.nome), titulo: a.nome + (a.aviso ? ' · ' + a.aviso : ''), isImg: a.tipo === 'imagem', noImg: a.tipo !== 'imagem', src: a.tipo === 'imagem' ? '/anexo/' + a.id : '',
+      info: tamanho(a.tamanho) + (a.aviso ? ' · não abre' : ''), cls: a.aviso ? 'warn' : '', rm: () => this.anxRemover(a.id) }))
+      .concat(S.anxUp.map((u) => ({ nome: curto(u.nome), titulo: u.nome, isImg: false, noImg: true, src: '', info: 'enviando', cls: 'up', rm: () => {} })));
+    const autoOn = !!(S.pf.session && S.pf.provider !== 'codex');
+    const auto = { on: autoOn, cls: S.pf.auto ? 'on' : '', press: S.pf.auto ? 'true' : 'false', go: C('alternarAuto'),
+      titulo: S.pf.auto ? 'Modo Auto ligado: o Guardião faz tudo sem pedir permissão, inclusive enviar, publicar e apagar. Clique para desligar.' : 'Modo Auto desligado: o Guardião pede permissão antes de rodar comandos. Clique para ligar.' };
+    const anx = { tem: anxItens.length > 0, faixa: anxItens.length > 0 || autoOn, itens: anxItens, abrir: C('anxAbrir'), cls: S.pf.provider === 'codex' ? 'off' : '', titulo: S.pf.provider === 'codex' ? 'Anexos funcionam com o Claude' : 'Anexar imagem, PDF, áudio ou texto. Também vale colar um print (Ctrl+V) ou arrastar o arquivo para a janela.',
+      fileRef: this.setFileEl, onFiles: (e) => { this.anxArquivos(e.target.files); e.target.value = ''; }, dropCls: S.dragOn ? 'on' : '' };
+
     const rootCls = ['m-' + M, pf.light ? 'is-light' : '', !pf.light && !SEM_PLACA_DE_VIDEO ? 'has-blur' : '', prep ? 'is-prep' : '', introRun || introHome ? 'is-intro' : '', S.introPhase === 'skip' ? 'is-introskip' : '', S.sceneOn ? 'scene-on' : '', banner.on && showB && S.screen === 'dia' ? 'has-banner' : '', doneRow.on || ask.on ? 'has-after' : '', S.detailOpen ? 'has-detail' : '', compact ? 'is-compact' : '', S.hdPin || S.hdPeek || S.introPhase !== 'done' ? 'hd-on' : '', colOn ? 'col-on' : '', dockOn ? 'dock-on' : '', execOn ? 'is-exec' : '', 'scr-' + S.screen].filter(Boolean).join(' ');
     const brandName = String(S.gname || 'Guardião').toUpperCase();
     if (S.sessao && S.sessao !== this.sesRef) { this.sesRef = S.sessao; this.sesT = now; }
@@ -3467,7 +3875,7 @@ class Component extends DCLogic {
       srLine: S.srLine,
       dollyCls: S.dolly ? 'dl-' + S.dolly : '', worldStyle: 'transform:translate3d(' + (-idx * SX) + 'px,' + (-SY[idx]) + 'px,0)',
       stHome: stn(0), stDia: stn(1), stPlan: stn(2), stCal: stn(3), stPops: stn(4),
-      glTag: S.userLine && !usando ? 'Você' : '', glU: S.userLine && !usando ? '“' + S.userLine + '”' : statusTxt.toUpperCase(), glG, glCls,
+      glTag: S.userLine && !usando ? 'Você' : '', glU: S.userLine && !usando ? '“' + S.userLine + '”' : statusTxt.toUpperCase(), glG, glCls, glRef: this.mdRef(mdHtml(glG, '')),
       conv: { on: !!pf.session && !mini && !compact, label: S.conv && S.conv.atual && S.conv.atual.turnos ? S.conv.atual.titulo : 'Conversa nova', open: C('openChats'), nova: C('novaConversa') },
       focus, primary, stageCls, fwrapHidden: execOn ? 'false' : 'true', openCurDetail: C('openCurDetail'), dtCU: C('dtCU'), hasCU: !!(p && p.url && !(mode === 'between' && this.proxFixo())), exitExecBtn: C('exitExecBtn'), onPrimary: C('onPrimary'), onPostpone: C('onPostpone'), setSealBtn: this.setSealBtn, setSealScene: this.setSealScene, setSealAch: this.setSealAch,
       done: doneRow, ask, adj: { cls: S.adjOn ? 'show' : '', a: S.adjA, b: S.adjB }, onNote: E('onNote'), onNoteKey: E('onNoteKey'), toggleAdj: C('toggleAdj'), undo: C('undo'), onAdjA: E('onAdjA'), onAdjB: E('onAdjB'), saveAdj: C('saveAdj'),
@@ -3483,7 +3891,7 @@ class Component extends DCLogic {
       upd: { on: !!(V.nova || V.atualizando) && !mini, cls: V.atualizando ? 'busy' : '', label: V.atualizando ? 'Atualizando' : 'Nova versão', aria: V.atualizando ? 'Atualizando o Guardião' : 'Há uma versão nova do Guardião: ' + (V.remota || ''), go: C('abrirVersao') },
       brandName, brandSub: 'DO ' + String(S.pessoa || '').toUpperCase(), tabs, tabsStyle: 'left:' + tLeft + 'px', tablineSt, dateLabel: d3, clockLabel: hm, orbDateSt, toggleHd: C('toggleHd'), hdm: { cls: (V.nova || V.atualizando) && !mini ? 'dot' : '', open: !!S.hdPin, aria: S.hdPin ? 'Recolher o menu' : 'Abrir o menu' }, toggleCompact: C('toggleCompact'), prefsCls: S.prefsOpen ? 'on' : '', openPrefs: C('openPrefs'),
       banner, dt, closeDetail: C('closeDetail'), dForm: S.dForm, onDfA: E('onDfA'), onDfB: E('onDfB'), onDfNote: E('onDfNote'), dfConfirm: C('dfConfirm'), dfCancel: C('dfCancel'),
-      prefs, closePrefs: C('closePrefs'), closeScene: C('closeSceneBtn'), setScene: this.setScene, scene,
+      prefs, closePrefs: C('closePrefs'), closeScene: C('closeSceneBtn'), setScene: this.setScene, scene, tour, anx, auto, fitRef: (el) => { if (el) this.fit(el); },
       inst: { cls: S.instOpen && mobile ? 'open' : '', hidden: S.instOpen && mobile ? 'false' : 'true', done: () => this.setState({ instOpen: false }), later: () => this.setState({ instOpen: false }) },
       isMiniBoard: mini, notMiniBoard: !mini, expandir: C('expandir'),
       mini: { status: statusTxt.toUpperCase(), kick: focus.kick, title: focus.title, nextLbl: nextCards.length ? 'A seguir' : '', next: nextCards.length ? nextCards[0].time.split(' ')[0] + ' ' + nextCards[0].title : 'Nada depois desta', hasCap: !!glG, noCap: !glG, cap: glG, ph: voiceOn ? 'Fale ou escreva' : 'Escreva para o Guardião' },

@@ -8,10 +8,12 @@ from collections import Counter
 from datetime import date, timedelta
 
 import calibragem_motor as cm
+import tutorial
 
 PESADAS = cm.PESADAS
 LISTA = [
     # (id, grupo, título, regra, meta)
+    ("primeiros_passos", "Começo", "Primeiros passos", "Fazer o tutorial do Guardião até o fim.", 1),
     ("primeiro_report", "Constância", "Primeiro report", "Mandar o primeiro report do dia.", 1),
     ("calib_7", "Constância", "Semana calibrada", "Report em 7 dias de trabalho.", 7),
     ("calib_14", "Constância", "Duas semanas", "Report em 14 dias de trabalho.", 14),
@@ -71,7 +73,7 @@ def progresso(oper, memoria=None, hoje=None):
     """{id: valor atual} de cada conquista (o maior já alcançado, para a barra de progresso)."""
     hoje = hoje or date.today()
     evs = cm.eventos(oper, (hoje - timedelta(days=400)).isoformat())
-    p = {}
+    p = {"primeiros_passos": 1 if tutorial.concluido(oper) else 0}
     n_reports = len(_reports(oper))
     for cid in ("primeiro_report", "calib_7", "calib_14", "calib_21", "calib_30", "calib_60", "calib_90"):
         p[cid] = n_reports

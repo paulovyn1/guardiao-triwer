@@ -500,7 +500,7 @@ def conferir_travas(plano, dia, tarefas, cfg, memoria):
         c = tv.classe(t, cfg, marcos)
         if c == tv.FIXA and (iso != t.get("prazo") or (t.get("inicio") and (b.get("inicio") != t.get("inicio") or b.get("fim") != t.get("fim")))):
             problemas.append(f"\"{b.get('titulo')}\" é tarefa fixa ({str(t.get('prazo'))[8:10]}/{str(t.get('prazo'))[5:7]} {t.get('inicio') or ''}): data e horário não mudam sem negociar com quem combinou.")
-        elif c == tv.LIMITE and iso > str(t.get("prazo") or "9999"):
+        elif c == tv.LIMITE and iso > max(str(t.get("prazo") or "9999"), date.today().isoformat()):  # prazo que já passou: hoje é o mais cedo possível
             problemas.append(f"\"{b.get('titulo')}\" tem prazo máximo em {str(t.get('prazo'))[8:10]}/{str(t.get('prazo'))[5:7]}: pode ser feita antes, nunca depois, porque mudar exige renegociar.")
     return problemas
 

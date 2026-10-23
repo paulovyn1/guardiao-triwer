@@ -7,6 +7,33 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.13.2 - 2026-10-23
+- Modo Auto passa a fazer tudo sem pedir permissão, como o modo Auto do Claude Code: comandos, edições, envio, publicação e exclusão. Segue desligado até você ligar.
+
+## 0.13.1 - 2026-10-23
+- Cancelar uma tarefa pela voz funciona e fecha a tarefa no ClickUp.
+- Tarefa atrasada que você já respondeu não volta a ser perguntada.
+- Dia curto tira o consumo e passa tarefa de prazo sugerido para outro dia sem perguntar.
+- Bloco feito mais cedo libera o almoço, e não há cobrança de antecipação na véspera da live.
+
+## 0.13.0 - 2026-10-23
+- Respostas com formatação: negrito, lista, título, código e tabela aparecem desenhados.
+- Anexos: o clipe, Ctrl+V com um print ou arrastar imagem, PDF, áudio e texto para a janela.
+- A caixa de escrever cresce até 10 linhas, e Shift+Enter quebra a linha.
+- Modo Auto na conversa com memória: roda comandos sem pedir o ok; envio e exclusão ainda pedem.
+
+## 0.12.0 - 2026-10-22
+- Tour guiado na primeira abertura: 9 passos para escrever, falar, usar o dia e as preferências.
+- Quem já usa o Guardião refaz o tour em Preferências, em Rever o tutorial, ou pedindo "tutorial".
+- Dicas de uma frase aparecem uma vez, na hora em que você encontra o recurso.
+- Conquista nova: Primeiros passos, ao terminar o tour.
+
+## 0.11.2 - 2026-10-19
+- Dia de folga ganha plano quando você pede, só com o que você disse que faz hoje.
+- O plano montado pelo guardião aparece na tela sozinho.
+- Ajuste do plano recusado é dito em voz alta, em vez de afirmar que encaixou.
+- Tarefa com prazo máximo já vencido, feita hoje, não é mais barrada.
+
 ## 0.11.1 - 2026-10-18
 - Procurar versão nova volta a funcionar em instalações que ficaram sem a origem das atualizações.
 

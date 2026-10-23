@@ -14,6 +14,8 @@ Sem a chave do Groq (`voz\definir_chave_groq.bat`) o painel funciona do mesmo je
 - `calibragem\calibragem_para_o_plano.md`: as poucas linhas que o plano recebe (só medido, provável e confirmado), com o id de cada uma. Também vai no dossiê do plano automático e no contexto da voz.
 - `calibragem\confirmacoes.json` (respostas da pergunta do dia), `calibragem\mudancas.jsonl` (bloco aprovado que aplicou um aprendizado: é o "O que mudou no plano" da tela) e `calibragem\conquistas.json` (as conquistas desbloqueadas e quando).
 - `tempos.json`: preenchido sozinho a cada conclusão, por natureza (o campo `natureza` do bloco; sem ele, deduzida do título). Guarda os 10 últimos registros e calcula a média a partir de 3 confirmados. `confirmado` só quando o tempo foi medido no modo execução (3 minutos ou mais entre Iniciar e concluir) ou quando a pessoa informou o horário e ele é plausível; marcar como feito depois, com o horário sugerido, fica fora da média e da margem do roteador. Folga, pausa e almoço não entram; reunião entra, mas fica fora da margem. A mesma tarefa concluída duas vezes no dia conta uma vez. O formato antigo (por frente) é migrado sozinho uma vez, com cópia em `calibragem\tempos_antes_da_v2.json`. No fim do dia o guardião só confere.
+- `anexos\AAAA-MM-DD\`: o que a pessoa anexou à conversa (imagem, PDF, texto, áudio e vídeo, até 25 MB cada, 8 por mensagem). Cada arquivo espera a próxima pergunta e segue com ela; áudio e vídeo vão antes pelo Groq e entram como fala transcrita. Apagados depois de 14 dias.
+- Modo Auto (`permissao_auto` em `preferencias.json`): na conversa com memória do Claude, todo pedido de permissão é respondido sim sem perguntar (comando, edição, envio, publicação e exclusão), como o modo Auto do Claude Code. Desligado por padrão. O que o guardião nega de propósito segue negado, e fora de uma conversa nada é liberado.
 - `pops\POP - nome.md` na pasta da memória: POPs criados ou instalados pela tela (mesmo modelo, com as linhas `Frente:` e `Origem:`). O catálogo da escola vem da internet (`voz\catalogo_pops.json`, só leitura, só POPs publicados), sem a pessoa configurar nada; o campo `pops.catalogo` do `config.json`, se existir, troca por outro catálogo.
 
 ## 2. O que acontece durante o dia (sem o guardião do chat)
@@ -51,6 +53,13 @@ Sem a chave do Groq (`voz\definir_chave_groq.bat`) o painel funciona do mesmo je
 - Atualizar roda `atualizar.ps1` na pasta operacional. Ele guarda um zip do código atual em `logs\`, copia skill, scripts, voz e painel, e não toca em `config.json`, memória, planos, registros, calibragem, `tempos.json`, preferências, pronúncias nem nos arquivos pessoais da skill (`memoria.md` e extensões).
 - Se a pessoa pedir para atualizar pelo chat: `powershell -ExecutionPolicy Bypass -File <pasta operacional>\atualizar.ps1`. Para só conferir: `-SoVerificar`.
 - Toda mudança na skill, nos scripts, na voz ou no painel sobe o número em `VERSION` e ganha uma entrada no topo do `CHANGELOG.md`.
+
+## 4b. Tutorial guiado do primeiro acesso
+
+- Na primeira abertura de uma instalação nova o painel oferece o tour (9 passos, 14 cartões). O `configurar.ps1` cria `tutorial_estado.json` na pasta operacional com `convidar: true`; quem já usava o guardião não tem o arquivo e acha o tour em Preferências, em Rever o tutorial. Também abre por voz ("tutorial", "me ensina a usar").
+- O texto é `voz\tutorial.json` (vai no pacote). O estado da pessoa (recusou, onde parou, concluiu, dicas já mostradas) fica em `tutorial_estado.json`, fora do pacote e fora da atualização. Concluir desbloqueia a conquista Primeiros passos.
+- Nada do tour chama o Claude nem mexe no ClickUp. A voz do tour sai fora da conversa.
+- **Funcionalidade nova ou alterada no painel (preferência, botão, atalho, comando de voz, aba) atualiza o `tutorial.json` na mesma versão.** O `teste_tutorial.py` quebra se uma preferência nova não está em nenhum cartão, ou se um nome ou destaque citado deixou de existir no painel.
 
 ## 5. Configuração que o painel usa
 

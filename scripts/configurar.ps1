@@ -221,6 +221,9 @@ foreach ($d in @($op, (Join-Path $op 'registros'), (Join-Path $op 'logs'), (Join
 # Scripts e dados iniciais
 CopiarApp $op
 [System.IO.File]::WriteAllText((Join-Path $op 'config.json'), ($cfg | ConvertTo-Json -Depth 6), $utf8)
+# Instalação nova: o painel oferece o tour guiado na primeira abertura. Só cria se ainda não existir: reconfigurar não oferece de novo, e quem já usava o guardião não recebe convite.
+$arqTutorial = Join-Path $op 'tutorial_estado.json'
+if (-not (Test-Path $arqTutorial)) { [System.IO.File]::WriteAllText($arqTutorial, ([ordered]@{ convidar = $true; criado_em = $hojeTxt } | ConvertTo-Json), $utf8) }
 
 # Esqueletos da memória: só criados se ainda não existirem (nunca sobrescreve o que a pessoa já tem).
 $mapa = @{

@@ -8,6 +8,8 @@ from urllib.parse import unquote
 
 from num2words import num2words
 
+import quebras
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 ARQ_PRONUNCIAS = os.path.join(BASE, "pronuncias.json")
 MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
@@ -117,7 +119,7 @@ def _links_para_fala(t):
 
 
 def normalizar_para_fala(texto):
-    t = _links_para_fala(texto)
+    t = _links_para_fala(str(texto).replace(quebras.RECUO, "").replace(quebras.PARAGRAFO, "\n").replace(quebras.QUEBRA, "\n"))  # as marcas de quebra viram linha: o marcador de lista cai
     # marcações de texto que não devem ser lidas
     t = re.sub(r"[*_`#>]+", "", t)
     t = re.sub(r"^\s*[-•]\s+", "", t, flags=re.M)

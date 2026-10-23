@@ -12,6 +12,8 @@ Roda na pasta `voz\` dentro da pasta operacional do guardião. Só Windows.
 | `estatisticas.py` | a aba Estatísticas: plano cumprido, tarefa principal, precisão, foco, semana a semana, e o detalhe |
 | `conquistas.py` | a aba Conquistas: as 21 conquistas, a regra de cada uma e o progresso |
 | `guardiao_janela.py` | fixa a janela compacta por cima das outras, no canto da tela |
+| `quebras.py` | as quebras de linha da resposta do Claude até a tela (a lista e o parágrafo chegam desenhados) |
+| `anexos.py` | anexos da conversa: fila, pasta, tipos e a pergunta composta com o caminho de cada arquivo |
 | `guardiao_atualizacao.py` | versão instalada e aviso de versão nova |
 | `guardiao_sessao.py` | modo sessão: a conversa como sessão do Claude Code (processo aberto, lista de conversas, permissões e o que a tela mostra de cada ferramenta) |
 | `hud2\` | o painel (veja o LEIA-ME de lá) |

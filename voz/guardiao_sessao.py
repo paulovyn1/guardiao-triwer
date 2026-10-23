@@ -488,6 +488,16 @@ def classificar(nome, entrada):
     return "perguntar", True, ""
 
 
+# ---------------- modo Auto ----------------
+# Preferência do painel (permissao_auto). Só vale na conversa com memória do Claude e com a pessoa esperando a resposta. Ligado, responde sim a todo pedido de permissão,
+# como o modo Auto do Claude Code: comando, edição em qualquer pasta e conector, inclusive envio, publicação e exclusão. O que o guardião nega de propósito segue negado (classificar).
+def modo_auto():
+    try:
+        return bool(h.preferencias().get("permissao_auto"))
+    except Exception:
+        return False
+
+
 def _valor(v):
     texto = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
     texto = re.sub(r"\s+", " ", texto).strip()
@@ -689,6 +699,9 @@ class Processo:
             return self._responde(ev, True)
         if regra == "negar" or not self.em_turno:
             return self._responde(ev, False, motivo or "Não há ninguém para autorizar agora. Diga o que pretende fazer e espere a pessoa pedir.")
+        if modo_auto():  # modo Auto: responde sim a tudo o que perguntaria, como o Claude Code no modo Auto
+            print(f"  (modo Auto: permiti {nome})")
+            return self._responde(ev, True)
         pedido = dict(descrever(nome, entrada), id=str(ev.get("request_id")), ferramenta=nome, sempre=bool(_mcp(nome)) and not sensivel, espera=threading.Event(), decisao=None)
         self.fila.put({"type": "_permissao", "pedido": pedido})
         if not pedido["espera"].wait(PRAZO_PERMISSAO):

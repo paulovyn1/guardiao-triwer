@@ -5,6 +5,7 @@
 import json
 import os
 import queue
+import quebras
 import re
 import socket
 import subprocess
@@ -15,7 +16,7 @@ import webbrowser
 import winreg
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
 
@@ -55,8 +56,13 @@ class Barramento:
         self.portao_saudacao = threading.Event()  # a saudação só começa a falar quando a abertura da tela termina
         self.cancelar_escuta = threading.Event()  # a tela pediu para parar de ouvir (clique no microfone enquanto ouvia)
         self.ao_ficar_sem_janela = None  # função chamada quando a última janela do painel fecha (o guardiao_voz usa para parar a fala)
+        self.narrando = False  # o tutorial está falando um cartão: o texto dessa fala não entra na conversa (a tela ignora o que vem marcado)
 
     def emitir(self, tipo, /, **dados):
+        if self.narrando and tipo in ("guardiao_texto", "guardiao_fim"):
+            dados = {**dados, "tutorial": True}
+        if tipo in ("guardiao_texto", "guardiao_fim") and isinstance(dados.get("texto"), str):  # a lista e o parágrafo da resposta chegam à tela como quebras de linha
+            dados = {**dados, "texto": quebras.para_tela(dados["texto"])}
         ev = {"t": tipo, **dados}
         chave = tipo + ":" + str(dados.get("modo", "")) if tipo == "progresso" else tipo
         if tipo in ("estado", "saude", "metricas", "revisao", "completo", "progresso"):
@@ -153,6 +159,7 @@ PREFS_PADRAO = {
     "modo_leve": False,        # menos animação, sem vidro e bolinha 2D, para computador fraco
     "sessao": False,           # a conversa vira uma sessão do Claude Code: lembra do que foi dito e usa conectores, skills e agentes
     "provedor_ia": "claude",   # Claude continua como padrão para instalações existentes
+    "permissao_auto": False,   # modo Auto da conversa com memória: faz tudo sem pedir permissão, como o modo Auto do Claude Code (comando, edição, envio, publicação e exclusão)
     "bolinha": "N",            # N = Núcleo 3D, A = Relógio (o instrumento clássico)
 }
 PREFS_OPCOES = {"bolinha": ("N", "A"), "provedor_ia": ("claude", "codex")}
@@ -927,6 +934,9 @@ def editar_plano(op, ref=None, dados=None):
         plano.setdefault("removidos", []).append({"id": b.get("id"), "titulo": b.get("titulo"), "clickup_id": b.get("clickup_id"), "removido_em": time.strftime("%Y-%m-%d %H:%M")})
         titulo = b.get("titulo")
         depois = "fora do plano de hoje"
+        if dados.get("cancelar") and b.get("clickup_id"):  # cancelada de vez: fecha no ClickUp (na hora se o plano já foi aprovado, senão ao aprovar)
+            plano.setdefault("cancelar", []).append(b["clickup_id"])
+            depois = "cancelada: sai do plano e fecha no ClickUp"
     elif op == "adicionar":
         origem = str(dados.get("id") or "").strip()
         alvo = resolver_ref(origem) if origem else None
@@ -1420,6 +1430,14 @@ class Pedido(BaseHTTPRequestHandler):
             return self._json(200, guardiao_atualizacao.ao_abrir())
         if caminho == "/pendencias":
             return self._json(200, {"itens": pendencias()})
+        if caminho == "/anexos":  # o que está anexado e espera a próxima pergunta
+            import anexos
+            return self._json(200, {"itens": anexos.lista()})
+        if caminho.startswith("/anexo/"):
+            return self._anexo_get(caminho[len("/anexo/"):])
+        if caminho == "/tutorial":  # o texto dos passos e onde a pessoa está no tour
+            import tutorial
+            return self._json(200, tutorial.publico())
         if caminho == "/conversas":  # modo sessão: a conversa atual e as anteriores
             import guardiao_sessao
             return self._json(200, dict(guardiao_sessao.resumo(), modo=bool(preferencias().get("sessao"))))
@@ -1453,12 +1471,45 @@ class Pedido(BaseHTTPRequestHandler):
         with open(alvo, "rb") as f:
             self._responder(200, tipo, f.read())
 
+    def _anexo_post(self):
+        import anexos
+        tamanho = int(self.headers.get("Content-Length") or 0)
+        if tamanho > anexos.LIMITE + 4096:
+            self.close_connection = True  # o corpo grande demais nem é lido
+            return self._json(200, {"ok": False, "erro": f"O arquivo passa de {anexos.LIMITE // (1024 * 1024)} MB."})
+        dados = self.rfile.read(tamanho) if tamanho else b""
+        nome = unquote((parse_qs(urlparse(self.path).query).get("nome") or ["arquivo"])[0])
+        try:
+            item = anexos.salvar(nome, dados, self.headers.get("Content-Type") or "")
+        except ValueError as erro:
+            return self._json(200, {"ok": False, "erro": str(erro)})
+        bus.emitir("anexos", itens=anexos.lista())
+        return self._json(200, {"ok": True, "item": anexos.publico(item)})
+
+    def _anexo_get(self, cid):
+        import anexos
+        item = anexos.arquivo(cid)  # só a miniatura de imagem que está na fila
+        if not item:
+            return self._responder(404, "text/plain", "nao encontrado")
+        ext = os.path.splitext(item["nome"])[1].lower().lstrip(".")
+        with open(item["caminho"], "rb") as f:
+            dados = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", anexos.MIMES.get(ext, "application/octet-stream"))
+        self.send_header("Content-Length", str(len(dados)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "private, max-age=3600")
+        self.end_headers()
+        self.wfile.write(dados)
+
     def do_POST(self):
         if not self._host_ok():
             return self._responder(403, "text/plain", "proibido")
         origem = self.headers.get("Origin")
         if origem and origem not in (f"http://localhost:{PORTA}", f"http://127.0.0.1:{PORTA}"):
             return self._responder(403, "text/plain", "proibido")
+        if self.path.split("?", 1)[0] == "/anexo":  # arquivo anexado à conversa: o corpo é o arquivo, não um JSON
+            return self._anexo_post()
         tamanho = int(self.headers.get("Content-Length") or 0)
         if tamanho > 20000:
             return self._responder(413, "text/plain", "grande demais")
@@ -1506,6 +1557,14 @@ class Pedido(BaseHTTPRequestHandler):
             if resposta is None:
                 return self._responder(404, "text/plain", "nao encontrado")
             return self._json(200, resposta)
+        if caminho == "/anexos":  # tirar um anexo da fila
+            import anexos
+            ok = anexos.remover(str(dados.get("id") or ""))
+            bus.emitir("anexos", itens=anexos.lista())
+            return self._json(200, {"ok": ok})
+        if caminho == "/tutorial":  # resposta ao convite, passo atual, conclusão, dica na hora certa e a fala do cartão
+            import tutorial
+            return self._json(200, tutorial.agir(dados))
         if caminho == "/janela":  # janela compacta: por cima das outras, no canto da tela
             import guardiao_janela
             return self._json(200, guardiao_janela.rota(dados))
