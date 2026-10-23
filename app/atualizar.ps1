@@ -203,6 +203,20 @@ try {
         foreach ($velho in 'app\servidor_tela.ps1', 'app\tela_modelo.html') { Remove-Item (Join-Path $real $velho) -Force -ErrorAction SilentlyContinue }
     }
 
+    # ---- 4) memória: arquivo que a skill passou a ler e que a instalação antiga não tem nasce do modelo. Nunca sobrescreve. ----
+    $memoria = if ($cfg -and $cfg.PSObject.Properties['pastas'] -and $cfg.pastas.memoria) { [string]$cfg.pastas.memoria } else { '' }
+    if ($memoria -and (Test-Path $memoria)) {
+        $nomePessoa = if ($cfg.pessoa -and $cfg.pessoa.nome) { ([string]$cfg.pessoa.nome).Split(' ')[0] } else { 'você' }
+        foreach ($arq in @('aprendizados.md')) {
+            $destino = Join-Path $memoria $arq
+            $modelo = Join-Path $fonte "templates\$arq"
+            if ((Test-Path $destino) -or -not (Test-Path $modelo)) { continue }
+            $texto = [System.IO.File]::ReadAllText($modelo, $utf8).Replace('{{nome}}', $nomePessoa).Replace('{{data}}', (Get-Date -Format 'yyyy-MM-dd'))
+            [System.IO.File]::WriteAllText($destino, $texto, $utf8)
+            Anotar "Criado na memória: $arq (a skill lê este arquivo em toda ativação)."
+        }
+    }
+
     Copy-Item (Join-Path $fonte 'VERSION') (Join-Path $oper 'VERSION') -Force -ErrorAction Stop
     Anotar "Pronto: versão $nova instalada."
     Gravar-Resultado 'ok' "Versão $nova instalada." $instalada $nova

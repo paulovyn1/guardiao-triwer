@@ -53,7 +53,7 @@ $resumo = $tarefas | ForEach-Object {
 } | Sort-Object prazo, inicio, fim
 
 # Eventos recorrentes com preparo (voz\preparos.py): a mãe tem a tag do evento (config clickup.eventos, ex. "live semanal") e a data do evento.
-# Guarda as mães dos próximos 21 dias com TODAS as subtarefas (de qualquer dono e status): a antecipação é do Paulo e não vem na busca acima.
+# Guarda as mães dos próximos 21 dias com TODAS as subtarefas (de qualquer dono e status): a antecipação é de outra pessoa da equipe e não vem na busca acima.
 $eventos = @()
 foreach ($tag in @($cfg.clickup.eventos | Where-Object { $_ })) {
     try {

@@ -62,7 +62,7 @@ def faltando(hoje=None, oper=OPER, cfg=None, n=DIAS_A_FRENTE):
 
 
 def gerar(dia, oper=OPER, refazer=False):
-    """Monta o plano de um dia futuro SÓ por código (plano_base), sem IA. Decisão da Milena (16/10): a manutenção não gasta IA nem mexe no plano
+    """Monta o plano de um dia futuro SÓ por código (plano_base), sem IA. Decisão de produto (16/10): a manutenção não gasta IA nem mexe no plano
     sozinha; o refinamento acontece quando ela pede ou aprova. Devolve True se o arquivo existe depois."""
     destino = os.path.join(oper, "planos", f"plano_{dia.isoformat()}.json")
     os.makedirs(os.path.dirname(destino), exist_ok=True)
@@ -117,7 +117,7 @@ def assinatura(dia, oper=OPER, cfg=None, hoje=None):
         marcos = sorted(pb.marcos_sem_lugar(dia, oper, cfg))
     except Exception:
         marcos = []
-    try:  # preparo da live (Estrateclass) que pesa neste dia: etapa dela com limite até 3 dias depois, cobrança vencida
+    try:  # preparo da live semanal que pesa neste dia: etapa dela com limite até 3 dias depois, cobrança vencida
         preparo = sorted(str(e["id"] or e["titulo"]) + e["limite"].isoformat() for e in pb.pp.etapas(cfg, oper, hoje)
                          if e["limite"] <= dia + timedelta(days=pb.pp.ABRE_DIAS))
     except Exception:

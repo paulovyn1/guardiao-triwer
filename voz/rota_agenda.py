@@ -141,10 +141,13 @@ def _no_nobre(minuto):
 
 
 def margem(oper=OPER):
-    """Margem de tempo: mediana de real/planejado dos registros confirmados do tempos.json (3 ou mais), entre 1,0 e 1,5."""
+    """Margem de tempo: mediana de real/planejado dos registros confirmados do tempos.json (3 ou mais), entre 1,0 e 1,5.
+    Reunião e folga ficam de fora (duram o que foi marcado e não dizem nada sobre estimativa)."""
+    import calibragem_motor as cm
+    cm.garantir_tempos(oper)
     dados = vs._json(os.path.join(oper, "tempos.json")) or {}
-    razoes = sorted(r["real"] / r["planejado"] for t in (dados.get("tipos") or {}).values() for r in t.get("registros") or []
-                    if r.get("confirmado") and r.get("planejado") and r.get("real"))
+    razoes = sorted(r["real"] / r["planejado"] for nome, t in (dados.get("tipos") or {}).items() if nome not in cm.SEM_MEDIA
+                    for r in t.get("registros") or [] if r.get("confirmado") and r.get("planejado") and r.get("real"))
     if len(razoes) < 3:
         return MARGEM_PADRAO, len(razoes)
     meio = razoes[len(razoes) // 2]

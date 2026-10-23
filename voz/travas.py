@@ -1,4 +1,4 @@
-"""Quais tarefas o guardião NÃO pode mover (decisão da Milena, 2026-10-15). Todas as outras são dele: pode e deve mexer para os objetivos serem alcançados.
+"""Quais tarefas o guardião NÃO pode mover (decisão de produto, 2026-10-15). Todas as outras são dele: pode e deve mexer para os objetivos serem alcançados.
 
 - FIXA: reunião, aula, compromisso com hora de outra pessoa. Data e horário não mudam. Vem da lista (padrão "Reuniões Gerais") ou da tag "fixo".
 - LIMITE: o prazo é o MÁXIMO (data de entrega, combinado com cliente, marco de campanha com a data de ir ao ar). Dá para fazer ANTES, nunca depois, porque

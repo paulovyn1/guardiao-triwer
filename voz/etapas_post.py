@@ -1,4 +1,4 @@
-"""Etapas de post (copy, design, manychat, relatório): quem decide a data é o GUARDIÃO, não o ClickUp (decisão da Milena, 2026-10-15).
+"""Etapas de post (copy, design, manychat, relatório): quem decide a data é o GUARDIÃO, não o ClickUp (decisão de produto, 2026-10-15).
 
 As tarefas de copy e de design nascem de uma automação do ClickUp, com um prazo que é só SUGESTÃO. O guardião replaneja sempre: a etapa termina antes da
 data de postagem e entra na agenda do melhor jeito (copies juntas, designs juntos, copy antes do design de cada post). Exceção: tarefa fixa (reunião, aula,

@@ -445,6 +445,13 @@ def contexto_proximos_dias():
                 texto += "\n" + imprevistos
         except Exception as erro:
             print("  Alertas da agenda falharam:", erro)
+        try:  # o que a calibragem já sabe da pessoa: muda no máximo uma vez por dia (depois do report), então o prompt continua estável
+            import calibragem_motor
+            secao = calibragem_motor.secao_do_plano(calibragem_motor.atualizar_perfil(OPER))
+            if secao:
+                texto += "\n" + secao
+        except Exception as erro:
+            print("  Calibragem fora do contexto:", erro)
         return texto
     except Exception as erro:
         print("  Visão da semana falhou, usando os 3 próximos dias:", erro)
@@ -1987,8 +1994,16 @@ def supervisionar(agora=None):
     sem a pessoa aprovar. Regra em Python (sem gastar o plano) checada a cada minuto; só chama o Claude quando a regra manda. Devolve True se pediu."""
     agora = agora or time.time()
     hoje = time.strftime("%Y-%m-%d")
-    if SUPERVISOR["dia"] != hoje:
-        SUPERVISOR.update(dia=hoje, vezes=0, ultimo=0.0)
+    if SUPERVISOR["dia"] != hoje:  # a conta do dia vem da calibragem: reabrir o guardião não zera o limite de 3 propostas
+        vezes, ultimo = 0, 0.0
+        try:
+            for ev in v2._eventos(dias=1):
+                if ev.get("tipo") in ("replanejamento_automatico", "replanejamento_sugerido") and ev.get("data") == hoje:
+                    vezes += 1
+                    ultimo = max(ultimo, time.mktime(time.strptime(ev["ts"], "%Y-%m-%d %H:%M:%S")))
+        except Exception:
+            pass
+        SUPERVISOR.update(dia=hoje, vezes=vezes, ultimo=ultimo)
     if COMPLETO or SUPERVISOR["vezes"] >= SUPERVISOR_MAX_DIA or (SUPERVISOR["ultimo"] and agora - SUPERVISOR["ultimo"] < SUPERVISOR_INTERVALO):
         return False
     try:
@@ -2002,10 +2017,10 @@ def supervisionar(agora=None):
     pedido = (f"Replanejar o resto de hoje. A tarefa \"{titulo}\" passou {av['atraso']} minutos do horário previsto e o que falta não cabe até {av['fim_do_dia']} "
               f"(faltam {-av['folga']} minutos). Monte o plano do resto do dia a partir de agora: mantenha o que já foi feito e os compromissos fixos, "
               "siga a matriz de prioridade, passe para outros dias o que pode esperar e diga o que ficou de fora.")
-    # Decisão da Milena (16/10): nada mexe no plano sem perguntar. O supervisor só avisa e pergunta; quem pede o replanejamento é ela.
+    # Decisão de produto (16/10): nada mexe no plano sem perguntar. O supervisor só avisa e pergunta; quem pede o replanejamento é a pessoa.
     SUPERVISOR["vezes"] += 1
     SUPERVISOR["ultimo"] = agora
-    v2.registrar_evento("replanejamento_sugerido", av["bloco"], atraso=av["atraso"], folga=av["folga"])
+    v2.registrar_evento("replanejamento_sugerido", av["bloco"], unico_por=600, atraso=av["atraso"], folga=av["folga"])
     bus.emitir("aviso", texto=f"{titulo} passou {av['atraso']} minutos do previsto e o resto do dia não cabe até {av['fim_do_dia']}. "
                               "Quer que eu replaneje o resto do dia? É só pedir.", erro=False)
     return True
@@ -2145,7 +2160,7 @@ def propor_aprovacao():
 
 def ler_o_plano(a, abertura):
     """Plano novo esperando o ok: vai para a aba Dia, onde a lista já mostra o plano novo, e diz numa frase. A aprovação é na barra de baixo da lista.
-    Decisão da Milena (16/10): nada de ler tarefa por tarefa nem abrir cartões de aprovação por cima da tela (eram três ao mesmo tempo)."""
+    Decisão de produto (16/10): nada de ler tarefa por tarefa nem abrir cartões de aprovação por cima da tela (eram três ao mesmo tempo)."""
     n = len(blocos_pendentes())
     bus.emitir("ui", cmd="tela", id="dia")
     dizer(f"{abertura} Tem um plano novo para hoje com {n} {'tarefa' if n == 1 else 'tarefas'}, já na lista. Confira e aprove na barra de baixo, "
@@ -2794,9 +2809,24 @@ def adiar_local(texto):
     return {"fala": fala} if motivo else _pedir_motivo(bloco, "motivo_adiamento", fala)
 
 
+def convite_report_local(texto):
+    """Resposta falada ao convite do report na hora de parar: sim começa o roteiro, não deixa para amanhã. Sem o Claude."""
+    c = v2.CHECKIN
+    if not c or c.get("bloco") != "report":
+        return None
+    t = _limpar_comando(texto)
+    if NAO_LOCAL.match(t) or re.search(r"\b(amanha|depois|hoje nao|agora nao|outra hora)\b", t):
+        v2.responder_checkin({"resposta": "report_depois"})  # a frase de fechamento já vai para a voz
+        return {"fala": ""}
+    if SIM_LOCAL.match(t) or re.search(r"\b(vamos|bora|fazer|faco|manda)\b", t):
+        v2.responder_checkin({"resposta": "report_agora"})
+        return {"roteiro": "report"}
+    return None
+
+
 def comando_local(texto):
     """Devolve {"fala": ..., "roteiro": ...} se o pedido é um comando da tela (modo execução, abrir uma aba, silenciar...), ou None para o Claude responder."""
-    for rapido in (resolver_pendente_local, concluir_local, estender_local, adiar_local):
+    for rapido in (convite_report_local, resolver_pendente_local, concluir_local, estender_local, adiar_local):
         feito = rapido(texto)
         if feito:
             return feito
@@ -2871,26 +2901,40 @@ def comando_local(texto):
     return None
 
 
-# ---------------- report do dia por voz (roteiro de 4 perguntas fixas; as respostas vão para a calibragem) ----------------
+# ---------------- report do dia por voz (0.11.0): o resumo do dia, depois os mesmos toques da tela, falados ----------------
+# Energia de 1 a 5, o que atrapalhou, o que ajudou, a hipótese do dia (se houver) e um recado livre. A fala vira os chips da tela em Python.
 
-ROTEIRO = None  # {"id": "report", "i": pergunta atual, "respostas": [...], "quando": time}
-PERGUNTAS_REPORT = ["Primeira: que ajustes o seu plano precisa para amanhã?", "Em que horas você rendeu mais hoje?", "O que funcionou hoje?", "Última: o que apareceu de última hora?"]
+ROTEIRO = None  # {"id": "report", "i": passo atual, "passos": [...], "report": {...}, "quando": time}
 CANCELA_ROTEIRO = re.compile(r"\b(cancela|cancelar|esquece|deixa (pra|para) la|deixa quieto|para o report|parar o report)\b")
-PULA_PERGUNTA = re.compile(r"^(pula|pular|passa|nada|nenhum|nenhuma|nao sei|sem resposta|nao teve|nao houve)$")
+PULA_PERGUNTA = re.compile(r"^(pula|pular|passa|nada|nenhum|nenhuma|nao sei|sem resposta|nao teve|nao houve|pronto|so isso|e isso)$")
+PERGUNTA_DO_PASSO = {"energia": "De 1 a 5, como foi a sua energia hoje?", "atrapalhou": "O que mais atrapalhou hoje?",
+                     "ajudou": "E o que ajudou?", "nota": "Quer deixar mais alguma coisa anotada? Se não, diga pronto."}
 
 
 def iniciar_roteiro(a):
     global ROTEIRO
-    ROTEIRO = {"id": "report", "i": 0, "respostas": [], "quando": time.time()}
-    bus.emitir("roteiro", ativo=True, id="report", passo=1, total=len(PERGUNTAS_REPORT))
-    dizer("Report do dia, quatro perguntas rápidas. " + PERGUNTAS_REPORT[0], a)
+    import calibragem_motor
+    resumo = calibragem_motor.resumo_do_dia(v2.h.OPER)
+    hipotese = calibragem_motor.hipotese_do_dia(v2.h.OPER)
+    if hipotese:
+        calibragem_motor.marcar_perguntado(v2.h.OPER, hipotese["id"])
+    passos = ["energia", "atrapalhou", "ajudou"] + (["hipotese"] if hipotese else []) + ["nota"]
+    ROTEIRO = {"id": "report", "i": 0, "passos": passos, "report": {"hipotese": None}, "hipotese": hipotese, "quando": time.time()}
+    bus.emitir("roteiro", ativo=True, id="report", passo=1, total=len(passos))
+    dizer(f"Report do dia. {resumo['frase']} Agora {len(passos)} perguntas rápidas. " + PERGUNTA_DO_PASSO["energia"], a)
     bus.emitir("estado", v="aguardando")
     return True
 
 
+def _pergunta(r):
+    passo = r["passos"][r["i"]]
+    return r["hipotese"]["texto"] + " Sim, não ou às vezes?" if passo == "hipotese" else PERGUNTA_DO_PASSO[passo]
+
+
 def tratar_roteiro(texto, a, digitado):
-    """A fala da pessoa é a resposta da pergunta atual. Devolve True se o microfone deve reabrir para a próxima."""
+    """A fala da pessoa é a resposta do passo atual. Devolve True se o microfone deve reabrir para o próximo."""
     global ROTEIRO
+    import calibragem_motor
     r = ROTEIRO
     t = re.sub(r"\s+", " ", _norm(texto)).strip()
     if CANCELA_ROTEIRO.search(t) and len(t.split()) <= 6:
@@ -2899,17 +2943,29 @@ def tratar_roteiro(texto, a, digitado):
         dizer("Tudo bem, deixei o report de lado.", a)
         bus.emitir("estado", v="aguardando")
         return False
-    r["respostas"].append("" if PULA_PERGUNTA.match(t) else texto.strip())
+    passo, rep, pulou = r["passos"][r["i"]], r["report"], bool(PULA_PERGUNTA.match(t))
+    if passo == "energia":
+        rep["energia"] = None if pulou else calibragem_motor.energia_da_fala(texto)
+    elif passo in ("atrapalhou", "ajudou"):
+        rep[passo] = [] if pulou else calibragem_motor.chips_da_fala(texto, passo)
+        if not pulou and not rep[passo]:  # disse algo que não é nenhum dos chips: fica no recado, para não se perder
+            rep["nota"] = (rep.get("nota", "") + f" {'Atrapalhou' if passo == 'atrapalhou' else 'Ajudou'}: {texto.strip()}.").strip()
+    elif passo == "hipotese":
+        resposta = calibragem_motor.resposta_da_fala(texto)
+        if resposta:
+            rep["hipotese"] = {"id": r["hipotese"]["id"], "texto": r["hipotese"]["texto"], "resposta": resposta}
+    elif passo == "nota" and not pulou:
+        rep["nota"] = (rep.get("nota", "") + " " + texto.strip()).strip()
     r["i"] += 1
     r["quando"] = time.time()
-    if r["i"] < len(PERGUNTAS_REPORT):
-        bus.emitir("roteiro", ativo=True, id=r["id"], passo=r["i"] + 1, total=len(PERGUNTAS_REPORT))
-        dizer(PERGUNTAS_REPORT[r["i"]], a)
+    if r["i"] < len(r["passos"]):
+        bus.emitir("roteiro", ativo=True, id=r["id"], passo=r["i"] + 1, total=len(r["passos"]))
+        dizer(_pergunta(r), a)
         bus.emitir("estado", v="aguardando")
         return not digitado
     ROTEIRO = None
     bus.emitir("roteiro", ativo=False)
-    res = v2.salvar_report(r["respostas"], "voz")
+    res = v2.salvar_report(rep, "voz")
     if res.get("ok"):
         fala = "Report recebido. Obrigado." + (f" Você chegou ao marco dos {res['dia']} dias." if res.get("marco") else "")
     else:

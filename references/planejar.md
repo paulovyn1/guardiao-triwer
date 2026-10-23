@@ -43,7 +43,7 @@ Responder sim ou não a cada item. Qualquer não: corrigir e refazer. Plano repr
 2. Todo bloco de copy, decisão, pensar ou estratégia cai numa faixa boa do dia?
 3. O último bloco termina na hora de parar daquele dia, com a sobra destinada, ou a hora extra está claramente proposta como último recurso e espera aprovação?
 4. Sei onde a pessoa está e até que horas trabalha neste dia? Se não, essa é a única pergunta do plano.
-5. Cada estimativa de tempo vem do `tempos.json` (3 ou mais registros) ou de uma resposta da pessoa?
+5. Cada estimativa de tempo vem do `tempos.json` (3 ou mais registros confirmados; a razão da natureza ajusta o palpite) ou de uma resposta da pessoa?
 6. Nenhuma tarefa "opcional" serve ao foco da semana?
 7. Existe trabalho em fim de semana que um dia útil poderia absorver?
 8. Cada fato que afirmo foi conferido hoje, ou está marcado como hipótese?
@@ -52,6 +52,8 @@ Responder sim ou não a cada item. Qualquer não: corrigir e refazer. Plano repr
 11. Li `aprendizados.md` e nenhuma linha dele é violada pelo plano?
 12. Toda campanha de importante sem urgência tem o bloco curto diário?
 13. Campanha pública de venda a até 3 dias do fim tem bloco de alavanca (stories, aviso, convite) neste dia?
+14. Segui as linhas da CALIBRAGEM (`calibragem\calibragem_para_o_plano.md` ou a seção do dossiê) que tocam este dia, e todo bloco que aplica uma delas leva `"aprendizado": "<id>"` e diz isso no `por_que_agora`?
+15. Existe uma tarefa marcada com `"principal": true`, e só uma?
 
 ## 4. Modo planejar (dia e semana)
 
@@ -61,7 +63,7 @@ Responder sim ou não a cada item. Qualquer não: corrigir e refazer. Plano repr
 4. **Dono antes de tempo.** Tarefa de outro dono (os membros do config.json) recebe veredito "delegar para X". Quem escreve o briefing é o guardião, nunca a pessoa: o que fazer, como, critério de pronto e prazo-limite, em linguagem simples, sem deixar decisão em aberto. O briefing aparece no plano e, depois do ok, vira tarefa no ClickUp já atribuída ao dono.
 5. Tarefa nova recebe veredito de uma linha: fazer agora, agendar (quando), delegar para X, ou descartar.
 6. Decisão e execução ficam em blocos separados. Dúvida estratégica durante a execução vai para o estacionamento, resolvida no bloco de decisão.
-7. **Fechamento semanal** (dia e duração em `semana-base.md`): decide a semana seguinte, com as decisões já listadas e opções montadas. Perguntar "algo mudou na semana que vem?". Decisão grande vira tarefa com bloco próprio e prazo-limite em dia de trabalho.
+7. **Fechamento semanal** (dia e duração em `semana-base.md`): decide a semana seguinte, com as decisões já listadas e opções montadas. Perguntar "algo mudou na semana que vem?". Decisão grande vira tarefa com bloco próprio e prazo-limite em dia de trabalho. O que a calibragem aprendeu e o que entra fora do plano e se repete têm roteiro próprio em `references/painel.md`, seção 3.
 8. Se um bloco não foi cumprido, refazer o plano e mover os seguintes. Tarefa adiada 3 vezes: perguntar o motivo, sem empurrar.
 9. Dia ruim: plano mínimo, como definido em `perfil.md` ("Regras de decisão").
 10. Subtarefas com o prefixo de aprovação (`aprovar: true`): ignorar a data, tratar como item do bloco de aprovações de `semana-base.md`.

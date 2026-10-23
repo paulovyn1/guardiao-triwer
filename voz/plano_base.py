@@ -57,7 +57,7 @@ def montar(dia, oper=OPER, cfg=None, hoje=None, so_aprovados=False):
     for t in resumo:
         prazo = str(t.get("prazo") or "")
         if t.get("id") in ids_preparo and not (prazo == iso and t.get("inicio") and t.get("fim")):
-            continue  # preparo de evento (Estrateclass): a data do ClickUp é da automação; o limite real vem de preparos.py e entra nos motivos
+            continue  # preparo de evento (como uma live semanal): a data do ClickUp é da automação; o limite real vem de preparos.py e entra nos motivos
         if t.get("aprovar"):
             if prazo <= iso:
                 aprovar.append(t)
@@ -373,6 +373,13 @@ def dossie(dia, plano, motivos, oper=OPER, cfg=None):
     alertas = ra.alertas(planos, dia, cfg, memoria, oper)
     if alertas:
         partes += ["", "ALERTAS:", *[f"- {a}" for a in alertas]]
+    try:  # o que a calibragem já sabe da pessoa (medido, provável e confirmado), em poucas linhas
+        import calibragem_motor as cm
+        secao = cm.secao_do_plano(cm.atualizar_perfil(oper))
+        if secao:
+            partes += ["", secao]
+    except Exception as erro:
+        print("  (calibragem fora do dossiê:", erro, ")")
     return "\n".join(partes)
 
 
@@ -422,7 +429,7 @@ def consertar(plano, dia, oper=OPER, cfg=None, outros=None):
         elif prazos.get(cid) in onde or any((outros.get(d) or {}).get("status") == "aprovado" for d in onde):
             blocos.remove(b)  # o outro dia é o da data do ClickUp ou já foi aprovado: ele manda
             feito.append(f"tirei \"{b.get('titulo')}\", que já está no plano de {onde[0][8:10]}/{onde[0][5:7]}")
-    # 3. preparo de evento (Estrateclass) que chegou ao limite e não está em nenhum plano: entra no primeiro espaço que caiba
+    # 3. preparo de evento (como uma live semanal) que chegou ao limite e não está em nenhum plano: entra no primeiro espaço que caiba
     agora = datetime.now()
     a_partir = agora.hour * 60 + agora.minute + 5 if dia == agora.date() else None
     no_plano = {b.get("clickup_id") for b in blocos} | {b.get("clickup_id") for d, p in outros.items() for b in p.get("blocos") or []}

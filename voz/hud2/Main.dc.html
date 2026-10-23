@@ -389,6 +389,50 @@ body{margin:0;background:#07080a}
 .gd .rep .fld{display:flex;flex-direction:column;gap:5px}
 .gd .rep label{font-family:var(--f-mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
 .gd .rep textarea{width:100%;height:58px;resize:none;padding:10px 12px;border-radius:var(--r-in);background:var(--graf);border:1px solid var(--line);font-size:14px;line-height:1.35}
+.gd .rep .lb{font-family:var(--f-mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+.gd .rep .fl-row{gap:6px}
+.gd .rep .fl-row .chip{height:30px;padding:0 11px;font-size:12.5px}
+.gd .rep .seg{align-self:flex-start}
+.gd .rsum{padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:rgba(20,22,27,.5);display:flex;flex-direction:column;gap:8px}
+.gd .rsum .rsf{font-size:14px;color:var(--ivory)}
+.gd .rsr{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.gd .rr{display:flex;flex-direction:column;gap:1px;min-width:0}
+.gd .rr .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ivory3)}
+.gd .rr .v{font-size:13px;color:var(--ivory2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gd .rep .hip{font-family:var(--f-display);font-size:19px;line-height:1.2;color:var(--ivory)}
+.gd .cal-tabs{display:flex;margin-top:-8px}
+.gd .cal-est,.gd .cal-conq{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:0 4px 20px 0}
+.gd .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.gd .kpi{padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:rgba(20,22,27,.75);display:flex;flex-direction:column;gap:4px;min-width:0}
+.gd .kpi .k{font-family:var(--f-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.gd .kpi .v{font-family:var(--f-display);font-weight:500;font-size:34px;line-height:1;margin-top:4px}
+.gd .kpi .d{font-size:12.5px;color:var(--ivory3);min-height:16px}
+.gd .kpi .d.up{color:var(--gold2)}
+.gd .kpi .d.down{color:var(--ember)}
+.gd .kpi .aj{font-size:12px;color:var(--ivory3)}
+.gd .spark{display:flex;align-items:flex-end;gap:3px;height:34px;margin-top:4px}
+.gd .spark i{flex:1;background:rgba(178,132,49,.4);border-radius:2px;min-height:2px}
+.gd .spark i.on{background:var(--gold2)}
+.gd .spark i.vz{background:rgba(178,132,49,.12)}
+.gd .est-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.gd .est-b li{gap:10px}
+.gd .est-b .lt{flex:1;min-width:0}
+.gd .est-b .lv{color:var(--ivory);white-space:nowrap;text-align:right}
+.gd .cq-res{font-size:14px;color:var(--ivory2)}
+.gd .cgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.gd .cq{display:flex;gap:12px;padding:14px;border-radius:14px;border:1px solid var(--line);background:rgba(20,22,27,.6)}
+.gd .cq:not(.ok) .cqt h4,.gd .cq:not(.ok) .bdg2{opacity:.6}
+.gd .cq.ok{border-color:var(--gold2);background:linear-gradient(180deg,rgba(40,32,16,.9),rgba(20,17,11,.9))}
+.gd .cq.nova{box-shadow:0 0 34px -8px rgba(227,185,100,.6)}
+.gd .bdg2{width:46px;height:46px;flex:none;border-radius:50%;border:1.5px solid rgba(178,132,49,.4);display:flex;align-items:center;justify-content:center;font-family:var(--f-display);font-size:18px;color:var(--ivory3)}
+.gd .cq.ok .bdg2{border-color:var(--gold2);color:var(--gold2);box-shadow:inset 0 0 14px rgba(227,185,100,.3)}
+.gd .cqt{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.gd .cqt .g{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ivory3)}
+.gd .cqt h4{font-family:var(--f-display);font-weight:500;font-size:19px;line-height:1.1}
+.gd .cqt p{font-size:12.5px;color:var(--ivory2)}
+.gd .cq .bar{height:4px;border-radius:2px;background:rgba(178,132,49,.15);overflow:hidden;margin-top:4px}
+.gd .cq .bar i{display:block;height:100%;background:var(--gold2)}
+.gd .cq .pg{font-family:var(--f-mono);font-size:10px;color:var(--ivory3);letter-spacing:.08em}
 .gd .rep .brow{display:flex;gap:10px 14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:2px}
 .gd .rep .brow .dim{flex:1 1 200px}
 .gd .btn-gh,.gd .btn-pri{white-space:nowrap}
@@ -615,6 +659,9 @@ body{margin:0;background:#07080a}
 .gd.m-mobile .cal-sub{text-align:left;font-size:13px}
 .gd.m-mobile .cal-cols{flex-direction:column;overflow:visible;flex:none}
 .gd.m-mobile .rep{width:100%;flex:none;overflow:visible}
+.gd.m-mobile .kpis{grid-template-columns:1fr 1fr}
+.gd.m-mobile .est-cols,.gd.m-mobile .cgrid{grid-template-columns:1fr}
+.gd.m-mobile .cal-est,.gd.m-mobile .cal-conq{overflow:visible;flex:none}
 .gd.m-mobile .col2{overflow:visible}
 .gd.m-mobile .lrn{grid-template-columns:1fr}
 .gd.m-mobile .trail{height:44px}
@@ -1047,25 +1094,69 @@ body{margin:0;background:#07080a}
                   <div class="tdw"><i class="td {{d.cls}}"></i><span class="tl {{d.lcls}}">{{d.lbl}}</span></div>
                 </sc-for>
               </div>
+              <div class="cal-tabs"><div class="seg" role="tablist" aria-label="Calibragem"><sc-for list="{{cal.tabs}}" as="t" hint-placeholder-count="3"><button class="seg-b {{t.cls}}" role="tab" aria-selected="{{t.on}}" onClick="{{t.go}}">{{t.label}}</button></sc-for></div></div>
+              <sc-if value="{{cal.tabEst}}" hint-placeholder-val="{{false}}">
+                <div class="cal-est" aria-label="Estatísticas">
+                  <sc-if value="{{cal.estVazio}}" hint-placeholder-val="{{false}}"><div class="ph-empty">{{cal.estVazioTxt}}</div></sc-if>
+                  <div class="kpis">
+                    <sc-for list="{{cal.kpis}}" as="k" hint-placeholder-count="4">
+                      <div class="kpi"><div class="k">{{k.rotulo}}</div><div class="v">{{k.valor}}</div><div class="d {{k.varCls}}">{{k.varTxt}}</div>
+                        <div class="spark" role="img" aria-label="{{k.sparkAria}}"><sc-for list="{{k.barras}}" as="b" hint-placeholder-count="8"><i class="{{b.cls}}" style="height:{{b.h}}"></i></sc-for></div>
+                        <div class="aj">{{k.ajuda}}</div></div>
+                    </sc-for>
+                  </div>
+                  <div class="est-cols">
+                    <sc-for list="{{cal.estBlocos}}" as="s" hint-placeholder-count="6">
+                      <div class="chg est-b"><div class="mono" style="color:var(--gold);margin-bottom:6px">{{s.titulo}}</div>
+                        <sc-if value="{{s.vazio}}" hint-placeholder-val="{{false}}"><p class="dim" style="font-size:13px">{{s.vazioTxt}}</p></sc-if>
+                        <ul><sc-for list="{{s.linhas}}" as="l" hint-placeholder-count="3"><li><span class="lt">{{l.k}}</span><span class="lv">{{l.v}}</span></li></sc-for></ul>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{cal.tabConq}}" hint-placeholder-val="{{false}}">
+                <div class="cal-conq" aria-label="Conquistas">
+                  <p class="cq-res">{{cal.conqResumo}}</p>
+                  <div class="cgrid">
+                    <sc-for list="{{cal.conq}}" as="c" hint-placeholder-count="9">
+                      <div class="cq {{c.cls}}"><div class="bdg2">{{c.sigla}}</div>
+                        <div class="cqt"><div class="g">{{c.grupo}}</div><h4>{{c.titulo}}</h4><p>{{c.regra}}</p><div class="bar"><i style="width:{{c.pct}}"></i></div><div class="pg">{{c.prog}}</div></div></div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{cal.tabRep}}" hint-placeholder-val="{{true}}">
               <div class="cal-cols">
                 <section class="rep glass" aria-label="Report do dia">
                   <sc-if value="{{cal.showMiss}}" hint-placeholder-val="{{false}}">
                     <div class="notice"><div class="nt"><span>Dia perdido</span></div><p>{{cal.missText}}</p></div>
                   </sc-if>
+                  <sc-if value="{{cal.showRecal}}" hint-placeholder-val="{{false}}">
+                    <div class="notice"><div class="nt"><span>A rotina mudou?</span></div><p>{{cal.recalText}}</p><div class="brow" style="margin-top:8px"><span></span><button class="btn-gh" onClick="{{calRestart}}">Calibrar de novo</button></div></div>
+                  </sc-if>
                   <sc-if value="{{cal.showIntro}}" hint-placeholder-val="{{false}}">
                     <h3>Como a calibragem funciona</h3>
-                    <p>Nos primeiros 30 dias você manda um report curto por dia. É assim que o Guardião aprende quando você rende mais, o que atrapalha e o que funciona.</p>
+                    <p>Todo dia de trabalho, um report de 1 minuto: o Guardião mostra o resumo do dia e você responde em toques. É assim que ele aprende quando você rende mais, o que atrapalha e o que funciona. Depois dos 30 dias a calibragem continua.</p>
                     <div class="stp"><span class="n">01</span><span class="t">Um report por dia, cerca de 1 minuto</span></div>
-                    <div class="stp"><span class="n">02</span><span class="t">Por texto ou por voz, como preferir</span></div>
-                    <div class="stp"><span class="n">03</span><span class="t">Nos dias 7, 14, 21 e 30 você ganha uma conquista</span></div>
+                    <div class="stp"><span class="n">02</span><span class="t">Toques ou voz, como preferir, e um campo aberto se quiser escrever</span></div>
+                    <div class="stp"><span class="n">03</span><span class="t">Nos dias 7, 14, 21 e 30 você ganha um marco</span></div>
                     <div class="brow"><span class="dim" style="font-size:13px">Ainda não há dados. Eles aparecem aqui conforme os reports chegam.</span><button class="btn-pri sm" onClick="{{openCalForm}}">Fazer o primeiro report</button></div>
                   </sc-if>
                   <sc-if value="{{cal.showForm}}" hint-placeholder-val="{{true}}">
                     <h3>Report do dia</h3>
-                    <p>Cerca de 1 minuto. Escreva ou use a voz.</p>
-                    <sc-for list="{{cal.fields}}" as="f" hint-placeholder-count="4">
-                      <div class="fld"><label for="{{f.id}}">{{f.label}}</label><textarea id="{{f.id}}" placeholder="{{f.ph}}" value="{{f.v}}" onChange="{{f.set}}"></textarea></div>
-                    </sc-for>
+                    <div class="rsum">
+                      <span class="lb">Resumo de hoje</span>
+                      <sc-if value="{{cal.showFrase}}" hint-placeholder-val="{{false}}"><p class="rsf">{{cal.resumoFrase}}</p></sc-if>
+                      <sc-if value="{{cal.hasResumo}}" hint-placeholder-val="{{true}}"><div class="rsr"><sc-for list="{{cal.resumoRows}}" as="r" hint-placeholder-count="4"><div class="rr"><span class="k">{{r.k}}</span><span class="v">{{r.v}}</span></div></sc-for></div></sc-if>
+                    </div>
+                    <div class="fld"><span class="lb">Energia hoje, de 1 a 5</span><div class="seg" role="group" aria-label="Energia hoje"><sc-for list="{{cal.energia}}" as="o" hint-placeholder-count="5"><button class="seg-b {{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.go}}">{{o.label}}</button></sc-for></div></div>
+                    <div class="fld"><span class="lb">O que atrapalhou</span><div class="fl-row" role="group" aria-label="O que atrapalhou"><sc-for list="{{cal.atrap}}" as="c" hint-placeholder-count="6"><button class="chip {{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.go}}">{{c.label}}</button></sc-for></div></div>
+                    <div class="fld"><span class="lb">O que ajudou</span><div class="fl-row" role="group" aria-label="O que ajudou"><sc-for list="{{cal.ajud}}" as="c" hint-placeholder-count="6"><button class="chip {{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.go}}">{{c.label}}</button></sc-for></div></div>
+                    <sc-if value="{{cal.hasHip}}" hint-placeholder-val="{{false}}">
+                      <div class="fld hipf"><span class="lb">Pergunta do dia</span><p class="hip">{{cal.hipTexto}}</p><div class="seg" role="group" aria-label="Resposta da pergunta do dia"><sc-for list="{{cal.hipOpts}}" as="o" hint-placeholder-count="3"><button class="seg-b {{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.go}}">{{o.label}}</button></sc-for></div></div>
+                    </sc-if>
+                    <div class="fld"><label for="cal-nota">Quer contar mais alguma coisa? (opcional)</label><textarea id="cal-nota" placeholder="Escreva se quiser: o que aconteceu, o que sentiu, o que precisa mudar." value="{{cal.nota}}" onChange="{{cal.setNota}}"></textarea></div>
                     <div class="brow">
                       <button class="btn-gh" onClick="{{calDictate}}">{{cal.dictLabel}}</button>
                       <button class="btn-pri sm" onClick="{{calSend}}" disabled="{{cal.sendDis}}">Enviar report</button>
@@ -1125,6 +1216,7 @@ body{margin:0;background:#07080a}
                   </sc-if>
                 </div>
               </div>
+              </sc-if>
             </div>
           </div>
         </section>
@@ -1557,7 +1649,7 @@ function drawSeal(cv, p) {
 
 /* ===== Sons: tudo sintetizado em WebAudio, sem arquivos ===== */
 const SFX = (() => {
-  let ac = null, master = null, wetIn = null, noiseBuf = null, atmos = null, thinkIv = 0, writeIv = 0;
+  let ac = null, master = null, wetIn = null, noiseBuf = null, atmos = null, writeIv = 0;
   let vol = 0.55;
   function ctx() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return ac.state === 'running' ? ac : null; }  // som agendado com o áudio parado tocaria todo de uma vez depois
@@ -1689,17 +1781,11 @@ const SFX = (() => {
       const t = ac.currentTime, a = atmos; atmos = null;
       try { a.g.gain.cancelScheduledValues(t); a.g.gain.setValueAtTime(Math.max(0.0001, a.g.gain.value), t); a.g.gain.exponentialRampToValueAtTime(0.0001, t + (fade || 0.6)); a.nodes.forEach((n) => { try { n.stop(t + (fade || 0.6) + 0.05); } catch (e) { /* ok */ } }); } catch (e) { /* ok */ }
     },
-    // pensando: sininhos suaves em pentatônica, enquanto durar
-    thinkStart() {
-      if (thinkIv || !ctx()) return;
-      const bell = () => { try { const f = PENT[Math.floor(Math.random() * PENT.length)]; tone(f, 0, 1.4, { gain: 0.016, wet: 0.85 }); tone(f * 1.5, 0.02, 1.0, { gain: 0.006, wet: 0.9 }); } catch (e) { /* ok */ } };
-      bell(); thinkIv = setInterval(bell, 460);
-    },
-    thinkStop() { if (thinkIv) { clearInterval(thinkIv); thinkIv = 0; } },
+    // pensando: em silêncio (a música de sininhos que tocava enquanto ele pensava saiu em 15/10/2026)
     // escrevendo: o Guardião digitando a resposta
     writeStart() { if (writeIv || !ctx()) return; writeIv = setInterval(() => { if (Math.random() < 0.72) LIB.write(); }, 85); },
     writeStop() { if (writeIv) { clearInterval(writeIv); writeIv = 0; } },
-    stopAll() { this.thinkStop(); this.writeStop(); this.atmosStop(0.3); }
+    stopAll() { this.writeStop(); this.atmosStop(0.3); }
   };
 })();
 
@@ -1712,12 +1798,6 @@ const FLOWS = [
   { id: 'agora', label: 'O que eu faço agora?', texto: 'O que eu faço agora?' },
   { id: 'imprevisto', label: 'Surgiu um imprevisto', texto: 'Surgiu um imprevisto e preciso encaixar no dia.' },
   { id: 'projeto', label: 'Nova demanda ou projeto', texto: 'Tenho uma demanda nova para registrar.' }
-];
-const REPORT_Q = [
-  { id: 'aj', label: 'Ajustes necessários', ph: 'O que precisa mudar no seu plano?' },
-  { id: 'pk', label: 'Melhores picos de energia e foco', ph: 'Em que horas você rendeu mais?' },
-  { id: 'ok', label: 'O que funcionou', ph: 'O que deu certo hoje?' },
-  { id: 'ul', label: 'O que apareceu de última hora', ph: 'Que imprevistos entraram no dia?' }
 ];
 const MOTIVOS = ['Subestimei o tempo', 'Interrupções', 'Faltou informação', 'Me distraí', 'Sem energia', 'Depende de outra pessoa', 'Prefiro não dizer'];
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
@@ -1791,7 +1871,7 @@ class Component extends DCLogic {
       pf: { sound: true, stateSnd: true, volume: 70, typing: true, motion: true, touch: true, confirm: true, track: true, alwaysMic: false, openMic: true, openExec: true, session: false, provider: 'claude', voice: true, speed: 1, light: false, variant: 'N' },
       saude: null, pessoa: 'você', gname: 'Guardião',
       scene: null, sceneOn: false, toasts: [],
-      cal: null, calForm: false, calFields: ['', '', '', ''], calBusy: false,
+      cal: null, calForm: false, calRep: null, calBusy: false, calTab: 'rep',
       pops: null, popTab: 'mine', popQ: '', popFront: 'Todas', popDraft: null, popNewId: '',
       checkin: null, roteiro: null,
       introPhase: 'prep', introT: 0, introStart: 0,
@@ -1870,8 +1950,6 @@ class Component extends DCLogic {
     if (pr.net !== cur.net) this.sfx(cur.net === 'offline' ? 'shutdown' : 'power');
     if (!pr.lis && cur.lis) this.sfx('micOn');
     if (pr.lis && !cur.lis && cur.eff === 'transcribing') this.sfx('micOff');
-    const thinkOn = cur.eff === 'thinking' && pf.sound && pf.stateSnd !== false;
-    if (thinkOn) SFX.thinkStart(); else SFX.thinkStop();
     if (pr.eff !== cur.eff && cur.eff === 'error' && pr.eff !== 'error' && performance.now() - (this.lastSfxT || 0) > 200) this.sfx('error');
   }
 
@@ -2018,7 +2096,7 @@ class Component extends DCLogic {
     }).catch((e) => this.falha(e));
   }
   carregarPlano() { return API.get('/plano').then((p) => { this.setState(this.mapPlano(p)); }).catch(() => {}); }
-  carregarCal() { return API.get('/calibragem').then((c) => { this.setState({ cal: c, calFields: this.state.calForm ? this.state.calFields : (c.campos || ['', '', '', '']) }); }).catch(() => {}); }
+  carregarCal() { return API.get('/calibragem').then((c) => { this.setState({ cal: c, calRep: this.state.calForm ? this.state.calRep : null }); }).catch(() => {}); }
   carregarPops() { return API.get('/pops').then((p) => { const tem = p && p.meus && p.meus.length; this.setState({ pops: p, popTab: this.state.pops ? this.state.popTab : (tem || !(p.escola && p.escola.itens.length) ? 'mine' : 'school') }); }).catch(() => {}); }
   mapPlano(p, pessoaNova) {
     if (!p || !p.hoje) return {};
@@ -2088,9 +2166,10 @@ class Component extends DCLogic {
       case 'checkin': this.onCheckin(ev); break;
       case 'checkin_fim': this.onCheckinFim(ev); break;
       case 'calibragem': this.carregarCal().then(() => { if (ev.estado === 'sent' || ev.estado === 'milestone') { this.playSeal('ach'); this.sfx('success'); } }); break;
+      case 'conquista': this.toast('Conquista desbloqueada: ' + ev.titulo + '.'); this.playSeal('ach'); this.sfx('success'); this.carregarCal(); break;
       case 'pops': this.carregarPops(); break;
       case 'ui': this.onUi(ev); break;
-      case 'ditado': if (typeof ev.campo === 'number' && ev.texto) this.setCalField(ev.campo, ev.texto); break;
+      case 'ditado': if (ev.texto) this.calNota((this.repAtual().nota + ' ' + ev.texto).trim()); break;  // o que foi ditado vai para o campo aberto do report
       case 'roteiro': this.setState({ roteiro: ev.ativo ? ev : null }); break;
       case 'conversa': this.onConversa(ev); break;
       case 'ferramenta': this.onFerramenta(ev); break;
@@ -2319,6 +2398,7 @@ class Component extends DCLogic {
     API.post('/execucao', { acao: 'checkin', resposta: o.resposta, minutos: o.minutos, motivo: o.motivo, bloco: c.bloco, titulo: c.titulo }).then((r) => {
       if (!r || r.ok === false) { this.toast((r && r.erro) || 'Não consegui registrar.', true); return; }
       if (r.acao === 'concluir') { this.closeScene(true); this.setState({ checkin: null }); if (this.state.screen !== 'home') this.go('home'); this._t(() => this.complete(), 380); }
+      if (r.acao === 'report') { this.closeScene(true); this.setState({ checkin: null }); this.go('cal'); this._t(() => this.openCalForm(), 380); }  // convite da hora de parar
     }).catch((e) => this.falha(e));
   }
   checkinOutro() {
@@ -2810,7 +2890,7 @@ class Component extends DCLogic {
   dtDone(id) {
     const t = this.findTask(id); if (!t) return;
     const h = this.horasDe(t, this.state.now);
-    this.setState({ dForm: { open: true, a: hhmm(h.a), b: hhmm(h.b), note: '' } });
+    this.setState({ dForm: { open: true, a: hhmm(h.a), b: hhmm(h.b), note: '', a0: hhmm(h.a), b0: hhmm(h.b), medido: h.medido } });
   }
   onDfA(e) { this.setState({ dForm: Object.assign({}, this.state.dForm, { a: e.target.value }) }); }
   onDfB(e) { this.setState({ dForm: Object.assign({}, this.state.dForm, { b: e.target.value }) }); }
@@ -2820,8 +2900,10 @@ class Component extends DCLogic {
     const S = this.state, id = S.detail && S.detail.id, t = this.findTask(id), a = parseHM(S.dForm.a), b = parseHM(S.dForm.b), nota = String(S.dForm.note || '').trim();
     if (!t) return;
     if (a == null || b == null || b <= a) { this.toast('Confira os horários. Use o formato 09:30.', true); return; }
+    // horário sugerido aceito sem mexer, e sem ter sido medido: não é horário informado, fica fora da média de tempo (calibragem, 0.11.0)
+    const informado = S.dForm.medido || hhmm(a) !== S.dForm.a0 || hhmm(b) !== S.dForm.b0;
     this.setState({ detailOpen: false, dForm: { open: false, a: '', b: '', note: '' } });
-    API.post('/concluir', { id, concluido: true, nota, inicio: hhmm(a), fim: hhmm(b) }).then((r) => {
+    API.post('/concluir', { id, concluido: true, nota, inicio: hhmm(a), fim: hhmm(b), nao_confirmado: !informado }).then((r) => {
       if (!r || !r.ok) { this.toast((r && r.erro) || 'Não consegui concluir.', true); return; }
       this.toast('Marcada como feita às ' + hhmm(b) + '.'); this.sfx('done');
       this.setState({ breath: this.state.breath + 1 });
@@ -2837,27 +2919,41 @@ class Component extends DCLogic {
   dtCU() { const p = this.curTask(); if (p) this.abrirUrl(p.url); }
 
   /* ---------- calibragem ---------- */
+  /* o report de toques (0.11.0): o que a pessoa marcou fica em calRep; sem nada marcado ainda, parte do que o app já detectou no dia */
+  repAtual() {
+    const S = this.state, K = S.cal || {};
+    if (S.calRep) return S.calRep;
+    const h = K.hoje && K.hoje.versao === 2 ? K.hoje : null;
+    if (h) return { energia: h.energia || null, atrapalhou: (h.atrapalhou || []).slice(), ajudou: (h.ajudou || []).slice(), hip: h.hipotese ? h.hipotese.resposta : null, nota: h.nota || '' };
+    return { energia: null, atrapalhou: ((K.resumo && K.resumo.detectados) || []).slice(), ajudou: [], hip: null, nota: '' };
+  }
+  editRep(mudar) { const R = Object.assign({}, this.repAtual()); mudar(R); this.setState({ calRep: R }); }
+  calEnergia(n) { this.beep('tap'); this.editRep((R) => { R.energia = R.energia === n ? null : n; }); }
+  calChip(lista, rotulo) { this.beep('tap'); this.editRep((R) => { const l = R[lista].slice(), i = l.indexOf(rotulo); if (i >= 0) l.splice(i, 1); else l.push(rotulo); R[lista] = l; }); }
+  calHip(resp) { this.beep('tap'); this.editRep((R) => { R.hip = R.hip === resp ? null : resp; }); }
+  calNota(v) { this.editRep((R) => { R.nota = v; }); }
+  temRep(R) { return !!(R.energia || R.atrapalhou.length || R.ajudou.length || R.hip || String(R.nota || '').trim()); }
   calSend() {
-    const S = this.state, campos = S.calFields.slice(); if (S.calBusy || campos.every((x) => !String(x || '').trim())) return;
+    const S = this.state, K = S.cal || {}, R = this.repAtual(); if (S.calBusy || !this.temRep(R)) return;
+    const hip = K.hipotese && R.hip ? { id: K.hipotese.id, texto: K.hipotese.texto, resposta: R.hip } : null;
     this.setState({ calBusy: true });
-    API.post('/calibragem/report', { campos }).then((r) => {
+    API.post('/calibragem/report', { report: { energia: R.energia, atrapalhou: R.atrapalhou, ajudou: R.ajudou, hipotese: hip, nota: String(R.nota || '').trim() } }).then((r) => {
       this.setState({ calBusy: false });
       if (!r || !r.ok) { this.toast((r && r.erro) || 'Não consegui salvar o report.', true); return; }
-      this.setState({ calForm: false });
+      this.setState({ calForm: false, calRep: null });
       this.toast(r.marco ? 'Report recebido. Marco dos ' + r.dia + ' dias alcançado.' : 'Report recebido. Obrigado.');
     }).catch((e) => { this.setState({ calBusy: false }); this.falha(e); });
   }
-  openCalForm() { const c = this.state.cal; this.setState({ calForm: true, calFields: c && c.campos ? c.campos.slice() : ['', '', '', ''] }); }
+  openCalForm() { this.setState({ calForm: true, calRep: null }); }
   calDictate() {
-    const S = this.state, i = S.calFields.findIndex((x) => !String(x || '').trim());
+    const S = this.state;
     if (S.net === 'offline') { this.toast('O guardião está desligado neste computador.', true); return; }
-    if (i < 0) { this.toast('Os quatro campos já têm texto.'); return; }
     if (S.orbState !== 'idle') return;
-    API.post('/ditar', { campo: i }).catch((e) => this.falha(e));
-    this.toast('Pode falar: ' + REPORT_Q[i].label.toLowerCase() + '.');
+    API.post('/ditar', { campo: 0 }).catch((e) => this.falha(e));
+    this.toast('Pode falar. O que você disser vai para o campo aberto.');
   }
-  calRestart() { API.post('/calibragem/reiniciar', {}).then(() => { this.setState({ calForm: false, calFields: ['', '', '', ''] }); this.carregarCal(); }).catch((e) => this.falha(e)); }
-  setCalField(i, v) { const f = this.state.calFields.slice(); f[i] = v; this.setState({ calFields: f }); }
+  calRestart() { API.post('/calibragem/reiniciar', {}).then(() => { this.setState({ calForm: false, calRep: null }); this.carregarCal(); }).catch((e) => this.falha(e)); }
+  calAba(id) { this.beep('tap'); this.setState({ calTab: id }); if (id !== 'rep') this.carregarCal(); }
 
   /* ---------- preferências ---------- */
   openPrefs() { this.setState({ prefsOpen: true, detailOpen: false, hdPin: false }); }
@@ -3204,19 +3300,67 @@ class Component extends DCLogic {
       const isToday = d.d === K.dia;
       return { cls: (d.estado === 'ok' ? ' ok' : '') + (d.estado === 'miss' ? ' miss' : '') + (d.estado === 'hoje' ? ' today' : '') + (d.marco ? ' ms' : ''), lbl: d.marco || isToday ? String(d.d) : '', lcls: isToday ? 'on' : '' };
     });
-    const temAprend = K.aprendizados.length > 0;
-    const calSub = { d1: 'O Guardião ainda não conhece você. Em 30 dias ele aprende o seu ritmo.', pending: 'Falta o report de hoje. Leva cerca de 1 minuto.', sent: 'Report de hoje recebido. Amanhã tem mais.', missed: 'Ontem ficou sem report. Hoje você retoma.', milestone: K.dia + ' dias calibrados. O Guardião já planeja com o que aprendeu.', final: 'A calibragem terminou. O Guardião agora conhece o seu ritmo.' }[CS];
-    const proxMarco = [7, 14, 21, 30].find((x) => x > K.dia);
+    const temAprend = K.aprendizados.length > 0, cont = !!K.continua;
+    const calSub = { d1: 'O Guardião ainda não conhece você. Em 30 dias ele aprende o seu ritmo, e segue aprendendo depois.', pending: 'Falta o report de hoje. Leva cerca de 1 minuto.', sent: cont ? 'Report de hoje recebido. O Guardião segue aprendendo com você.' : 'Report de hoje recebido. Amanhã tem mais.', missed: 'Ontem ficou sem report. Hoje você retoma.', milestone: K.dia + ' dias calibrados. O Guardião já planeja com o que aprendeu.', final: 'Trinta dias. O Guardião já conhece o seu ritmo, e a calibragem continua com um report curto por dia.' }[CS];
+    const marcos = K.marcos || [7, 14, 21, 30, 60, 90, 180, 365], proxMarco = marcos.find((x) => x > K.dia);
+    const R = this.repAtual(), RS = K.resumo || {}, PR = RS.principal;
+    const resumoRows = !RS.tem_plano ? [] : [{ k: 'Feitas', v: RS.feitas + ' de ' + RS.planejadas }]
+      .concat(PR ? [{ k: 'Tarefa principal', v: PR.feita ? 'Saiu' : 'Ficou para depois' }] : [])
+      .concat(RS.foco_min >= 1 ? [{ k: 'Foco medido', v: fmtRem(RS.foco_min) }] : [])
+      .concat(RS.novas ? [{ k: 'Fora do plano', v: RS.novas + (RS.novas === 1 ? ' tarefa' : ' tarefas') }] : [])
+      .concat((RS.adiadas || []).length ? [{ k: 'Adiadas', v: RS.adiadas.length + (RS.adiadas[0].motivo ? ' · ' + RS.adiadas[0].motivo : '') }] : [])
+      .concat((RS.estouros || []).length ? [{ k: 'Estourou', v: RS.estouros[0].titulo }] : [])
+      .concat(RS.amanha ? [{ k: 'Amanhã', v: RS.amanha.inicio + ' · ' + RS.amanha.titulo }] : []);
+    const opc = K.opcoes || { atrapalhou: [], ajudou: [] };
+    /* abas Estatísticas e Conquistas (0.11.0) */
+    const EST = K.estatisticas, CQ = K.conquistas || { lista: [], total: 0, desbloqueadas: 0 }, aba = S.calTab || 'rep';
+    const virg = (v) => String(v).replace('.', ',');
+    const fmtKpi = (v, u) => (v == null ? 'Pouco dado' : (u === '%' ? v + '%' : virg(v) + ' ' + u));
+    const kpis = ((EST && EST.kpis) || []).map((k) => {
+      const vals = k.serie || [], max = Math.max(1, k.unidade === '%' ? 100 : 0, ...vals.filter((x) => typeof x === 'number'));
+      const v = k.variacao;
+      return { rotulo: k.rotulo, valor: fmtKpi(k.valor, k.unidade), ajuda: k.ajuda, varCls: v == null ? '' : (v > 0 ? 'up' : v < 0 ? 'down' : ''),
+        varTxt: v == null ? (k.valor == null ? 'Aparece com 3 tarefas ou dias na semana.' : '') : (v > 0 ? '+' : '') + virg(v) + (k.unidade === '%' ? ' pontos' : ' ' + k.unidade) + ' contra a semana anterior',
+        sparkAria: k.rotulo + ' nas últimas 8 semanas',
+        barras: vals.map((x, i) => ({ h: (x == null ? 6 : Math.max(6, Math.round(100 * x / max))) + '%', cls: x == null ? 'vz' : (i === vals.length - 1 ? 'on' : '') })) };
+    });
+    const L = (k, v) => ({ k, v }), cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    const estBlocos = !EST ? [] : [
+      { titulo: 'Hora de começar', linhas: EST.atraso_por_faixa.map((a) => L(cap(a.faixa), (a.mediana > 0 ? a.mediana + ' min depois do horário' : 'no horário') + ' (' + a.n + ')')), vazioTxt: 'Aparece quando você usa o Iniciar em 3 tarefas da mesma faixa do dia.' },
+      { titulo: 'Por que as tarefas não terminam', linhas: EST.motivos.map((m) => L(m.motivo, m.vezes + (m.vezes === 1 ? ' vez' : ' vezes'))), vazioTxt: 'Os motivos aparecem quando uma tarefa é adiada ou ganha mais tempo.' },
+      { titulo: 'Fora do plano, por dia da semana', linhas: Object.keys(EST.fora_por_dia || {}).map((d) => L(cap(d), virg(EST.fora_por_dia[d]) + ' por dia')), vazioTxt: 'Ainda não entrou nada fora do plano.' },
+      { titulo: 'Fora do plano e se repete', linhas: (EST.repetidas || []).map((r) => L(r.exemplo, r.vezes + ' vezes' + (r.hora != null ? ', perto das ' + r.hora + 'h' : ''))), vazioTxt: 'Quando algo entrar 3 vezes fora do plano em duas semanas, aparece aqui e o Guardião pergunta se vira rotina.' },
+      { titulo: 'Entregas do ClickUp', linhas: EST.entregas ? [L('Adiantadas', EST.entregas.adiantada), L('No dia do prazo', EST.entregas.no_prazo), L('Atrasadas', EST.entregas.atrasada)] : [], vazioTxt: 'Aparece quando 3 tarefas com prazo forem concluídas pelo painel.' },
+      { titulo: 'Energia e rendimento', linhas: EST.energia.map((e) => L('Energia ' + e.energia, e.cumprido + '% do plano (' + e.dias + (e.dias === 1 ? ' dia' : ' dias') + ')')), vazioTxt: 'Aparece com a energia marcada no report.' },
+      { titulo: 'Onde foi o seu foco', linhas: EST.foco_por_natureza.map((f) => L(f.natureza, virg(f.horas) + ' h')).concat(EST.depois_da_hora_min ? [L('Depois da hora de parar', fmtRem(EST.depois_da_hora_min))] : []), vazioTxt: 'Aparece quando você trabalha com a tarefa iniciada no modo execução.' },
+      { titulo: 'O Guardião está ajudando?', linhas: (EST.utilidade || []).filter((u) => u.antes != null && u.agora != null).map((u) => L(u.rotulo, virg(u.antes) + ' para ' + virg(u.agora) + (u.agora === u.antes ? '' : ((u.agora > u.antes) === (u.melhor_se === 'maior') ? ' (melhorou)' : ' (piorou)')))), vazioTxt: 'Compara as suas duas primeiras semanas com as duas últimas. Aparece depois de 4 semanas com plano.' }
+    ].map((s) => Object.assign(s, { vazio: s.linhas.length === 0 }));
+    const sigla = (c) => (/^calib_/.test(c.id) ? String(c.meta) : c.titulo.split(' ').filter((w) => w.length > 2).slice(0, 2).map((w) => w[0].toUpperCase()).join(''));
+    const conq = (CQ.lista || []).map((c) => ({ grupo: c.grupo, titulo: c.titulo, regra: c.regra, sigla: sigla(c), cls: (c.desbloqueada ? 'ok' : '') + (c.nova ? ' nova' : ''),
+      pct: Math.round(100 * c.progresso / Math.max(1, c.meta)) + '%',
+      prog: c.desbloqueada ? 'Desbloqueada em ' + c.desbloqueada.slice(8, 10) + '/' + c.desbloqueada.slice(5, 7) : (c.meta > 1 ? c.progresso + ' de ' + c.meta + (c.unidade ? ' ' + c.unidade : '') : 'Ainda não') }));
+    const tabsCal = [['rep', 'Report e aprendizados'], ['est', 'Estatísticas'], ['conq', 'Conquistas · ' + CQ.desbloqueadas + ' de ' + CQ.total]]
+      .map(([id, label]) => ({ label, on: String(aba === id), cls: aba === id ? 'on' : '', go: () => this.calAba(id) }));
+    const chipsCal = (nome) => (opc[nome] || []).map((l) => { const on = R[nome].indexOf(l) >= 0; return { label: l, on: String(on), cls: on ? 'on' : '', go: () => this.calChip(nome, l) }; });
     const cal = {
-      kicker: 'Calibragem · primeiros 30 dias', head1: 'Dia ', day: K.dia, head2: ' de 30', sub: calSub,
-      trail, trailAria: 'Dia ' + K.dia + ' de 30. ' + K.reports + ' dias com report.',
+      kicker: cont ? 'Calibragem contínua' : 'Calibragem · primeiros 30 dias', head1: 'Dia ', day: K.dia, head2: cont ? '' : ' de 30', sub: calSub,
+      tabs: tabsCal, tabRep: aba === 'rep', tabEst: aba === 'est', tabConq: aba === 'conq', kpis, estBlocos,
+      estVazio: !EST || !EST.dias_com_plano, estVazioTxt: 'As estatísticas aparecem conforme você aprova planos e marca as tarefas. Ainda não há dias com plano registrados.',
+      conq, conqResumo: 'Você desbloqueou ' + CQ.desbloqueadas + ' de ' + CQ.total + ' conquistas. Elas premiam o que melhora o seu plano e protege o que importa, não a quantidade de tarefas.',
+      trail, trailAria: 'Dia ' + K.dia + (cont ? '' : ' de 30') + '. ' + K.reports + ' dias com report.',
       showMiss: CS === 'missed' && !!K.perdido, missText: 'O dia ' + K.perdido + ' ficou sem report. Sem problema: ele fica em aberto e você segue de hoje.',
+      showRecal: !!K.recalibrar && !S.calForm, recalText: K.recalibrar || '',
       showIntro: CS === 'd1' && !S.calForm, showForm: CS === 'pending' || CS === 'missed' || (CS === 'd1' && S.calForm) || editando, showAch: (CS === 'sent' || CS === 'milestone') && !editando, showFinal: CS === 'final' && !editando,
-      fields: REPORT_Q.map((q, i) => ({ id: 'cal-f' + i, label: q.label, ph: q.ph, v: S.calFields[i] || '', set: (e) => this.setCalField(i, e.target.value) })),
-      dictLabel: S.listening ? 'Ouvindo...' : 'Falar o próximo campo', sendDis: S.calBusy || S.calFields.every((x) => !String(x || '').trim()), editReport: C('openCalForm'),
+      resumoFrase: RS.frase || 'Hoje não teve plano aprovado.', showFrase: resumoRows.length === 0, hasResumo: resumoRows.length > 0, resumoRows,
+      energia: [1, 2, 3, 4, 5].map((n) => ({ label: String(n), on: String(R.energia === n), cls: R.energia === n ? 'on' : '', go: () => this.calEnergia(n) })),
+      atrap: chipsCal('atrapalhou'), ajud: chipsCal('ajudou'),
+      hasHip: !!(K.hipotese && K.hipotese.texto), hipTexto: (K.hipotese && K.hipotese.texto) || '',
+      hipOpts: [['sim', 'Sim'], ['as_vezes', 'Às vezes'], ['nao', 'Não']].map(([v, l]) => ({ label: l, on: String(R.hip === v), cls: R.hip === v ? 'on' : '', go: () => this.calHip(v) })),
+      nota: R.nota || '', setNota: (e) => this.calNota(e.target.value),
+      dictLabel: S.listening ? 'Ouvindo...' : 'Falar no campo aberto', sendDis: S.calBusy || !this.temRep(R), editReport: C('openCalForm'),
       achKick: CS === 'milestone' ? 'Marco alcançado' : 'Conquista do dia', achTitle: CS === 'milestone' ? K.dia + ' dias calibrados' : 'Dia ' + K.dia + ' calibrado', achText: CS === 'milestone' ? 'Mais uma etapa da calibragem. O que foi aprendido já aparece ao lado.' : 'Report recebido. O Guardião usa isso para ajustar os próximos planos.',
-      finalText: 'Foram ' + K.reports + ' reports em 30 dias. O que o Guardião aprendeu está ao lado e já entra nos próximos planos.',
-      showMilestone: CS === 'milestone' || CS === 'final', msNum: CS === 'final' ? '30' : String(K.dia), msTitle: CS === 'final' ? 'Calibragem concluída' : 'Marco dos ' + K.dia + ' dias', msText: CS === 'final' ? 'Trinta dias, ' + K.reports + ' reports.' : (proxMarco ? 'O próximo marco é o dia ' + proxMarco + '.' : 'Último marco.'),
+      finalText: 'Foram ' + K.reports + ' reports em 30 dias. O que o Guardião aprendeu está ao lado e já entra nos próximos planos. A calibragem continua: um report curto por dia mantém o plano em dia com a sua rotina.',
+      showMilestone: CS === 'milestone' || CS === 'final', msNum: CS === 'final' ? '30' : String(K.dia), msTitle: CS === 'final' ? 'Calibragem inicial concluída' : 'Marco dos ' + K.dia + ' dias', msText: CS === 'final' ? 'Trinta dias, ' + K.reports + ' reports. O próximo marco é o dia 60.' : (proxMarco ? 'O próximo marco é o dia ' + proxMarco + '.' : 'Último marco.'),
       noData: !temAprend, noDataTxt: K.reports || K.dias_medidos ? 'Ainda é pouco para afirmar alguma coisa. Os aprendizados aparecem com mais dias de report e de modo execução.' : 'Os aprendizados aparecem aqui conforme você manda os reports e trabalha em modo execução.',
       hasData: temAprend, learn: K.aprendizados.map((c) => Object.assign({ cls: '' }, c)),
       hasChanges: K.mudancas.length > 0, changes: K.mudancas, hasTips: K.dicas.length > 0, tips: K.dicas,
@@ -3289,7 +3433,7 @@ class Component extends DCLogic {
       // à vista, sem abrir seção: a versão, como estão os serviços e o modo leve
       top: vRows.concat([chips(servicos), sw('light', 'Modo leve', 'Menos animação, sem vidro, bolinha 2D e sem a animação de abertura. Bom para computadores fracos.')]),
       groups: [
-        { id: 'som', title: 'Voz e sons', rows: [sw('voice', 'Voz do Guardião', 'Desligada, ele só escreve. O seu microfone continua valendo. Esc enquanto ele fala também desliga.'), velSeg, sw('sound', 'Sons', 'Cliques, telas, avisos, os sininhos enquanto ele pensa e a trilha da abertura.'), rng('volume', 'Volume'), sw('typing', 'Som de digitação', 'Teclas quando você digita e o Guardião escrevendo a resposta.')] },
+        { id: 'som', title: 'Voz e sons', rows: [sw('voice', 'Voz do Guardião', 'Desligada, ele só escreve. O seu microfone continua valendo. Esc enquanto ele fala também desliga.'), velSeg, sw('sound', 'Sons', 'Cliques, telas, avisos e a trilha da abertura.'), rng('volume', 'Volume'), sw('typing', 'Som de digitação', 'Teclas quando você digita e o Guardião escrevendo a resposta.')] },
         { id: 'comp', title: 'Comportamento', rows: [seg('Quem pensa pelo Guardião', 'Escolha quem responde às conversas e monta os planos. Codex usa GPT-6 Sol com esforço médio. A troca vale no próximo pedido; cada provedor usa seu próprio login.', ['claude', 'codex'].map((v) => ({ label: v === 'claude' ? 'Claude' : 'Codex', on: pf.provider === v, cls: pf.provider === v ? 'on' : '', go: () => { this.setPf('provider', v); this.sfx('click'); } }))), sw('alwaysMic', 'Escuta contínua (Ei guardião)', 'Desligada, o microfone fica fechado e só abre quando você clica no botão dele. Ligada, ele fica aberto esperando você chamar o Guardião.'), sw('openMic', 'Reabrir depois de uma pergunta', 'Só vale com a escuta contínua ligada: reabre sozinho quando o Guardião espera uma resposta.'), sw('openExec', 'Ir direto para a execução', 'Com o plano aprovado, quando você abre o app de novo no mesmo dia, ele já mostra a tarefa de agora.'), sw('session', 'Conversa com memória do Claude', 'No Claude, cada conversa usa a sessão com conectores e agentes. No Codex, o Guardião usa o resumo e as últimas trocas; este botão não ativa uma sessão persistente.')] },
         { id: 'apar', title: 'Aparência', rows: [seg('Bolinha', 'Núcleo: cristal 3D com onda de voz. Relógio: o instrumento clássico, com o dia em volta e o tempo no centro.', ['N', 'A'].map((v) => ({ label: v === 'N' ? 'Núcleo 3D' : 'Relógio', on: pf.variant === v, cls: pf.variant === v ? 'on' : '', go: () => { this.setPf('variant', v); this.sfx('click'); } }))), seg('Formato da janela', 'Compacta é a janela pequena, para deixar num canto da tela.', [{ label: 'Completa', on: !compact, cls: !compact ? 'on' : '', go: () => { if (compact) this.toggleCompact(); } }, { label: 'Compacta', on: compact, cls: compact ? 'on' : '', go: () => { if (!compact) this.toggleCompact(); } }])] }
       ]

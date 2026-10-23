@@ -1,4 +1,4 @@
-"""Calibragem semanal (decisão da Milena, 2026-10-15): uma vez por semana, no sábado, o guardião olha o que os dados da semana apontam, formula
+"""Calibragem semanal (decisão de produto, 2026-10-15): uma vez por semana, no sábado, o guardião olha o que os dados da semana apontam, formula
 hipóteses e PERGUNTA, em vez de pesar cada requisição com a calibragem. Cada resposta vira uma ação, senão a pergunta é enfeite:
 - medição: tarefas "concluídas em 1 minuto" (feitas fora do painel e marcadas depois) saem da média do tempos.json;
 - desvio: o que o plano estima por frente e o que levou de verdade, com o motivo dito por ela, vira uma linha de calibragem\\regras.md,
@@ -13,6 +13,7 @@ import statistics
 import unicodedata
 from datetime import date, timedelta
 
+import calibragem_motor as cm
 import rota_agenda as ra
 
 OPER = ra.OPER
@@ -64,7 +65,8 @@ def analisar(oper=OPER, hoje=None):
     semana = _semana(hoje)
     perguntas = []
     recentes = _conclusoes(oper, (hoje - timedelta(days=DIAS_SEMANA)).isoformat())
-    rapidas = [e for e in recentes if e.get("real", 99) <= 2 and (e.get("planejado") or 0) >= 5]
+    # desde a 0.11.0 o tempo marcado depois, sem medir, já sai da média sozinho (confirmado=false): só pergunta o que ainda conta
+    rapidas = [e for e in recentes if e.get("real", 99) <= 2 and (e.get("planejado") or 0) >= 5 and e.get("confirmado")]
     if len(rapidas) >= 2:
         ex = "; ".join(f"{e.get('titulo')} ({e.get('planejado')} min planejados)" for e in rapidas[:3])
         perguntas.append({"id": f"medicao-{semana}", "tipo": "medicao",
@@ -75,7 +77,8 @@ def analisar(oper=OPER, hoje=None):
     por_frente = {}
     for e in _conclusoes(oper, (hoje - timedelta(days=DIAS_DESVIO)).isoformat()):
         if e.get("confirmado") and (e.get("real") or 0) >= 3 and (e.get("planejado") or 0) > 0 and (e.get("data"), e.get("titulo")) not in ja:
-            por_frente.setdefault(str(e.get("frente") or "sem frente"), []).append(e)
+            chave = cm.rotulo(e["natureza"]) if e.get("natureza") else str(e.get("frente") or "sem frente")  # natureza do trabalho (0.11.0); antes, a frente
+            por_frente.setdefault(chave, []).append(e)
     candidatas = []
     for frente, evs in por_frente.items():
         if len(evs) < MIN_AMOSTRA:
@@ -156,9 +159,7 @@ def _descartar(oper, registros):
             if (r.get("data"), r.get("titulo")) in alvo and not r.get("descartado"):
                 r["confirmado"], r["descartado"] = False, True
                 n += 1
-        confirmados = [r["real"] for r in info.get("registros") or [] if r.get("confirmado") and isinstance(r.get("real"), (int, float))]
-        if "media" in info:
-            info["media"] = round(statistics.mean(confirmados)) if len(confirmados) >= MIN_AMOSTRA else None
+        cm.recalcular(info)
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
     return n

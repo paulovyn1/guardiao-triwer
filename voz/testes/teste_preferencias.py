@@ -87,5 +87,12 @@ turnos.clear()
 g.conversar(A(), None, None, None, 0)
 confere("microfone aberto ligado: segue até o limite de 12 seguimentos", len(turnos) == 13, len(turnos))
 
+# ---------------- pensar é em silêncio (15/10/2026: a música de sininhos saiu; os outros sons ficaram) ----------------
+painel = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hud2", "Main.dc.html"), encoding="utf-8").read()
+confere("enquanto ele pensa não toca música (os sininhos saíram do painel e da descrição dos Sons)",
+        "thinkStart" not in painel and "thinkIv" not in painel and "sininhos enquanto ele pensa" not in painel)
+confere("os outros sons continuam: digitação dele, trilha da abertura, avisos e ligar e desligar",
+        all(x in painel for x in ("writeStart()", "atmos(dur)", "power: 'stateSnd'", "confirm: 'confirm'")))
+
 print(f"\n{sum(resultados)}/{len(resultados)} verificações passaram")
 sys.exit(0 if all(resultados) else 1)

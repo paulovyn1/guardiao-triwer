@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 
 import requests
 
+import calibragem_motor as cm
 import hud_servidor as h
 
 _trava = threading.RLock()
@@ -30,7 +31,8 @@ DICAS = {  # uma estratégia curta e prática para cada motivo, dita logo depois
 DIAS_CURTOS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 DIAS_INGLES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 HORAS_CALOR = list(range(8, 19))  # colunas do mapa de foco: 8h a 18h
-MARCOS = (7, 14, 21, 30)
+MARCOS = (7, 14, 21, 30, 60, 90, 180, 365)  # depois do dia 30 a calibragem continua (decisão de produto, 15/10/2026)
+TRILHA = 30
 
 
 # ---------------- utilidades ----------------
@@ -116,16 +118,47 @@ def _pasta_cal():
     return os.path.join(h.OPER, "calibragem")
 
 
-def registrar_evento(tipo, bloco=None, **extra):
-    """Uma linha por fato observado (aviso de tempo, extensão, adiamento, conclusão, imprevisto). É a matéria-prima do que o guardião aprende."""
+def _repetido(tipo, bloco_id, segundos):
+    """O mesmo fato (tipo e bloco) já foi gravado há menos de `segundos`? Lê só o fim do arquivo."""
+    try:
+        with open(os.path.join(_pasta_cal(), "eventos.jsonl"), "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - 8192))
+            linhas = f.read().decode("utf-8", errors="ignore").splitlines()[-40:]
+    except OSError:
+        return False
+    agora = time.time()
+    for linha in reversed(linhas):
+        try:
+            ev = json.loads(linha)
+        except ValueError:
+            continue
+        if ev.get("tipo") == tipo and ev.get("bloco") == bloco_id:
+            try:
+                return agora - time.mktime(time.strptime(ev["ts"], "%Y-%m-%d %H:%M:%S")) < segundos
+            except (KeyError, ValueError):
+                return False
+    return False
+
+
+def registrar_evento(tipo, bloco=None, unico_por=None, **extra):
+    """Uma linha por fato observado (aviso de tempo, extensão, adiamento, conclusão, imprevisto). É a matéria-prima do que o guardião aprende.
+    Bloco do plano leva a natureza (o tipo de trabalho) e a marca de tarefa principal. Com `unico_por` (segundos), o mesmo fato do mesmo bloco não se repete."""
     linha = {"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "data": _hoje(), "hora": _agora_hm(), "tipo": tipo}
     if bloco:
         linha.update({"bloco": bloco.get("id"), "titulo": bloco.get("titulo"), "frente": bloco.get("frente")})
+        if bloco.get("inicio"):  # bloco de verdade do plano (o "fixo" e o "novas" dos avisos não têm horário)
+            linha["natureza"] = cm.natureza_do_bloco(bloco)
+            if bloco.get("principal"):
+                linha["principal"] = True
     linha.update({k: v for k, v in extra.items() if v is not None})
     try:
         os.makedirs(_pasta_cal(), exist_ok=True)
-        with _trava, open(os.path.join(_pasta_cal(), "eventos.jsonl"), "a", encoding="utf-8") as f:
-            f.write(json.dumps(linha, ensure_ascii=False) + "\n")
+        with _trava:
+            if unico_por and _repetido(tipo, linha.get("bloco"), unico_por):
+                return None
+            with open(os.path.join(_pasta_cal(), "eventos.jsonl"), "a", encoding="utf-8") as f:
+                f.write(json.dumps(linha, ensure_ascii=False) + "\n")
     except OSError:
         pass
     return linha
@@ -166,6 +199,7 @@ def _ler_exec():
     d.setdefault("sessoes", [])
     d.setdefault("avisados", [])
     d.setdefault("aguardando", [])
+    d.setdefault("contados", [])  # blocos de hoje cujo tempo já foi somado no tempos.json
     return d
 
 
@@ -259,11 +293,15 @@ def entrar(iniciar=False):
         b = bloco_atual(plano)
         ja = bool(d["modo"].get("ativo"))
         d["modo"] = {"ativo": True, "desde": d["modo"].get("desde") if ja else _agora_hm()}
+        primeira_vez = False
         if b and plano.get("status") == "aprovado" and (iniciar or comecou(d, b.get("id"))):
+            primeira_vez = not comecou(d, b.get("id"))
             _abrir_trecho(d, b)
         _gravar(_arq_exec(), d)
     if not ja:
         registrar_evento("execucao_inicio", b)
+    if primeira_vez:  # o atraso para começar é o melhor sinal de procrastinação: hora do bloco contra o clique em Iniciar
+        registrar_evento("inicio_bloco", b, planejado=b.get("inicio"), atraso=_agora_min() - h._min(b["inicio"]))
     _avisar_tela()
     return {"ok": True, **estado_exec()}
 
@@ -316,6 +354,7 @@ def ao_concluir(bloco, real, nao_confirmado, concluido):
         return
     with _trava:
         d = _ler_exec()
+        ja_contado = bloco.get("id") in d.setdefault("contados", [])  # concluído duas vezes (tela e ClickUp, ou reaberto e concluído de novo): conta uma vez
         s = _sessao(d, bloco.get("id"))
         trabalhado = None
         if s:
@@ -324,36 +363,42 @@ def ao_concluir(bloco, real, nao_confirmado, concluido):
             s["resultado"] = "concluido"
             s["minutos"] = trabalhado
             s["fim"] = _agora_hm()
-        if s or bloco.get("id") in d["aguardando"]:
-            d["aguardando"] = [x for x in d["aguardando"] if x != bloco.get("id")]
-            _gravar(_arq_exec(), d)
+        if not ja_contado:
+            d["contados"].append(bloco.get("id"))
+        d["aguardando"] = [x for x in d["aguardando"] if x != bloco.get("id")]
+        _gravar(_arq_exec(), d)
         if CHECKIN and CHECKIN.get("bloco") == bloco.get("id"):
             CHECKIN = None
             h.bus.emitir("checkin_fim", motivo="concluido")
+    if ja_contado:
+        _avisar_tela()
+        return
     planejado = h._min(bloco["fim"]) - h._min(bloco["inicio"]) - int(bloco.get("estendido_min") or 0)
     relogio = (h._min(real["fim"]) - h._min(real["inicio"])) % 1440 if real else None
-    medido = trabalhado if trabalhado and trabalhado >= 1 else None
+    medido = trabalhado if trabalhado and trabalhado >= cm.MIN_MEDIDO else None  # Iniciar e concluir no mesmo minuto não é trabalho medido
     minutos = medido if medido is not None else relogio
-    confirmado = medido is not None or not nao_confirmado
+    confirmado = cm.tempo_confiavel(planejado, minutos, medido is not None, not nao_confirmado)
+    natureza = cm.natureza_do_bloco(bloco)
+    prazo = None
+    if bloco.get("clickup_id"):  # o prazo final da tarefa: diz se a entrega saiu adiantada, no prazo ou atrasada
+        tarefa = next((t for t in (h._ler_json(os.path.join(h.OPER, "resumo_clickup.json")) or {}).get("tarefas", []) if t.get("id") == bloco["clickup_id"]), None)
+        prazo = (tarefa or {}).get("prazo")
     if minutos is not None:
-        _somar_tempo(bloco.get("frente") or "Geral", bloco.get("titulo"), planejado, minutos, confirmado)
-        registrar_evento("conclusao", bloco, planejado=planejado, real=minutos, desvio=minutos - planejado, confirmado=confirmado,
-                         medido=medido is not None, estendido=int(bloco.get("estendido_min") or 0) or None)
+        _somar_tempo(natureza, bloco.get("titulo"), planejado, minutos, confirmado, frente=bloco.get("frente"), medido=medido is not None)
+    registrar_evento("conclusao", bloco, planejado=planejado, real=minutos, desvio=(minutos - planejado) if minutos is not None else None, confirmado=confirmado,
+                     medido=medido is not None, estendido=int(bloco.get("estendido_min") or 0) or None, inicio_planejado=bloco.get("inicio"), prazo=prazo)
+    verificar_conquistas()
     _avisar_tela()
 
 
-def _somar_tempo(tipo, titulo, planejado, real, confirmado):
-    """tempos.json: os 10 últimos registros por tipo de tarefa e a média (só vale com 3 execuções confirmadas)."""
+def _somar_tempo(natureza, titulo, planejado, real, confirmado, frente=None, medido=False):
+    """tempos.json: os 10 últimos registros por natureza da tarefa e a média (só vale com 3 execuções confirmadas). Folga não entra."""
     caminho = os.path.join(h.OPER, "tempos.json")
     with _trava:
+        cm.garantir_tempos(h.OPER)
         dados = h._ler_json(caminho) or {}
-        tipos = dados.setdefault("tipos", {})
-        t = tipos.setdefault(tipo, {"registros": [], "media": None})
-        t.setdefault("registros", []).append({"data": _hoje(), "titulo": titulo, "planejado": planejado, "real": real, "confirmado": bool(confirmado)})
-        t["registros"] = t["registros"][-10:]
-        validos = [r["real"] for r in t["registros"] if r.get("confirmado")]
-        t["media"] = round(sum(validos) / len(validos)) if len(validos) >= 3 else None
-        t["media_planejado"] = round(sum(r["planejado"] for r in t["registros"]) / len(t["registros"]))
+        cm.somar(dados, natureza, {"data": _hoje(), "titulo": titulo, "frente": frente, "planejado": planejado, "real": real,
+                                   "confirmado": bool(confirmado), "medido": bool(medido)})
         _gravar(caminho, dados)
 
 
@@ -653,6 +698,7 @@ def ligar_vigia():
                 _tique()
                 _tique_fixos()
                 _avisar_tarefas_novas()
+                _tique_report()
             except Exception as erro:  # o vigia nunca pode derrubar o guardião
                 print("  (vigia da execução falhou:", erro, ")")
             time.sleep(15)
@@ -699,6 +745,14 @@ def responder_checkin(dados):
             if resposta == "novas_replanejar" and pedido:
                 h.bus.comandos.put(("perguntar", pedido))  # entra na conversa como se ela tivesse escrito: o guardião refaz o plano
             return {"ok": True, "fim": True, "texto": "Combinado." if resposta == "novas_replanejar" else "Combinado. As tarefas novas ficam para depois."}
+        if bloco_id == "report" and resposta in ("report_agora", "report_depois"):  # convite do report na hora de parar
+            CHECKIN = None
+            h.bus.emitir("checkin_fim", motivo="respondido")
+            registrar_evento("convite_report_resposta", None, resposta="agora" if resposta == "report_agora" else "depois")
+            _avisar_tela()
+            if resposta == "report_agora":
+                return {"ok": True, "fim": True, "acao": "report"}
+            return _fecho("Combinado. Amanhã tem mais.", falar=True)
         if bloco_id == "fixo" and resposta in ("fixo_feito", "fixo_nao"):
             titulo = (c or {}).get("titulo")
             registrar_evento("checkin_fixo_resposta", {"id": "fixo", "titulo": titulo}, resposta="feito" if resposta == "fixo_feito" else "nao_fez")
@@ -850,30 +904,150 @@ def _dias_de_trabalho():
     return {DIAS_INGLES.index(n) for n in nomes if n in DIAS_INGLES} or {0, 1, 2, 3, 4}
 
 
+def _mtime_semana_base():
+    memoria = ((h._config().get("pastas") or {}).get("memoria")) or os.path.join(h.OPER, "memoria")
+    try:
+        return int(os.path.getmtime(os.path.join(memoria, "semana-base.md")))
+    except OSError:
+        return None
+
+
+def _report_v2(dados):
+    """O report de toques (0.11.0): energia de 1 a 5, o que atrapalhou e o que ajudou (chips), a resposta à hipótese do dia e um campo aberto."""
+    try:
+        energia = int(dados.get("energia")) if dados.get("energia") not in (None, "") else None
+    except (TypeError, ValueError):
+        energia = None
+    energia = energia if energia and 1 <= energia <= 5 else None
+    escolhas = lambda chave, validos: [c for c in dict.fromkeys(str(x) for x in (dados.get(chave) or [])) if c in validos][:8]  # noqa: E731
+    hip = dados.get("hipotese") or {}
+    resposta = str(hip.get("resposta") or "") if isinstance(hip, dict) else ""
+    return {"energia": energia, "atrapalhou": escolhas("atrapalhou", cm.ATRAPALHOU), "ajudou": escolhas("ajudou", cm.AJUDOU),
+            "hipotese": {"id": str(hip.get("id") or ""), "texto": str(hip.get("texto") or "")[:300], "resposta": resposta} if resposta in cm.RESPOSTAS else None,
+            "nota": str(dados.get("nota") or "").strip()[:1500]}
+
+
 def salvar_report(campos, origem="tela"):
-    """Guarda o report do dia (4 respostas). O primeiro report marca o dia 1 da calibragem."""
-    chaves = ("ajustes", "picos", "funcionou", "ultima_hora")
-    campos = [str(c or "").strip()[:1200] for c in (list(campos or []) + ["", "", "", ""])[:4]]
-    if not any(campos):
-        return {"ok": False, "erro": "Escreva pelo menos uma das respostas."}
+    """Guarda o report do dia. O formato novo (dicionário) é o de toques; a lista de 4 respostas abertas ainda é aceita (relatos antigos e
+    integrações). O primeiro report marca o dia 1 da calibragem. Depois de gravar, a calibragem é recalculada na hora."""
+    if isinstance(campos, dict):
+        r = _report_v2(campos)
+        if not (r["energia"] or r["atrapalhou"] or r["ajudou"] or r["hipotese"] or r["nota"]):
+            return {"ok": False, "erro": "Marque pelo menos uma resposta."}
+        conteudo = {"versao": 2, **r, "resumo": cm.resumo_do_dia(h.OPER)}
+    else:
+        chaves = ("ajustes", "picos", "funcionou", "ultima_hora")
+        campos = [str(c or "").strip()[:1200] for c in (list(campos or []) + ["", "", "", ""])[:4]]
+        if not any(campos):
+            return {"ok": False, "erro": "Escreva pelo menos uma das respostas."}
+        conteudo = dict(zip(chaves, campos))
     with _trava:
         estado = h._ler_json(_arq_estado_cal()) or {}
         if not estado.get("inicio"):
-            estado = {"inicio": _hoje(), "ciclo": int(estado.get("ciclo") or 0) + 1}
+            estado = {"inicio": _hoje(), "ciclo": int(estado.get("ciclo") or 0) + 1, "semana_base_mtime": _mtime_semana_base()}
             _gravar(_arq_estado_cal(), estado)
         _gravar(os.path.join(_pasta_cal(), "reports", f"{_hoje()}.json"),
-                {"data": _hoje(), "enviado_em": time.strftime("%Y-%m-%d %H:%M"), "origem": origem, **dict(zip(chaves, campos))})
+                {"data": _hoje(), "enviado_em": time.strftime("%Y-%m-%d %H:%M"), "origem": origem, **conteudo})
+    hip = conteudo.get("hipotese")
+    if hip and hip.get("id"):
+        achado = next((a for a in (cm.atualizar_perfil(h.OPER).get("achados") or []) if a["id"] == hip["id"]), {})
+        cm.registrar_resposta(h.OPER, hip["id"], hip["resposta"], n=achado.get("n"), texto=hip.get("texto"))
+        if hip["id"].startswith("rotina:") and hip["resposta"] == "sim":  # o que se repete fora do plano passa a ter horário reservado
+            registrar_evento("rotina_aceita", None, id=hip["id"], texto=hip.get("texto"))
+    cm.atualizar_perfil(h.OPER, forcar=True)
+    _fechar_convite_report()
+    verificar_conquistas()
     visao = calibragem()
     h.bus.emitir("calibragem", dia=visao["dia"], estado=visao["estado"])
     return {"ok": True, "dia": visao["dia"], "estado": visao["estado"], "marco": visao["estado"] == "milestone"}
 
 
 def reiniciar_calibragem():
+    """Recomeça a contagem (a rotina mudou). Os achados e as respostas ficam: o que já foi aprendido continua valendo até os dados novos dizerem outra coisa."""
     with _trava:
         estado = h._ler_json(_arq_estado_cal()) or {}
         _gravar(_arq_estado_cal(), {"inicio": None, "ciclo": int(estado.get("ciclo") or 1), "encerrado_em": _hoje()})
     h.bus.emitir("calibragem", dia=1, estado="d1")
     return {"ok": True}
+
+
+# ---------------- conquistas e estatísticas ----------------
+
+def _memoria():
+    return ((h._config().get("pastas") or {}).get("memoria")) or os.path.join(h.OPER, "memoria")
+
+
+def verificar_conquistas(anunciar=True):
+    """Confere as conquistas depois de algo que pode desbloquear uma (concluir, mandar o report). A nova vai para a tela e para a voz, uma vez."""
+    try:
+        import conquistas
+        r = conquistas.calcular(h.OPER, _memoria())
+    except Exception as erro:  # a calibragem nunca pode derrubar o guardião
+        print("  (não consegui conferir as conquistas:", erro, ")")
+        return {"lista": [], "novas": [], "total": 0, "desbloqueadas": 0}
+    for c in r["novas"]:
+        registrar_evento("conquista", None, id=c["id"], titulo=c["titulo"])
+        h.bus.emitir("conquista", id=c["id"], titulo=c["titulo"])
+        if anunciar:
+            h.bus.comandos.put(("dizer", f"Conquista desbloqueada: {c['titulo']}."))
+    return r
+
+
+def estatisticas():
+    try:
+        import estatisticas as est
+        return est.calcular(h.OPER)
+    except Exception as erro:
+        print("  (não consegui calcular as estatísticas:", erro, ")")
+        return None
+
+
+# ---------------- convite do report na hora de parar ----------------
+
+def _fim_do_plano(plano):
+    fim_cfg = (h._config().get("rotina") or {}).get("fim")
+    fins = [h._min(b["fim"]) for b in plano.get("blocos", []) if h._hora(b.get("fim"))] + [h._min(f["fim"]) for f in plano.get("fixos", []) if h._hora(f.get("fim"))]
+    if h._hora(plano.get("fim_do_dia")):
+        return h._min(h._hora(plano.get("fim_do_dia")))
+    return max(fins) if fins else (h._min(h._hora(fim_cfg)) if h._hora(fim_cfg) else None)
+
+
+def _tique_report():
+    """Na hora de parar (ou quando o dia já acabou antes), convida para o report uma vez, se ele ainda não veio. Pela tela e pela voz."""
+    global CHECKIN
+    plano = h._plano_de_hoje()
+    if not plano or plano.get("status") != "aprovado" or CHECKIN or _report_de(_hoje()):
+        return None
+    fim = _fim_do_plano(plano)
+    agora = _agora_min()
+    reg = _estados_de_hoje()
+    trabalho = [b for b in plano.get("blocos", []) if h._hora(b.get("inicio")) and cm.natureza_do_bloco(b) != cm.SEM_TEMPO]
+    tudo_resolvido = bool(trabalho) and all((reg.get(b.get("id")) or {}).get("estado") in ("feito", "adiado") for b in trabalho)
+    if fim is None or agora > 23 * 60 + 30 or not (agora >= fim - 10 or (tudo_resolvido and agora >= max(h._min(b["inicio"]) for b in trabalho))):
+        return None
+    with _trava:
+        d = _ler_exec()
+        if "report" in d["avisados"]:
+            return None
+        d["avisados"].append("report")
+        _gravar(_arq_exec(), d)
+        resumo = cm.resumo_do_dia(h.OPER)
+        texto = f"Fim do dia. {resumo['frase']} Vamos ao report de um minuto?"
+        CHECKIN = {"id": f"report|{int(time.time())}", "bloco": "report", "titulo": "Report do dia", "faltam": 0, "fim": None, "passo": "inicio",
+                   "quando": time.time(), "dados": {}, "texto": texto,
+                   "opcoes": [{"rotulo": "Fazer o report", "resposta": "report_agora"}, {"rotulo": "Hoje não", "resposta": "report_depois"}]}
+        c = dict(CHECKIN)
+    registrar_evento("convite_report", None)
+    h.bus.emitir("checkin", **_publico_checkin())
+    h.bus.comandos.put(("checkin", {"texto": c["texto"], "id": c["id"]}))
+    return c
+
+
+def _fechar_convite_report():
+    global CHECKIN
+    if CHECKIN and CHECKIN.get("bloco") == "report":
+        CHECKIN = None
+        h.bus.emitir("checkin_fim", motivo="report")
 
 
 def _sessoes_recentes(dias=28):
@@ -923,30 +1097,31 @@ def _fmt_min(m):
     return f"{m} min" if m < 60 else (f"{m // 60}h" if m % 60 == 0 else f"{m // 60}h{m % 60:02d}")
 
 
-def _aprendizados(eventos, faixa, dias_foco):
-    """Cartões do que já dá para afirmar com os dados medidos, e dicas práticas. O que o guardião do chat escrever em aprendizados.json vem primeiro."""
+ROTULO_ACHADO = {"estimativa": "Tempo real", "faixa": "Hora de começar", "adiamento": "O que mais fica para depois", "energia": "Energia",
+                 "motivo": "Por que as tarefas atrasam", "folga": "Imprevistos", "ajudou": "O que funciona para você", "rotina": "Fora do plano e se repete"}
+NIVEL_ACHADO = {"confirmado": "Confirmado por você", "medido": "Medido", "provavel": "Provável", "hipotese": "Hipótese"}
+
+
+def _aprendizados(eventos, faixa, dias_foco, perfil=None):
+    """Cartões do que já dá para afirmar, dicas práticas e o que mudou no plano. Primeiro o que o guardião do chat escreveu em aprendizados.json,
+    depois o que o motor da calibragem achou (só o medido, o provável e o confirmado) e por fim as contas da tela (pico de foco, concluídas no horário)."""
     escrito = h._ler_json(os.path.join(_pasta_cal(), "aprendizados.json")) or {}
     cartoes = [{"k": str(c.get("k") or ""), "v": str(c.get("v") or ""), "d": str(c.get("d") or "")} for c in (escrito.get("cartoes") or []) if c.get("v")][:4]
     dicas = [str(x) for x in (escrito.get("dicas") or []) if x][:4]
     mudancas = [str(x) for x in (escrito.get("mudancas") or []) if x][:4]
+    perfil = perfil if perfil is not None else cm.atualizar_perfil(h.OPER)
+    for a in perfil.get("achados") or []:
+        if a.get("nivel") in ("confirmado", "medido", "provavel"):
+            cartoes.append({"k": ROTULO_ACHADO.get(a.get("tipo"), "Aprendizado"), "v": a.get("texto"), "d": f"{NIVEL_ACHADO[a['nivel']]} · {a['n']} dados", "nivel": a["nivel"]})
+    dicas += list(perfil.get("acoes") or [])
+    mudancas += cm.ultimas_mudancas(h.OPER)
     if faixa and dias_foco >= 2:
         cartoes.append({"k": "Seus melhores picos", "v": faixa, "d": f"Onde você mais trabalhou focado em {dias_foco} dias medidos."})
-    tempos = (h._ler_json(os.path.join(h.OPER, "tempos.json")) or {}).get("tipos") or {}
-    pior = None
-    for tipo, t in tempos.items():
-        regs = [r for r in t.get("registros", []) if r.get("confirmado")]
-        if len(regs) >= 2:
-            desvio = sum(r["real"] - r["planejado"] for r in regs) / len(regs)
-            if pior is None or desvio > pior[1]:
-                pior = (tipo, desvio, len(regs), sum(r["real"] for r in regs) / len(regs))
-    if pior and pior[1] >= 5:
-        cartoes.append({"k": "Onde o tempo estoura", "v": f"{pior[0]}: {_fmt_min(pior[1])} a mais", "d": f"Média de {pior[2]} execuções medidas."})
-        dicas.append(f"Reserve {_fmt_min(pior[3])} para {pior[0]}: é o tempo que essas tarefas levam de verdade.")
     motivos = {}
     for ev in eventos:
         if ev.get("motivo") and ev.get("tipo") in ("extensao", "adiamento", "imprevisto", "motivo"):
             motivos[ev["motivo"]] = motivos.get(ev["motivo"], 0) + 1
-    if motivos:
+    if motivos and not any(c.get("k") == "Por que as tarefas atrasam" for c in cartoes):
         nome, vezes = max(motivos.items(), key=lambda i: i[1])
         cartoes.append({"k": "Por que as tarefas atrasam", "v": nome, "d": f"Citado {vezes} {'vez' if vezes == 1 else 'vezes'} nos últimos 45 dias."})
         if vezes >= 2 and _dica(nome):
@@ -955,14 +1130,7 @@ def _aprendizados(eventos, faixa, dias_foco):
     if len(feitas) >= 3:
         no_prazo = sum(1 for ev in feitas if (ev.get("desvio") or 0) <= 5)
         cartoes.append({"k": "Concluídas no horário", "v": f"{no_prazo} de {len(feitas)}", "d": "Tarefas medidas em modo execução."})
-    adiadas = {}
-    for ev in eventos:
-        if ev.get("tipo") == "adiamento" and ev.get("titulo"):
-            adiadas[ev["titulo"]] = adiadas.get(ev["titulo"], 0) + 1
-    repetida = next((t for t, n in adiadas.items() if n >= 3), None)
-    if repetida:
-        dicas.append(f"\"{_curto(repetida, 50)}\" foi adiada 3 vezes ou mais. Quebre em um primeiro passo de 10 minutos e comece por ele.")
-    return cartoes[:4], list(dict.fromkeys(dicas))[:4], mudancas
+    return cartoes[:4], list(dict.fromkeys(dicas))[:4], list(dict.fromkeys(mudancas))[:4]
 
 
 def calibragem():
@@ -973,43 +1141,58 @@ def calibragem():
     trabalho = _dias_de_trabalho()
     eventos = _eventos()
     calor, dias_foco, faixa = _mapa_de_foco()
-    cartoes, dicas, mudancas = _aprendizados(eventos, faixa, dias_foco)
-    base = {"total": 30, "hoje": None, "campos": ["", "", "", ""], "aprendizados": cartoes, "dicas": dicas, "mudancas": mudancas,
-            "calor": calor, "horas": [f"{x}h" for x in HORAS_CALOR], "dias_medidos": dias_foco, "reports": 0, "perdido": None}
+    perfil = cm.atualizar_perfil(h.OPER)
+    cartoes, dicas, mudancas = _aprendizados(eventos, faixa, dias_foco, perfil)
+    rep = _report_de(hoje.isoformat())
+    hipotese = None
+    if not rep:  # a pergunta do dia: a mesma até o report sair, e no máximo uma por dia
+        hipotese = cm.hipotese_do_dia(h.OPER, perfil)
+        if hipotese:
+            cm.marcar_perguntado(h.OPER, hipotese["id"])
+    elif (rep.get("hipotese") or {}).get("id"):
+        hipotese = rep["hipotese"]
+    base = {"total": TRILHA, "hoje": None, "campos": ["", "", "", ""], "aprendizados": cartoes, "dicas": dicas, "mudancas": mudancas,
+            "calor": calor, "horas": [f"{x}h" for x in HORAS_CALOR], "dias_medidos": dias_foco, "reports": 0, "perdido": None,
+            "resumo": cm.resumo_do_dia(h.OPER), "hipotese": hipotese, "opcoes": {"atrapalhou": cm.ATRAPALHOU, "ajudou": cm.AJUDOU},
+            "continua": False, "recalibrar": None, "marcos": list(MARCOS),
+            "estatisticas": estatisticas(), "conquistas": verificar_conquistas()}
     if not inicio:
-        return {**base, "estado": "d1", "dia": 1, "trilha": [{"d": i + 1, "estado": "hoje" if i == 0 else "futuro", "marco": (i + 1) in MARCOS} for i in range(30)]}
+        return {**base, "estado": "d1", "dia": 1, "trilha": [{"d": i + 1, "estado": "hoje" if i == 0 else "futuro", "marco": (i + 1) in MARCOS} for i in range(TRILHA)]}
     dias = []
     d = date.fromisoformat(inicio)
-    while d <= hoje and len(dias) < 30:
+    while d <= hoje and len(dias) < 2000:  # a calibragem não termina no dia 30: segue contando, e a trilha mostra os últimos 30 dias
         if d.weekday() in trabalho or _report_de(d.isoformat()) or d == hoje:
             dias.append(d)
         d += timedelta(days=1)
-    trilha, feitos, perdido = [], 0, None
-    for i in range(30):
-        if i < len(dias):
+    n = len(dias)
+    com_report = {x for x in dias if _report_de(x.isoformat())}
+    desde = max(0, n - TRILHA)
+    trilha, perdido = [], None
+    for i in range(desde, desde + TRILHA):
+        if i < n:
             dia = dias[i]
-            tem = bool(_report_de(dia.isoformat()))
-            feitos += 1 if tem else 0
-            if dia == hoje:
-                est = "ok" if tem else "hoje"
-            else:
-                est = "ok" if tem else "miss"
+            tem = dia in com_report
+            est = ("ok" if tem else "hoje") if dia == hoje else ("ok" if tem else "miss")
             trilha.append({"d": i + 1, "estado": est, "marco": (i + 1) in MARCOS})
         else:
             trilha.append({"d": i + 1, "estado": "futuro", "marco": (i + 1) in MARCOS})
-    n = len(dias)
     hoje_na_trilha = bool(dias) and dias[-1] == hoje
-    rep = _report_de(hoje.isoformat())
-    if n >= 2 and hoje_na_trilha and trilha[n - 2]["estado"] == "miss":
+    if n >= 2 and hoje_na_trilha and dias[-2] not in com_report:
         perdido = n - 1
-    if n >= 30 and (rep or not hoje_na_trilha):  # 30º dia com report, ou os 30 dias já ficaram para trás
-        est = "final"
-    elif rep:
-        est = "milestone" if n in MARCOS else "sent"
+    if rep:
+        est = "final" if n == TRILHA else ("milestone" if n in MARCOS else "sent")
     else:
         est = "missed" if perdido else "pending"
-    return {**base, "estado": est, "dia": max(1, n), "trilha": trilha, "reports": feitos, "perdido": perdido,
-            "hoje": rep, "campos": [str((rep or {}).get(k) or "") for k in ("ajustes", "picos", "funcionou", "ultima_hora")]}
+    mtime, marcado = _mtime_semana_base(), estado.get("semana_base_mtime")
+    recalibrar = None
+    if marcado is None and mtime is not None:  # calibragem de antes da 0.11.0: guarda a referência agora, sem avisar
+        with _trava:
+            _gravar(_arq_estado_cal(), {**estado, "semana_base_mtime": mtime})
+    elif mtime and marcado and mtime != marcado and n >= 7:
+        recalibrar = (f"A sua semana-base mudou em {datetime.fromtimestamp(mtime):%d/%m}. Se a rotina mudou de verdade, recomece a calibragem "
+                      "para o guardião não planejar com o ritmo antigo.")
+    return {**base, "estado": est, "dia": max(1, n), "trilha": trilha, "reports": len(com_report), "perdido": perdido, "continua": n > TRILHA,
+            "recalibrar": recalibrar, "hoje": rep, "campos": [str((rep or {}).get(k) or "") for k in ("ajustes", "picos", "funcionou", "ultima_hora")]}
 
 
 # ---------------- POPs ----------------
@@ -1292,8 +1475,8 @@ def rota_get(caminho, consulta):
 def rota_post(caminho, dados):
     if caminho == "/execucao":
         return acao_execucao(dados)
-    if caminho == "/calibragem/report":
-        return salvar_report(dados.get("campos"), "tela")
+    if caminho == "/calibragem/report":  # o report de toques vem em "report"; "campos" é o formato antigo, de 4 respostas abertas
+        return salvar_report(dados["report"] if isinstance(dados.get("report"), dict) else dados.get("campos"), "tela")
     if caminho == "/calibragem/reiniciar":
         return reiniciar_calibragem()
     if caminho == "/pops/salvar":

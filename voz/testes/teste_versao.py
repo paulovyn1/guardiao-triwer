@@ -113,8 +113,9 @@ confere("a marca adicionar com id funciona pela voz", any(b.get("clickup_id") ==
 ClickUpFalso.chamadas.clear()
 r = h.aprovar_plano()
 puts = [c for c in ClickUpFalso.chamadas if c[0] == "PUT"]
+# desde a 0.11.0 quem manda na data é o guardião: aprovar leva ao ClickUp o horário de toda tarefa do plano que não é fixa (cid1 também)
 confere("ao aprovar, as tarefas trazidas mudam de data no ClickUp e nenhuma é criada em duplicidade",
-        r["ok"] and r["reagendadas"] == 2 and {c[1].rsplit("/", 1)[1] for c in puts} == {"p1", "p2"} and r["criadas"] == 2, (r, puts))
+        r["ok"] and r["reagendadas"] == 3 and {c[1].rsplit("/", 1)[1] for c in puts} == {"cid1", "p1", "p2"} and r["criadas"] == 2, (r, puts))
 
 # ---------------- guardião completo ----------------
 def plano_refeito(pedido, arquivo):
@@ -250,9 +251,23 @@ confere("GET /versao traz instalada, publicada e notas", v["instalada"] == "0.3.
 config(atualizacao={"origem": os.path.join(tmp, "nao-existe")})
 v = requests.post(URL + "/versao/verificar", json={}, timeout=20).json()
 confere("origem errada não derruba nada: fica o aviso e o painel segue", v["erro"] and v["instalada"] == "0.3.0", v)
+skill_teste = tempfile.mkdtemp(prefix="gv_skill_")  # a skill do aluno: o teste não pode ler a skill de verdade deste computador
+at._pastas_da_skill = lambda: [skill_teste]
 config(atualizacao={})
 confere("sem origem configurada, o painel sabe dizer", at.verificar(forcar=True)["erro"] == "sem_origem" and at.publico()["tem_origem"] is False)
 confere("sem origem, atualizar é recusado com explicação", at.atualizar()["ok"] is False)
+escrever(os.path.join(skill_teste, "origem.json"), json.dumps({"origem": "", "ramo": "main", "pasta": ""}))
+confere("origem.json sem endereço continua sem origem", at.origem()["origem"] == "")
+escrever(os.path.join(skill_teste, "origem.json"), json.dumps({"origem": raiz, "ramo": "main", "pasta": ""}))
+o = at.origem()
+confere("config.json sem o campo atualizacao: vale o origem.json do pacote (endereço, ramo e pasta dele)",
+        o["origem"] == raiz and o["ramo"] == "main" and o["pasta"] == "", o)
+v = at.verificar(forcar=True)
+confere("com o origem.json do pacote, o painel acha a versão nova sem o aluno mexer no config", v["tem_origem"] and v["nova"] and v["remota"] == "0.4.0", v)
+config(atualizacao={"origem": fonte, "pasta": "guardiao-triwer"})
+confere("o campo do config.json continua valendo antes do origem.json", at.origem()["origem"] == fonte and at.origem()["pasta"] == "guardiao-triwer")
+os.remove(os.path.join(skill_teste, "origem.json"))
+config(atualizacao={})
 
 # repositório git de verdade (local): a versão nova é vista sem mexer na cópia de trabalho
 if shutil.which("git"):
@@ -311,6 +326,9 @@ escrever(os.path.join(raiz, "voz", "guardiao_voz.py"), "# programa novo")
 escrever(os.path.join(raiz, "voz", "hud2", "index.html"), "<p>painel novo</p>")
 escrever(os.path.join(raiz, "voz", "preferencias.json"), '{"sons": false}')
 escrever(os.path.join(raiz, "voz", "pronuncias.exemplo.json"), '{"ClickUp": "clique âp"}')
+os.makedirs(os.path.join(raiz, "templates"), exist_ok=True)
+escrever(os.path.join(raiz, "templates", "aprendizados.md"), "# Aprendizados de {{nome}}\nCriado em {{data}}.")
+escrever(os.path.join(raiz, "templates", "perfil.md"), "modelo do perfil")
 os.makedirs(os.path.join(raiz, "voz", "__pycache__"))
 escrever(os.path.join(raiz, "voz", "__pycache__", "lixo.pyc"), "x")
 
@@ -322,7 +340,7 @@ skill = os.path.join(inst, ".claude", "skills", "guardiao-triwer")
 for pasta in ("voz", os.path.join("voz", "hud2"), "memoria", skill):
     os.makedirs(os.path.join(inst, pasta), exist_ok=True)
 escrever(os.path.join(inst, "VERSION"), "0.3.0\n")
-escrever(os.path.join(inst, "config.json"), json.dumps({"pessoa": {"nome": "Pessoa de Teste"},
+escrever(os.path.join(inst, "config.json"), json.dumps({"pessoa": {"nome": "Pessoa de Teste"}, "pastas": {"memoria": os.path.join(inst, "memoria")},
                                                         "atualizacao": {"origem": fonte, "pasta": "guardiao-triwer", "pastas_skill": [os.path.join(inst, "outra", "guardiao-triwer")]}}))
 escrever(os.path.join(inst, "tempos.json"), '{"meus": "tempos"}')
 escrever(os.path.join(inst, "plano_do_dia.json"), '{"meu": "plano"}')
@@ -363,6 +381,8 @@ confere("a versão instalada passa a ser a nova", ler("VERSION").strip() == "0.4
 confere("scripts, programa de voz e painel são trocados", ler("ler_clickup.ps1") == "# script novo" and ler("voz", "guardiao_voz.py") == "# programa novo" and "painel novo" in ler("voz", "hud2", "index.html"))
 confere("config.json, tempos.json, plano e memória ficam como estavam",
         "Pessoa de Teste" in ler("config.json") and ler("tempos.json") == '{"meus": "tempos"}' and ler("plano_do_dia.json") == '{"meu": "plano"}' and ler("memoria", "perfil.md") == "meu perfil")
+confere("a memória antiga ganha o aprendizados.md do modelo (a skill lê em toda ativação) e o perfil existente fica",
+        ler("memoria", "aprendizados.md").startswith("# Aprendizados de Pessoa\nCriado em 20") and ler("memoria", "perfil.md") == "meu perfil", r.stdout[-400:])
 confere("preferências da pessoa ficam; as pronúncias de exemplo entram só se ela não tiver as dela",
         ler("voz", "preferencias.json") == '{"sons": true}' and "clique" in ler("voz", "pronuncias.json"))
 confere("lixo do Python não é copiado", not os.path.exists(os.path.join(inst, "voz", "__pycache__")))

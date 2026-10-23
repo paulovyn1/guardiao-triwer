@@ -25,6 +25,10 @@ user32 = ctypes.windll.user32
 TITULO_JANELA = "Guardião · aviso"
 os.environ["GUARDIAO_POPUP_MUDO"] = "1"
 
+# A parte com a janela de verdade mostra avisos na tela de quem está usando o computador ("Segundo aviso", "Este substitui o primeiro"),
+# e a pessoa não tem como saber que são de teste (caso de 15/10/2026). Ela só roda quando pedida: --janela ou GUARDIAO_TESTE_JANELA=1.
+JANELA_DE_VERDADE = "--janela" in sys.argv or os.environ.get("GUARDIAO_TESTE_JANELA") == "1"
+
 PORTA = 8799
 tmp, relogio = B.preparar(PORTA, hora="09:50")
 URL = f"http://localhost:{PORTA}"
@@ -77,9 +81,11 @@ r = subprocess.run([sys.executable, POPUP, "--checar"], cwd=VOZ)
 confere("--checar responde rápido, 0 (pode mostrar) ou 3 (apresentação ou tela cheia)", r.returncode in (0, 3), r.returncode)
 pode = r.returncode == 0
 
-# ---------------- a janela de verdade ----------------
-if pode:
-    arq = abrir({"titulo": "Montar as campanhas da Clínica \"Vitta\"", "texto": "Comece por: revisar o público, ação e orçamento.", "kicker": "Agora", "tag": "até 10:30", "bloco": "b3"})
+# ---------------- a janela de verdade (só quando pedida) ----------------
+if not JANELA_DE_VERDADE:
+    print("  (a parte com a janela de verdade foi pulada: ela aparece na tela de quem usa o computador. Para rodar: --janela)")
+elif pode:
+    arq = abrir({"titulo": "Teste: montar as campanhas da Clínica \"Vitta\"", "texto": "Comece por: revisar o público, ação e orçamento.", "kicker": "Agora", "tag": "até 10:30", "bloco": "b3"})
     confere("o aviso aparece na tela", esperar(lambda: len(janelas()) == 1, 8), janelas())
     time.sleep(0.8)
     hwnd = (janelas() or [0])[0]
@@ -95,7 +101,7 @@ if pode:
     confere("fica no canto de baixo à direita, dentro da área útil (acima da barra de tarefas)",
             area.right - 80 <= r.right <= area.right and area.bottom - 80 <= r.bottom <= area.bottom and r.right - r.left > 300, (r.left, r.top, r.right, r.bottom, area.right, area.bottom))
     confere("o arquivo com o texto é apagado depois de lido", not os.path.exists(arq))
-    abrir({"titulo": "Segundo aviso", "texto": "Este substitui o primeiro."}, segundos=3)
+    abrir({"titulo": "Teste do guardião (pode ignorar)", "texto": "Este aviso de teste substitui o anterior."}, segundos=3)
     time.sleep(2.0)
     confere("um aviso novo substitui o anterior (fica um só na tela)", len(janelas()) == 1, janelas())
     confere("e some sozinho depois do tempo dele (mesmo com o ponteiro do mouse parado em cima de onde ele nasceu)", esperar(lambda: not janelas(), 15), janelas())

@@ -1,4 +1,4 @@
-"""Gordura de posts (decisão da Milena, 2026-10-15): os posts saem em dias fixos da semana (segunda, quarta e sexta) e o ideal é ter 1 a 2 posts JÁ PRONTOS à frente,
+"""Gordura de posts (decisão de produto, 2026-10-15): os posts saem em dias fixos da semana (segunda, quarta e sexta) e o ideal é ter 1 a 2 posts JÁ PRONTOS à frente,
 para um imprevisto não derrubar a postagem. Enquanto a gordura está abaixo da meta, criar copy e design à frente é prioridade; ao alcançá-la, a rotina de
 criação fica previsível (copies num dia fixo, designs em outro) e o guardião propõe isso.
 

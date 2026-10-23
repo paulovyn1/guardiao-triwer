@@ -102,9 +102,9 @@ confere("texto do realizado: só minutos, hora cheia e passando da meia-noite",
         h.texto_realizado({"inicio": "09:00", "fim": "09:40"}) == "Realizado: das 09:00 às 09:40 (40 min)." and h.texto_realizado({"inicio": "09:00", "fim": "11:00"}) == "Realizado: das 09:00 às 11:00 (2 h)."
         and h.texto_realizado({"inicio": "23:30", "fim": "00:10"}) == "Realizado: das 23:30 às 00:10 (40 min).")
 tempos = h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]
-reg = tempos["Tráfego"]["registros"][-1]
+reg = tempos["trafego"]["registros"][-1]  # desde a 0.11.0 o tempo é por natureza (campanha de tráfego), não pela frente
 confere("tempos.json recebe o tempo medido (75 min) contra o planejado (90)", reg["real"] == 75 and reg["planejado"] == 90 and reg["confirmado"] is True, reg)
-confere("média só vale com 3 execuções", tempos["Tráfego"]["media"] is None)
+confere("média só vale com 3 execuções", tempos["trafego"]["media"] is None)
 ex = h._ler_json(v2._arq_exec())
 s3 = next(s for s in ex["sessoes"] if s["bloco"] == "b3")
 confere("a sessão guarda avisos, extensão e resultado", s3["resultado"] == "concluido" and len(s3["checkins"]) == 3 and s3["extensoes"][0]["motivo"] == "Interrupções", s3)

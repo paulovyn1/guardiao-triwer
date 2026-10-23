@@ -4,7 +4,7 @@ Monta, sem IA, os planos dos próximos dias de trabalho a partir do que já exis
 e o que ele deixa "a encaixar" (atrasadas, sem hora, etapas de post, preparo da live, entregas com horário limite). O que não é aprovado é refeito;
 plano aprovado fica como está e o que está nele não volta para a fila.
 
-Ordem de alocação (regras da Milena, 16/10):
+Ordem de alocação (regras de produto, 16/10):
 1. fixos, tarefas com hora e stories (já vêm do plano_base);
 2. consumo antes das copies (rotina.regras.ideia_depois_de_consumo): um por dia, no começo do primeiro espaço do dia;
 3. a fila, pelo limite (mais cedo primeiro) e, no mesmo limite, copy antes de design; cada item no primeiro dia e espaço do tipo certo até o limite;
@@ -47,13 +47,23 @@ def estimar(item, oper=OPER, ajustes=None):
     if item.get("minutos"):
         return int(item["minutos"]), True
     chave = item.get("etapa") or ra.tipo_de(item.get("titulo"), item.get("lista") or "")
+    import calibragem_motor as cm  # tempos.json por natureza desde a 0.11.0 (o formato antigo é migrado sozinho)
+    cm.garantir_tempos(oper)
     tipos = (vs._json(os.path.join(oper, "tempos.json")) or {}).get("tipos") or {}
-    nomes = {"design": ("design_post_carrossel", "Design"), "copy": ("copy",), "relatorio": ("relatorio",)}.get(chave, ())
+    mesma = cm.media_da_tarefa(tipos, item.get("titulo"))
+    if mesma:  # a mesma tarefa já medida 3 vezes ou mais: o tempo dela vale
+        return mesma, True
+    natureza = cm.natureza_do_bloco({"titulo": item.get("titulo"), "frente": item.get("lista"), "natureza": item.get("natureza")})
+    nomes = {"design": ("criacao", "design_post_carrossel", "Design"), "copy": ("copy",), "relatorio": ("relatorio",)}.get(chave, ())
     for nome in nomes:
         reais = [r.get("real") for r in (tipos.get(nome) or {}).get("registros") or [] if r.get("confirmado") and (r.get("real") or 0) > 1]
         if len(reais) >= 3:
             return int(round(sum(reais) / len(reais))), True
-    return PADRAO_MIN.get(chave, 45), False
+    padrao = PADRAO_MIN.get(chave, 45)
+    razao = cm.recalcular(dict(tipos.get(natureza) or {})).get("razao")  # conta na hora: arquivo antigo ou escrito à mão não tem o campo
+    if razao and natureza not in cm.SEM_MEDIA:  # o real dessa natureza costuma ficar acima ou abaixo do planejado: o padrão acompanha
+        padrao = max(5, int(round(padrao * min(2.0, max(0.5, razao)) / 5.0)) * 5)
+    return padrao, False
 
 
 def _tipo_janela(item, ajustes=None):

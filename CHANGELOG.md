@@ -7,100 +7,33 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
-## 0.10.12 - 2026-10-18
-- Dia de folga: o que ela pediu entra em sequência a partir de agora, sem janela nobre nem zona morta (antes a newsletter ia para as 18h com a tarde vazia).
+## 0.11.2 - 2026-10-23
+- Tarefa atrasada: o guardião pergunta "ainda vale fazer?" uma vez só. Sua resposta (adiar, manter, cancelar, fazer hoje) fica guardada e a pergunta não volta a cada replanejamento.
+- "Adia para depois do dia 31" agora funciona: a tarefa sai dos dias antes da data e só volta a partir dela, também nos próximos replanejamentos. O design do post vai junto com a copy.
+- "Cancela essa tarefa", "é desnecessária" ou "não precisa mais" não são mais recusados: a tarefa sai do plano e fecha no ClickUp.
+- Dia curto: o consumo sai primeiro e tarefa de prazo sugerido passa para outro dia sem perguntar. Sem pergunta de "estender 0 min".
+- Bloco feito que acabou cedo libera o almoço; sem cobrança de antecipação na véspera da live.
+- Dia de folga ganha plano quando você pede: entra só o que você disse que faz hoje, em sequência, e o resto vai para o próximo dia de trabalho.
+- "Posso fazer isso hoje" conta como pedido de encaixe; ajuste recusado é dito em voz alta, em vez de o guardião afirmar que fez.
+- Plano montado pelo guardião aparece na tela sem precisar recarregar.
 
-## 0.10.11 - 2026-10-18
-- Plano montado pelo guardião aparece na tela: o servidor avisa a tela depois de gravar, e a tela relê o plano a cada 30 s. Antes a tela só trocava de aba e continuava com "Sem plano para hoje".
+## 0.11.1 - 2026-10-18
+- Procurar versão nova volta a funcionar em instalações que ficaram sem a origem das atualizações.
 
-## 0.10.10 - 2026-10-18
-- Dia de folga (fora de rotina.dias_trabalho) ganha plano quando a pessoa pede: antes o domingo nunca tinha plano, nada aparecia para aprovar e tudo que vencia nele virava "não cabe, renegocie".
-- Na folga entra só o que ela disse que faz hoje (instrução "hoje" do revisor); o resto vai para o próximo dia de trabalho, sem hora extra nem almoço da rotina.
-- "Posso fazer isso hoje" agora conta como pedido de encaixe; ajuste do plano recusado pela trava é dito em voz alta, em vez de o guardião afirmar que encaixou.
-- Tarefa de prazo máximo já vencido feita hoje não é mais barrada (hoje é o mais cedo possível).
+## 0.11.0 - 2026-10-18
+- O código monta a sua agenda e a IA só revisa: o plano sai em segundos e gasta bem menos do Claude.
+- O que não cabe no dia vira uma pergunta clara: estender o dia ou renegociar o prazo.
+- Evento que se repete (como uma live semanal) ganha o preparo no plano a tempo, com cobrança da etapa de outra pessoa.
+- Enquanto o guardião trabalha, o botão de enviar vira o botão Parar. Plano novo é aprovado na barra de baixo da lista.
+- Você pode escolher Claude ou Codex para pensar pelo guardião, em Preferências.
+- Compromisso fixo pode ser concluído, cancelar fecha a tarefa no ClickUp e tarefa vencida há dias vira a pergunta "ainda vale fazer?".
+- Calibragem nova: report do dia de 1 minuto em toques, com um campo aberto, também por voz. O guardião convida na hora de parar.
+- Uma pergunta por dia para confirmar o que ele percebeu. Só o que você confirma vira regra, e o plano diz quando usou.
+- O que entra fora do plano e se repete vira pergunta e, se você aceitar, horário reservado.
+- A calibragem continua depois do dia 30. Abas novas: Estatísticas (plano cumprido, tarefa principal, precisão, foco) e Conquistas.
+- Tarefa marcada como feita depois, sem medir, não entra mais na média de tempo.
+- Sem música enquanto o guardião pensa.
 
-## 0.10.9 - 2026-10-16
-- Compromisso fixo (WhatsApp, aprovações) tem identificador e pode ser concluído pelo chat e pelo painel.
-- "Cancela X" fecha a tarefa no ClickUp ao aprovar; "tira X" só tira do dia.
-- Aprovação que não conseguiu levar tudo ao ClickUp fica com sincronização pendente e avisa; aprovar de novo tenta outra vez.
-- Ao aprovar hoje, o guardião avisa quais próximos dias também mudaram e ainda precisam de aprovação.
-- Tarefa vencida há 2 dias ou mais vira pergunta "ainda vale fazer?" no aviso do dia.
-- O resumo da conversa respeita o que a pessoa confirmou por último; a IA não atribui dono por dedução.
-- Testes desatualizados reescritos para o comportamento novo; testes novos do motor.
-
-## 0.10.8 - 2026-10-16
-- Quem manda na data é o guardião: tarefa com horário no ClickUp que não é fixa volta para a fila e é reencaixada pelas regras; só reunião, aula e hora combinada ficam.
-- Tarefa com limite encaixa a partir do próprio limite, de trás para frente; preparo da live no primeiro horário livre do dia; sem espaço na janela ideal, qualquer horário livre antes de virar pergunta.
-- Etapa de post que volta à fila mantém o limite do post; plano gravado depois do horizonte não é duplicado; a data do ClickUp do preparo da live não vale como prazo.
-
-## 0.10.7 - 2026-10-16
-- Tarefa com limite vai o mais perto possível do limite (a partir da véspera, de trás para frente), não no primeiro espaço livre; atrasada continua indo o quanto antes.
-
-## 0.10.6 - 2026-10-16
-- SKILL.md reescrito (28 KB para 11 KB): começa por quem o guardião é (dono e responsável pela agenda, gestor que a pessoa não consegue ser por envolvimento emocional, ClickUp só registro) e traz um mapa do que ler e quando. Os procedimentos foram para references/planejar.md, destrinchar.md e entrega.md, sem perder regra.
-- Pedido que não é de agenda: a IA segue o SKILL.md e lê sob demanda pelo mapa.
-
-## 0.10.5 - 2026-10-16
-- Todo pedido de agenda ao guardião completo (mover, adiar, "pronta até dia 27") vai para o motor, em segundos; só destrinchar e configuração seguem para a IA completa (que lia a pasta inteira e levava minutos).
-- A IA entende prazo novo dado pela pessoa (instrução "limite") e o motor reencaixa a tarefa até essa data.
-
-## 0.10.4 - 2026-10-16
-- Resposta do replanejamento em parágrafos (explicação, resto do dia, delegação, uma pergunta) e a conversa escrita mostra as quebras.
-- A explicação da IA é dita à pessoa, em até 2 frases, sem instruções ao sistema; no máximo uma pergunta por vez.
-
-## 0.10.3 - 2026-10-16
-- Plano novo esperando o ok: o guardião vai para a lista do Hoje e diz numa frase; a aprovação é só na barra de baixo da lista. Sem ler tarefa por tarefa e sem cartões de aprovação por cima da tela.
-
-## 0.10.2 - 2026-10-16
-- Enquanto o guardião pensa, fala ou trabalha em segundo plano, o botão de enviar vira o botão Parar (quadrado), no mesmo lugar; Enter continua enviando.
-- "Parado" só quando o processo foi mesmo encerrado pelo Parar ou pelo Esc; outra falha do Codex aparece com o motivo real.
-- Depois de refazer o plano, o guardião diz o que ficou para o resto do dia, além do que não coube.
-
-## 0.10.1 - 2026-10-16
-- Motor da agenda: o código monta hoje e os próximos dias (fila por limite, consumo antes da copy, stories na meta, nada depois da hora de parar) e a IA revisa uma vez, devolvendo instruções em vez de horário (cerca de 16 mil tokens e 40 s por plano).
-- "Refaça meu plano" e o plano da manhã passam pelo motor: a IA só traduz o que a pessoa disse (já fiz, tira, almoço às 14h) e o que não cabe vira a pergunta "estender o dia ou renegociar o prazo?".
-- Codex roda numa pasta vazia na conversa, no resumo e na revisão (lia 200 mil tokens por chamada dentro da pasta do guardião).
-- Onboarding pergunta por evento recorrente com preparo (live semanal); caixinha fica em 45 min.
-
-## 0.10.0 - 2026-10-16
-- Nada mexe no plano sem perguntar: o supervisor de atraso só avisa e pergunta; a manutenção dos próximos dias monta só por código, sem IA, e não troca plano refinado.
-- Botão Parar na conversa: interrompe a resposta ou o trabalho em segundo plano (Claude ou Codex).
-- Conversa fora do modo sessão nas preferências da Milena (o modo sessão gastava ~300 mil tokens por fala).
-- PRD do motor de agenda em docs/PRD-motor-agenda.md (código monta, IA revisa).
-
-## 0.9.15 - 2026-10-16
-- Conferência conserta em vez de recusar: stories e blocos diários que faltam, consumo repetido, rotina com a mesma tarefa em dois dias, `agenda_impoe` e preparo da live vencido são resolvidos por código antes de conferir.
-- Regras de preferência (copy/design alternados, minutos de stories, alavanca, nobre) viram aviso no plano em vez de barrar; só o grave (sobreposição, tarefa que some, prazo, fixa, duplicada) reprova.
-- Correções retomam a mesma sessão (Claude `--session-id`/`--resume`, Codex `exec resume`) e pedem para reler só o plano; se a correção do revisor estragar o plano, volta o plano já conferido, não a base.
-- Replanejamento por voz lê um dossiê calculado por código em vez de reler ClickUp, planos, campanhas e memória.
-- Bloco de rotina (consumo, stories, almoço) pode repetir em vários dias da proposta do Codex; só o id do ClickUp identifica a mesma tarefa.
-- Preparo de evento recorrente (`rotina.preparos` + `clickup.eventos`): a Estrateclass passa a ter tema, thumb e agendamento até a quarta anterior e a antecipação no grupo até a quinta; etapas de outra pessoa viram cobrança no plano.
-
-## 0.9.14 - 2026-10-16
-- As correções de um plano reprovado retomam a mesma sessão do Codex, reaproveitando a pesquisa já feita dentro daquele pedido.
-
-## 0.9.13 - 2026-10-16
-- Replanejamento segue a ordem definida pela pessoa: reagendar o adiável, simplificar uma tarefa e só então propor hora extra.
-- Se o Codex devolver uma recusa ou um plano reprovado, o Guardião apresenta os problemas e pede uma proposta corrigida, até duas rodadas de correção.
-- A conferência reúne os problemas de todos os dias da proposta; o dia apertado continua reconhecido depois que tarefas foram reagendadas.
-- Movimentos entre dias futuros são conferidos em cadeia, sem alterar o arquivo histórico do dia atual.
-
-## 0.9.12 - 2026-10-16
-- O painel mostra etapas curtas e tempo decorrido enquanto o Codex trabalha, fora da conversa.
-- Pedidos de plano continuam protegidos pela conferência; ao mover uma tarefa, o app completa o dia futuro de origem se o Codex o omitir.
-- Falhas de conferência e limite de uso do Codex agora explicam o motivo no próprio Guardião.
-
-## 0.9.11 - 2026-10-16
-- A skill passa a carregar corretamente no Codex.
-- Ao planejar com Codex, o Guardião confere a resposta e grava somente arquivos de plano permitidos; o modelo continua com acesso de leitura.
-
-## 0.9.10 - 2026-10-16
-- O Codex usa GPT-6 Sol com esforço médio por padrão; o modelo e o esforço podem ser alterados por configuração.
-
-## 0.9.9 - 2026-10-16
-- O painel permite escolher Claude Code ou Codex para conversas e planos, mantendo Claude como padrão.
-- Uma instalação pode habilitar os dois: Claude e Codex leem a mesma skill global, sem duplicar o arquivo.
-- A escolha é salva nas preferências e vale no próximo pedido; cada provedor usa seu próprio login.
 
 ## 0.9.8 - 2026-10-15
 - Animações fluidas de novo: o painel usa a placa de vídeo sempre.

@@ -173,7 +173,7 @@ try:
             B.ClickUpFalso.chamadas[n_antes:][-3:])
     reg = {b["id"]: b for b in h._registro_de_hoje()["blocos"]}
     confere("o registro guarda o horário real medido", reg["b3"]["estado"] == "feito" and reg["b3"]["real"] == {"inicio": "09:50", "fim": "10:40", "minutos": 50} and reg["b3"].get("nao_confirmado") is False, reg["b3"])
-    confere("o tempo real entra no tempos.json", h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]["Tráfego"]["registros"][-1]["real"] == 50)
+    confere("o tempo real entra no tempos.json, pela natureza da tarefa", h._ler_json(os.path.join(tmp, "tempos.json"))["tipos"]["trafego"]["registros"][-1]["real"] == 50)
 
     # ---------------- adiar pergunta o motivo
     clicar("Adiar", ".f-sec .sec-b")
@@ -243,14 +243,38 @@ try:
     time.sleep(1.0)
     foto("15_calibragem_dia1")
     clicar("Fazer o primeiro report", ".st.cur .rep button")
-    confere("abre o formulário de 4 respostas", espera("document.querySelectorAll('.st.cur .rep textarea').length === 4", 4))
-    for i, resp in enumerate(["Mais folga entre as reuniões.", "Das 9h às 11h.", "Blocos de 90 minutos.", "Duas ligações no fim da tarde."]):
-        digitar(f"#cal-f{i}", resp)
+    confere("abre o report de toques: o resumo do dia montado pelo app, energia, chips e um campo aberto",
+            espera("document.querySelectorAll('.st.cur .rep .seg-b').length >= 5", 4) and contem(".st.cur .rsum", "Feitas") and contem(".st.cur .rsum", "Tarefa principal")
+            and js("document.querySelectorAll('.st.cur .rep .chip').length") >= 10 and js("document.querySelectorAll('.st.cur .rep textarea').length") == 1, texto(".st.cur .rep")[:400])
+    confere("o que o app detectou no dia já vem marcado em O que atrapalhou", js("[...document.querySelectorAll('.st.cur .rep .chip.on')].length") >= 1, texto(".st.cur .rep")[:400])
+    js("[...document.querySelectorAll('.st.cur .rep .seg-b')].find(b => b.textContent.trim() === '4').click()")
+    js("[...document.querySelectorAll('.st.cur .rep .chip')].find(b => b.textContent.includes('Tarefa clara')).click()")
+    digitar("#cal-nota", "Duas ligações no fim da tarde.")
+    confere("a energia e o chip marcados acendem", espera("[...document.querySelectorAll('.st.cur .rep .seg-b.on')].some(b => b.textContent.trim() === '4') && [...document.querySelectorAll('.st.cur .rep .chip.on')].some(b => b.textContent.includes('Tarefa clara'))", 3))
+    time.sleep(0.8)
+    foto("15b_calibragem_report")
     clicar("Enviar report", ".st.cur .rep button")
     confere("enviar grava o report e mostra a conquista", espera("document.querySelector('.st.cur .ach')", 6) and contem(".st.cur .ach", "Dia 1 calibrado") and v2.calibragem()["reports"] == 1, texto(".st.cur .rep"))
+    rep = v2.calibragem()["hoje"]
+    confere("o report guarda os toques, o campo aberto e o resumo do dia", rep.get("versao") == 2 and rep["energia"] == 4 and "Tarefa clara, com primeiro passo" in rep["ajudou"]
+            and rep["nota"] == "Duas ligações no fim da tarde." and rep["resumo"]["planejadas"] >= 1, rep)
     confere("o que foi medido hoje já aparece como aprendizado", espera("document.querySelectorAll('.st.cur .lc').length >= 1", 5) and contem(".st.cur .col2", "Por que as tarefas atrasam"), texto(".st.cur .col2")[:300])
     time.sleep(1.3)
     foto("16_calibragem_enviado")
+    js("[...document.querySelectorAll('.st.cur .cal-tabs .seg-b')].find(b => b.textContent.includes('Estatísticas')).click()")
+    confere("aba Estatísticas: os 4 números com a série das semanas e os blocos de detalhe",
+            espera("document.querySelectorAll('.st.cur .kpi').length === 4", 4) and js("document.querySelectorAll('.st.cur .kpi')[0].querySelectorAll('.spark i').length") == 8
+            and js("document.querySelectorAll('.st.cur .est-b').length") == 8 and contem(".st.cur .cal-est", "Plano cumprido"), texto(".st.cur .cal-est")[:300])
+    time.sleep(1.0)
+    foto("16b_calibragem_estatisticas")
+    js("[...document.querySelectorAll('.st.cur .cal-tabs .seg-b')].find(b => b.textContent.includes('Conquistas')).click()")
+    confere("aba Conquistas: as 21 com regra e progresso, e o primeiro report já desbloqueado",
+            espera("document.querySelectorAll('.st.cur .cq').length === 21", 4) and js("[...document.querySelectorAll('.st.cur .cq.ok')].some(c => c.innerText.includes('Primeiro report'))")
+            and contem(".st.cur .cal-conq", "Cinco dias no que importa"), texto(".st.cur .cal-conq")[:300])
+    time.sleep(1.0)
+    foto("16c_calibragem_conquistas")
+    js("[...document.querySelectorAll('.st.cur .cal-tabs .seg-b')].find(b => b.textContent.includes('Report')).click()")
+    confere("volta para o report e os aprendizados", espera("document.querySelector('.st.cur .rep')", 3))
 
     # ---------------- POPs
     js("[...document.querySelectorAll('.tab')][4].click()")

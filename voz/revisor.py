@@ -4,7 +4,7 @@ Por que existe: o modelo que monta o plano se audita sozinho (item 11 da auditor
 regras (aprendizados, extensões, SKILL 3.1 e 3.2, perfil), os fatos da pessoa (fixos, cancelados, hora de parar), as campanhas ativas e o horizonte de 14 dias.
 Ele só aponta; quem corrige é o gerador, em UMA rodada. O que é regra mecânica continua em código (conferencia_plano.py): o revisor cuida do julgamento.
 
-Só roda quando vale o custo (decisão da Milena, 2026-10-15): dia muito apertado, ou replanejamento (tarefa nova, atraso, pedido dela).
+Só roda quando vale o custo (decisão de produto, 2026-10-15): dia muito apertado, ou replanejamento (tarefa nova, atraso, pedido dela).
 
 Uso (o gerar_plano.ps1 chama): python revisor.py --plano arq.json --data AAAA-MM-DD [--dossie dossie.txt] [--replanejar] [--forcar]
 Sai 0 (não precisava rodar, ou aprovou, ou não deu para revisar) ou 1 (reprovou: os problemas saem impressos, um por linha)."""

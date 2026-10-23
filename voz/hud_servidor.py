@@ -146,7 +146,7 @@ PREFS_PADRAO = {
     "mic_sempre_ligado": False,  # OPÇÃO: escuta contínua ("Ei guardião"). Desligada, o microfone só abre num clique e fecha no fim da gravação
     "escuta_aberta": True,     # o microfone reabre sozinho quando o guardião espera resposta (só vale com a escuta contínua)
     # painel novo (v2)
-    "som_estados": True,       # sininhos enquanto ele pensa, ligando e desligando quando a conexão cai ou volta
+    "som_estados": True,       # som de ligar e desligar quando a conexão com o guardião cai ou volta (pensar é em silêncio)
     "voz_guardiao": True,      # o guardião fala em voz alta; desligado, ele só escreve (o microfone continua valendo)
     "voz_velocidade": 1.0,     # 1, 1.5 ou 2 vezes
     "execucao_ao_abrir": True,  # com o plano aprovado, as aberturas do dia vão direto para a tarefa de agora (substitui abrir_em_execucao, que nascia desligada)
@@ -224,6 +224,12 @@ def montar_plano():
     hoje_txt = hoje.isoformat()
     plano = _plano_de_hoje()
     registro = _registro_de_hoje()
+    if plano and plano.get("status") == "aprovado" and not registro.get("blocos"):  # plano aprovado num dia anterior: o registro nasce quando o dia chega
+        try:
+            registrar_plano_aprovado(plano)
+            registro = _registro_de_hoje()
+        except Exception as erro:
+            print("  (não consegui abrir o registro do dia:", erro, ")")
     por_id = {b.get("id"): b for b in registro.get("blocos", [])}
     blocos = []
     try:  # painel novo: o que já foi trabalhado em cada bloco no modo execução
@@ -242,6 +248,7 @@ def montar_plano():
                 "estado": reg.get("estado", "pendente"), "real": reg.get("real"),
                 "vezes_adiada": reg.get("vezes_adiada", 0), "clickup": reg.get("clickup"),
                 "lista_id": b.get("lista_id"), "estendido_min": b.get("estendido_min") or 0, "exec": trabalhado.get(b.get("id")),
+                "natureza": reg.get("natureza") or b.get("natureza"), "principal": bool(b.get("principal")),
             })
     ultimo_plano = None
     if not plano:
@@ -307,8 +314,9 @@ def _id_dono(cfg, dono):
     return int(clickup["user_id"])
 
 
-def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, status_clickup=None, adiou=False):
-    """Grava no mesmo arquivo e formato da tela antiga do plano, para o guardião ler igual."""
+def _registro_com_o_plano(plano):
+    """O registro de hoje com todos os blocos do plano (os novos entram como pendentes). Devolve (caminho, registro, por_id)."""
+    import calibragem_motor as cm
     hoje_txt = date.today().isoformat()
     pasta = os.path.join(OPER, "registros")
     os.makedirs(pasta, exist_ok=True)
@@ -316,15 +324,48 @@ def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, stat
     registro = _ler_json(caminho) or {}
     por_id = {b.get("id"): b for b in registro.get("blocos", [])}
     for b in plano.get("blocos", []) + [f for f in plano.get("fixos", []) if f.get("id")]:  # compromisso fixo também se conclui
-        if b.get("id") in por_id:
+        if not (_hora(b.get("inicio")) and _hora(b.get("fim"))):
+            continue
+        if b.get("id") in por_id:  # a natureza e a tarefa principal acompanham o plano, mesmo que ele mude no meio do dia
+            por_id[b["id"]]["natureza"] = cm.natureza_do_bloco(b)
+            por_id[b["id"]]["principal"] = bool(b.get("principal"))
             continue
         minutos = _min(b["fim"]) - _min(b["inicio"])
         por_id[b["id"]] = {
             "id": b["id"], "titulo": b.get("titulo"), "dono": b.get("dono"), "frente": b.get("frente"),
+            "natureza": cm.natureza_do_bloco(b), "principal": bool(b.get("principal")),
             "clickup_id": b.get("clickup_id"), "estado": "pendente",
             "planejado": {"inicio": b["inicio"], "fim": b["fim"], "minutos": minutos},
             "real": None, "desvio_minutos": None, "clickup": None, "vezes_adiada": 0,
         }
+        if b in plano.get("fixos", []):
+            por_id[b["id"]]["fixo"] = True  # compromisso fixo concluível: fica no registro, mas a calibragem não o conta como tarefa do plano
+    return caminho, registro, por_id
+
+
+def _itens_do_registro(plano, por_id):
+    """Blocos e compromissos fixos com id, na ordem do plano: é o que o registro do dia guarda."""
+    return [por_id[b["id"]] for b in plano.get("blocos", []) + [f for f in plano.get("fixos", []) if f.get("id")] if b.get("id") in por_id]
+
+
+def registrar_plano_aprovado(plano):
+    """Assim que o plano de hoje é aprovado, o registro do dia nasce com todos os blocos pendentes: um dia sem nada marcado também conta
+    na calibragem (o plano cumprido é o que foi feito sobre o que foi planejado, e não só sobre o que foi marcado)."""
+    if plano.get("data") and plano.get("data") != date.today().isoformat():
+        return
+    caminho, registro, por_id = _registro_com_o_plano(plano)
+    registro["data"] = date.today().isoformat()
+    registro["aprovado_em"] = plano.get("aprovado_em") or time.strftime("%Y-%m-%d %H:%M")
+    registro["salvo_em"] = datetime.now().astimezone().isoformat()
+    registro["blocos"] = _itens_do_registro(plano, por_id)
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(registro, f, ensure_ascii=False, indent=2)
+
+
+def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, status_clickup=None, adiou=False):
+    """Grava no mesmo arquivo e formato da tela antiga do plano, para o guardião ler igual."""
+    hoje_txt = date.today().isoformat()
+    caminho, registro, por_id = _registro_com_o_plano(plano)
     entrada = por_id[bloco["id"]]
     entrada["estado"] = estado
     if adiou:
@@ -342,7 +383,7 @@ def _gravar_registro(plano, bloco, estado, real=None, nao_confirmado=False, stat
         entrada["clickup"] = "concluida" if estado == "feito" else "reaberta"
     registro["data"] = hoje_txt
     registro["salvo_em"] = datetime.now().astimezone().isoformat()
-    registro["blocos"] = [por_id[b["id"]] for b in plano.get("blocos", []) if b["id"] in por_id]
+    registro["blocos"] = _itens_do_registro(plano, por_id)
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(registro, f, ensure_ascii=False, indent=2)
     return entrada
@@ -456,8 +497,11 @@ def sincronizar_com_clickup(espaco=20):
         ULTIMAS_NOVAS.extend(t for t in tarefas if t.get("id") in novas and t.get("id") not in no_plano and not t.get("aprovar"))
     if novas:
         print(f"  ({len(novas)} tarefa(s) nova(s) no ClickUp desde a última leitura)")
-        try:
-            _v2().registrar_evento("tarefas_novas", None, quantidade=len(novas))
+        try:  # de onde veio e a que horas chegou: é o que mostra o que se repete sem estar no plano
+            por_id_resumo = {t.get("id"): t for t in (_ler_json(os.path.join(OPER, "resumo_clickup.json")) or {}).get("tarefas", [])}
+            lista = [{"id": i, "nome": (por_id_resumo.get(i) or {}).get("nome"), "lista": (por_id_resumo.get(i) or {}).get("lista"),
+                      "prazo": (por_id_resumo.get(i) or {}).get("prazo")} for i in sorted(novas)][:15]
+            _v2().registrar_evento("tarefas_novas", None, quantidade=len(novas), tarefas=lista)
         except Exception:
             pass
     estados = {b.get("id"): b.get("estado") for b in _registro_de_hoje().get("blocos", [])}
@@ -701,6 +745,12 @@ def aprovar_plano():
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(plano, f, ensure_ascii=False, indent=2)
     HISTORICO_PLANO.clear()
+    try:
+        registrar_plano_aprovado(plano)
+        import calibragem_motor as cm
+        cm.registrar_mudancas(OPER, plano)  # bloco com "aprendizado": vira "O que mudou no plano" na calibragem
+    except Exception as erro:
+        print("  (não consegui abrir o registro do dia:", erro, ")")
     bus.emitir("plano")
     try:  # aprovou, entra em execução sozinho (a tarefa só começa a contar quando a pessoa clica em Iniciar)
         _v2().entrar()
@@ -754,6 +804,11 @@ def aprovar_plano_de_outro_dia(data_iso):
     plano["aprovado_em"] = time.strftime("%Y-%m-%d %H:%M")
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(plano, f, ensure_ascii=False, indent=2)
+    try:
+        import calibragem_motor as cm
+        cm.registrar_mudancas(OPER, plano)
+    except Exception as erro:
+        print("  (não consegui registrar o que mudou no plano:", erro, ")")
     bus.emitir("plano")
     return {"ok": True, "criadas": criadas, "reagendadas": reagendadas, "erros": erros, "data": data_iso}
 

@@ -79,6 +79,13 @@ def montar_prompt(resultado, cfg, marcos=(), pedido=None, plano_hoje=None):
     perfil = _perfil(((cfg.get("pastas") or {}).get("memoria")))
     if perfil:
         linhas += ["PERFIL (resumo):", perfil, ""]
+    try:  # o que a calibragem já sabe da pessoa (medido, provável e confirmado), em poucas linhas
+        import calibragem_motor as cm
+        secao = cm.secao_do_plano(cm.atualizar_perfil(((cfg.get("pastas") or {}).get("operacional")) or OPER))
+        if secao:
+            linhas += [secao, ""]
+    except Exception:
+        pass
     linhas.append("RASCUNHO DO MOTOR (dias ainda não aprovados):")
     for iso, plano in resultado["dias"].items():
         linhas.append(f"{iso}:")

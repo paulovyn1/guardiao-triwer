@@ -73,7 +73,9 @@ confere("nível 2: tira o leve do nobre de quinta para a tarde (preferência del
 r = rota(90, "pesado", date(2026, 10, 16), "Agência", agora=19 * 60)
 confere("sem nobre até a data segura: usa a tarde livre antes do prazo em vez de hora extra", r["nivel"] == 2 and "FORA DO NOBRE" in r["candidatos"][0]["como"]
         and r["candidatos"][0]["dia"] <= date(2026, 10, 16), r)
-r = rota(300, "pesado", date(2026, 10, 16), "Agência", agora=19 * 60)
+# desde a 0.11.0 tarefa do ClickUp que não é fixa não segura o horário (o guardião manda na data): a sexta tem 9h40 livres e 5 h cabem nela, sem folga.
+# Para o caso de não caber em lugar nenhum, a tarefa precisa passar do dia inteiro.
+r = rota(600, "pesado", date(2026, 10, 16), "Agência", agora=19 * 60)
 confere("tarefa que não cabe nem fora do nobre: nível 3 com horizonte", r["nivel"] == 3 and "HORIZONTE" in r.get("horizonte", ""), r)
 r = rota(270, "pesado", date(2026, 10, 16), "Agência", agora=19 * 60, estender={date(2026, 10, 16): 23 * 60 + 30})
 confere("extensão autorizada na sexta: cabe no dia do prazo, marcado SEM FOLGA", r["nivel"] == 2 and "SEM FOLGA" in r["candidatos"][0]["como"], r)

@@ -33,9 +33,9 @@ def grava(pasta, nome, dado):
 
 HOJE = date(2026, 10, 16)  # sexta
 EVENTO = "2026-10-27"      # terça, 11 dias depois
-CFG = {"pessoa": {"nome": "Milena Camila"},
+CFG = {"pessoa": {"nome": "Rafa Lima"},
        "rotina": {"dias_trabalho": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-                  "preparos": [{"nome": "Estrateclass", "tag": "live semanal", "etapas": [
+                  "preparos": [{"nome": "Aula ao vivo", "tag": "live semanal", "etapas": [
                       {"palavras": ["definir tema"], "dias_antes": 6, "rotulo": "tema definido"},
                       {"palavras": ["thumb"], "dias_antes": 6, "rotulo": "thumb pronta"},
                       {"palavras": ["agendar"], "dias_antes": 6, "rotulo": "live agendada"},
@@ -43,31 +43,31 @@ CFG = {"pessoa": {"nome": "Milena Camila"},
 
 with tempfile.TemporaryDirectory(prefix="guardiao_preparos_") as oper:
     grava(oper, "resumo_clickup.json", {"tarefas": [], "eventos": [
-        {"id": "M1", "nome": "ESTRATECLASS #105 — Tema X", "data": EVENTO, "tags": ["live semanal"], "etapas": [
-            {"id": "T1", "nome": "Fazer a Thumb", "status": "pendente", "prazo": "2026-10-20", "donos": ["Milena Camila"]},
-            {"id": "A1", "nome": "Agendar a live no YT", "status": "pendente", "donos": ["Paulo Vinicius"]},
-            {"id": "G1", "nome": "Enviar mensagem no grupo de alunos | ESTRATECLASS #105", "status": "pendente", "donos": ["Paulo Vinicius"]},
-            {"id": "D1", "nome": "Definir tema — M1", "status": "complete", "donos": ["Milena Camila"]}]}]})
+        {"id": "M1", "nome": "AULA AO VIVO #105 — Tema X", "data": EVENTO, "tags": ["live semanal"], "etapas": [
+            {"id": "T1", "nome": "Fazer a Thumb", "status": "pendente", "prazo": "2026-10-20", "donos": ["Rafa Lima"]},
+            {"id": "A1", "nome": "Agendar a live no YT", "status": "pendente", "donos": ["Bia Souza"]},
+            {"id": "G1", "nome": "Enviar mensagem no grupo de alunos | AULA AO VIVO #105", "status": "pendente", "donos": ["Bia Souza"]},
+            {"id": "D1", "nome": "Definir tema — M1", "status": "complete", "donos": ["Rafa Lima"]}]}]})
     es = {e["id"]: e for e in pp.etapas(CFG, oper, HOJE)}
     confere("limite da thumb = data - 6 (quarta 21/10)", es["T1"]["limite"] == date(2026, 10, 21), es.get("T1"))
     confere("limite da mensagem no grupo = data - 5 (quinta 22/10)", es["G1"]["limite"] == date(2026, 10, 22), es.get("G1"))
     confere("etapa concluída não aparece", "D1" not in es)
-    confere("Thumb é dela, Paulo não", es["T1"]["eu"] is True and es["G1"]["eu"] is False and es["A1"]["eu"] is False)
+    confere("Thumb é dela, Bia não", es["T1"]["eu"] is True and es["G1"]["eu"] is False and es["A1"]["eu"] is False)
     confere("ids() só traz T1", pp.ids(CFG, oper, HOJE) == {"T1"}, pp.ids(CFG, oper, HOJE))
     sem = {"pessoa": CFG["pessoa"], "rotina": {}}
     confere("sem rotina.preparos não sai nada", pp.etapas(sem, oper, HOJE) == [] and pp.ids(sem, oper, HOJE) == set())
 
     plano = {"data": "2026-10-22", "fixos": [], "blocos": [{"id": "b1", "inicio": "09:00", "fim": "10:00", "titulo": "Copy"}]}
     try:
-        novos = pp.inserir_cobrancas(plano, date(2026, 10, 22), CFG, oper, "Milena", hoje=HOJE)
-        g = [b for b in novos if "Conferir com Paulo" in b["titulo"] and "antecipação no grupo" in b["titulo"]]
+        novos = pp.inserir_cobrancas(plano, date(2026, 10, 22), CFG, oper, "Rafa", hoje=HOJE)
+        g = [b for b in novos if "Conferir com Bia" in b["titulo"] and "antecipação no grupo" in b["titulo"]]
         dur = None
         if g:
             h = lambda s: int(s[:2]) * 60 + int(s[3:5])
             dur = h(g[0]["fim"]) - h(g[0]["inicio"])
-        confere("inserir_cobrancas põe 'Conferir com Paulo' (grupo) de 5 min no dia do limite", len(g) == 1 and dur == 5, novos)
+        confere("inserir_cobrancas põe 'Conferir com Bia' (grupo) de 5 min no dia do limite", len(g) == 1 and dur == 5, novos)
         confere("o bloco não tem clickup_id e cita a etapa em cobranca_de", bool(g) and "clickup_id" not in g[0] and g[0]["cobranca_de"] == "G1", g)
-        n2 = pp.inserir_cobrancas(plano, date(2026, 10, 22), CFG, oper, "Milena", hoje=HOJE)
+        n2 = pp.inserir_cobrancas(plano, date(2026, 10, 22), CFG, oper, "Rafa", hoje=HOJE)
         confere("rodar de novo não duplica a cobrança", n2 == [], n2)
     except Exception as erro:
         confere("inserir_cobrancas roda sem quebrar", False, repr(erro))
@@ -81,7 +81,7 @@ with tempfile.TemporaryDirectory(prefix="guardiao_preparos_") as oper:
     confere("T1 antes do limite não é acusada", not any("passa do limite" in p for p in antes_), antes_)
 
     grava(oper, "resumo_clickup.json", {"tarefas": [], "eventos": [
-        {"id": "M2", "nome": "ESTRATECLASS #106 — Definir tema", "data": EVENTO, "tags": ["live semanal"], "etapas": []}]})
+        {"id": "M2", "nome": "AULA AO VIVO #106 — Definir tema", "data": EVENTO, "tags": ["live semanal"], "etapas": []}]})
     es2 = pp.etapas(CFG, oper, HOJE)
     confere("mãe 'Definir tema' sem subtarefa gera item 'Definir o tema...' com id None",
             len(es2) == 1 and es2[0]["id"] is None and es2[0]["titulo"].startswith("Definir o tema") and es2[0]["eu"], es2)
@@ -99,7 +99,7 @@ confere("anotar_avisos sem aviso novo não mexe", cp.anotar_avisos({}, []) == {}
 
 DIA = date(2026, 10, 20)
 with tempfile.TemporaryDirectory(prefix="guardiao_conserto_") as oper:
-    cfg = {"pessoa": {"nome": "Milena Camila"}, "rotina": {}}
+    cfg = {"pessoa": {"nome": "Rafa Lima"}, "rotina": {}}
     try:
         pl = {"data": DIA.isoformat(), "blocos": [
             {"id": "b1", "inicio": "09:00", "fim": "09:30", "titulo": "Consumo com a pergunta"},

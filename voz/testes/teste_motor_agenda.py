@@ -27,7 +27,7 @@ os.makedirs(os.path.join(oper, "planos"))
 os.makedirs(os.path.join(mem, "campanhas"))
 segunda = date(2026, 10, 19)
 iso = lambda n: date(2026, 10, 19 + n).isoformat()  # 0 seg, 1 ter, 2 qua, 3 qui, 4 sex
-cfg = {"pessoa": {"nome": "Milena Camila"}, "pastas": {"memoria": mem},
+cfg = {"pessoa": {"nome": "Rafa Lima"}, "pastas": {"memoria": mem},
        "rotina": {"dias_trabalho": ["seg", "ter", "qua", "qui", "sex"],
                   "parar_por_dia": {"seg": "19:00", "ter": "19:20", "qua": "19:20", "qui": "19:20", "sex": "19:20"},
                   "fixos_semana": [{"dias": [0, 1, 2, 3, 4], "inicio": "13:00", "fim": "14:00", "titulo": "Almoço"}],
@@ -151,7 +151,7 @@ ma.datetime = Relogio
 
 
 def bl(i, ini, fim, titulo, **x):
-    return dict({"id": i, "inicio": ini, "fim": fim, "titulo": titulo, "dono": "Milena Camila", "frente": "Conteúdos"}, **x)
+    return dict({"id": i, "inicio": ini, "fim": fim, "titulo": titulo, "dono": "Rafa Lima", "frente": "Conteúdos"}, **x)
 
 
 def plano_hoje():

@@ -192,7 +192,7 @@ st_ = lambda ini, fim, tit: {"id": "s", "inicio": ini, "fim": fim, "titulo": tit
 cx_ = lambda ini, dur=15: st_(ini, f"{int(ini[:2]) + (int(ini[3:]) + dur) // 60:02d}:{(int(ini[3:]) + dur) % 60:02d}", "Stories: respostas da caixinha (parte)")
 nm_ = lambda ini, dur=15: st_(ini, f"{int(ini[:2]) + (int(ini[3:]) + dur) // 60:02d}:{(int(ini[3:]) + dur) % 60:02d}", "Stories: sequência normal (parte)")
 sex = date(2026, 10, 16)  # sexta = caixinha pelo padrão
-replay = st_("17:10", "17:25", "Stories do replay da sala secreta: 3 telas")
+replay = st_("17:10", "17:25", "Stories do replay da turma VIP: 3 telas")
 confere("sexta (caixinha) só com o replay de divulgação (caso real 16/10) é barrada", len(cp.conferir_stories({"blocos": [replay], "fixos": []}, sex, cfg_s2)) == 1)
 confere("sexta com 45 min de caixinha em 3 blocos passa; quebrada em blocos de 10 e 5 min também", cp.conferir_stories({"blocos": [cx_("10:00"), cx_("13:00"), cx_("16:00"), replay], "fixos": []}, sex, cfg_s2) == []
         and cp.conferir_stories({"blocos": [cx_("10:00", 10), cx_("11:00", 10), cx_("13:00", 10), cx_("15:00", 10), cx_("16:00", 5)], "fixos": []}, sex, cfg_s2) == [])

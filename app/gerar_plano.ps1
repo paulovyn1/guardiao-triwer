@@ -93,7 +93,7 @@ Se tirar do dia algo que estava agendado no plano base, ponha o titulo em "remov
 "@
 } else {
 @"
-Leia, na pasta de memoria $memoria, perfil.md, semana-base.md, equipe.md, estado.md, o indice campanhas.md (abra com Read a nota de uma campanha em campanhas\ SOMENTE se o plano do dia tocar nela), o indice decisoes.md, resumo_clickup.json (na pasta operacional), calibragem\regras.md (na pasta operacional, se existir: tempos reais que ela confirmou, use ao estimar), o registro de ontem em registros\ (se existir). Pasta operacional (scripts, plano, registros, resumo): $pasta.
+Leia, na pasta de memoria $memoria, perfil.md, semana-base.md, equipe.md, estado.md, o indice campanhas.md (abra com Read a nota de uma campanha em campanhas\ SOMENTE se o plano do dia tocar nela), o indice decisoes.md, resumo_clickup.json (na pasta operacional), calibragem\regras.md (na pasta operacional, se existir: tempos reais que ela confirmou, use ao estimar), o registro de ontem em registros\ (se existir) e calibragem\calibragem_para_o_plano.md (se existir: o que o guardiao ja aprendeu com o uso). Pasta operacional (scripts, plano, registros, resumo): $pasta.
 "@
 }
 
@@ -102,7 +102,9 @@ Use a skill guardiao-triwer no modo planejar e monte o plano do dia $alvo de $no
 $leitura
 Siga a conta de horario da skill. Horarios de reunioes vem de inicio/fim do resumo. Nao pergunte nada: se faltar informacao, deixe o bloco de fora e diga em uma frase no campo aviso.
 Grave o arquivo $planoCaminho, em JSON valido no formato de plano_exemplo.json, com "status": "sugerido" e sem o campo "exemplo". Unica outra escrita permitida: o rascunho de um trabalho do guardiao vencido (veja abaixo).
-Regras do formato: em cada bloco "id" e a PRIMEIRA chave; todo bloco leva titulo, inicio, fim (HH:mm), dono, frente, descricao, primeiro_passo e por_que_agora.
+Regras do formato: em cada bloco "id" e a PRIMEIRA chave; todo bloco leva titulo, inicio, fim (HH:mm), dono, frente, natureza, descricao, primeiro_passo e por_que_agora.
+"natureza" e o tipo de trabalho, separado da frente (o projeto): copy, criacao, trafego, decisao, reuniao, atendimento, operacional, dev, financeiro, revisao, estudo ou geral. Em UM bloco so, o que mais importa hoje (gera caixa ou entrega com data, o que voce defenderia se o dia desse errado), coloque "principal": true.
+Se houver CALIBRAGEM (no dossie ou em calibragem\calibragem_para_o_plano.md), siga as linhas que tocam este dia: o bloco que aplica uma delas leva "aprendizado": "<id entre colchetes>" e diz isso no por_que_agora em poucas palavras. Linha provavel e ajuste leve.
 Ligacao com o ClickUp (o servidor cria as tarefas quando a pessoa aprovar):
 - Se o bloco e uma tarefa que ja existe no resumo, coloque "clickup_id" com o id dela e nao coloque lista_id.
 - Se e novo, coloque "lista_id" de uma destas listas:

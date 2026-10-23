@@ -1,13 +1,13 @@
-"""Preparo de evento recorrente (a Estrateclass da Milena: live toda terça às 13h).
+"""Preparo de evento recorrente (por exemplo, uma live toda terça às 13h).
 
 Caso real 16/10: a live de terça 20 estava no ClickUp sem tema, sem thumb e sem agendamento, e o guardião não pôs nada disso no plano. As datas das
 subtarefas vêm da automação do ClickUp (thumb e agendamento 7 dias antes, tema num domingo) e não seguem a regra dela: tema, thumb e live agendada
-até a QUARTA anterior; mensagem de antecipação no grupo (Paulo) até a QUINTA, e ela só sai com o link pronto.
+até a QUARTA anterior; mensagem de antecipação no grupo (feita por outra pessoa da equipe) até a QUINTA, e ela só sai com o link pronto.
 
 A tarefa mãe tem a tag do evento (config "clickup.eventos": ["live semanal"]) e a data do evento; o ler_clickup.ps1 guarda as mães e as subtarefas
 (com dono e status) em resumo_clickup.json, chave "eventos". Este módulo calcula o limite de cada etapa pela regra do config:
 
-    "rotina": {"preparos": [{"nome": "Estrateclass", "tag": "live semanal", "etapas": [
+    "rotina": {"preparos": [{"nome": "Aula ao vivo", "tag": "live semanal", "etapas": [
         {"palavras": ["definir tema"], "dias_antes": 6, "rotulo": "tema definido"},
         {"palavras": ["thumb"], "dias_antes": 6, "rotulo": "thumb pronta"},
         {"palavras": ["agendar"], "dias_antes": 6, "rotulo": "live agendada"},

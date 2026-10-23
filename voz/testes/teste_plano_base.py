@@ -94,7 +94,7 @@ confere("buraco: sugere adiantar tarefa do dia cheio que cabe hoje", any("Preenc
 # plano do mês: marco de campanha a 8 dias sem tarefa no ClickUp chama o Claude, mesmo com o dia de hoje resolvido
 with open(os.path.join(mem, "campanhas", "lancamento.md"), "w", encoding="utf-8") as f:
     f.write("---\nnome: Lançamento\nslug: lancamento\ntipo: estrategia\nstatus: em-execucao\nimportancia: alta\ndata_inicio: 2026-10-01\ndata_fim: 2026-11-03\n---\n"
-            "# Lançamento\n\n## 3. Marcos e tarefas\n| Data | Marco | Dono |\n|---|---|---|\n| Qui 29 | Decidir o bônus | Ana |\n| Sex 30 | Tarefa de outro | Paulo |\n")
+            "# Lançamento\n\n## 3. Marcos e tarefas\n| Data | Marco | Dono |\n|---|---|---|\n| Qui 29 | Decidir o bônus | Ana |\n| Sex 30 | Tarefa de outro | Bia |\n")
 resumo(cheio)
 m = pb.montar(dia, oper, cfg, dia)[1]
 confere("marco de campanha dela sem tarefa nos próximos 14 dias chama o Claude", any("Decidir o bônus" in x for x in m) and not any("de outro" in x for x in m), m)

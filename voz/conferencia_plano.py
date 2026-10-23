@@ -358,7 +358,7 @@ def _dias_de_trabalho(rot):
     return {_DIAS_EN[n] for n in rot.get("dias_trabalho") or [] if n in _DIAS_EN} or {0, 1, 2, 3, 4}
 
 
-# Stories todo dia de trabalho (decisão da Milena, 2026-10-16). Liga com rotina.stories no config.json; sem a chave, desligado (cada negócio decide: nem todo
+# Stories todo dia de trabalho (decisão de produto, 2026-10-16). Liga com rotina.stories no config.json; sem a chave, desligado (cada negócio decide: nem todo
 # mundo vende de um jeito que precise de stories). O TIPO DO DIA vem primeiro e define o tempo e as telas do dia; o tempo pode ser QUEBRADO em vários blocos curtos
 # (15 min ou menos) espalhados pelo dia, não precisa ser feito de uma vez. Em dia apertado a caixinha cai para 1 bloco.
 STORIES_TIPOS_PADRAO = {
@@ -461,7 +461,7 @@ def conferir_stories(plano, dia, cfg, outros=None, memoria=None):
 
 
 def conferir_blocos_diarios(plano, dia, cfg):
-    """Blocos que TODO dia de trabalho precisa ter (decisão da Milena, 2026-10-15: stories é prioridade e entra todos os dias). Vem de config.json:
+    """Blocos que TODO dia de trabalho precisa ter (decisão de produto, 2026-10-15: stories é prioridade e entra todos os dias). Vem de config.json:
     rotina.blocos_diarios = [{"nome": "stories", "palavras": ["stories", "story"], "excluir": ["cronograma"], "minutos_minimos": 15, "bloco_max_min": 40}].
     Falta bloco, ou soma abaixo do mínimo, ou bloco maior que o máximo (a pessoa pediu stories espalhados, nunca em lote): barra o plano."""
     rot = (cfg or {}).get("rotina") or {}
@@ -647,7 +647,7 @@ def _sem_preparo(tarefas, cfg, oper):
 
 
 def conferir_preparos(plano, dia, cfg, oper, outros=None):
-    """Preparo de evento recorrente (Estrateclass): etapa dela que chegou ao limite e não está em nenhum plano, ou que está depois do limite."""
+    """Preparo de evento recorrente (como uma live semanal): etapa dela que chegou ao limite e não está em nenhum plano, ou que está depois do limite."""
     try:
         import preparos
     except ImportError:
