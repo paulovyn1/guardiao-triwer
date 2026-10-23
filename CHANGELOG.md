@@ -7,6 +7,16 @@ Formato de cada entrada, sempre com a mais recente no topo:
 - resumo objetivo da mudança
 ```
 
+## 0.11.2 - 2026-10-23
+- Tarefa atrasada: o guardião pergunta "ainda vale fazer?" uma vez só. Sua resposta (adiar, manter, cancelar, fazer hoje) fica guardada e a pergunta não volta a cada replanejamento.
+- "Adia para depois do dia 31" agora funciona: a tarefa sai dos dias antes da data e só volta a partir dela, também nos próximos replanejamentos. O design do post vai junto com a copy.
+- "Cancela essa tarefa", "é desnecessária" ou "não precisa mais" não são mais recusados: a tarefa sai do plano e fecha no ClickUp.
+- Dia curto: o consumo sai primeiro e tarefa de prazo sugerido passa para outro dia sem perguntar. Sem pergunta de "estender 0 min".
+- Bloco feito que acabou cedo libera o almoço; sem cobrança de antecipação na véspera da live.
+- Dia de folga ganha plano quando você pede: entra só o que você disse que faz hoje, em sequência, e o resto vai para o próximo dia de trabalho.
+- "Posso fazer isso hoje" conta como pedido de encaixe; ajuste recusado é dito em voz alta, em vez de o guardião afirmar que fez.
+- Plano montado pelo guardião aparece na tela sem precisar recarregar.
+
 ## 0.11.1 - 2026-10-18
 - Procurar versão nova volta a funcionar em instalações que ficaram sem a origem das atualizações.
 

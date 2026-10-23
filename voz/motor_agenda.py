@@ -81,9 +81,18 @@ def _tipo_janela(item, ajustes=None):
     return ra.tipo_de(item.get("titulo"), item.get("lista") or "")
 
 
-def _dias(hoje, cfg, n):
+def folga(d, cfg):
+    """Dia fora de rotina.dias_trabalho (fim de semana)."""
+    return d.weekday() not in cp._dias_de_trabalho((cfg or {}).get("rotina") or {})
+
+
+def _dias(hoje, cfg, n, incluir_hoje=False):
+    """Os próximos n dias de trabalho. Com incluir_hoje num dia de folga (ela está trabalhando hoje e pediu o plano), hoje entra também: antes o
+    domingo nunca ganhava plano, tudo que vencia nele virava "não cabe" e o plano nunca aparecia para aprovar."""
     trabalho = cp._dias_de_trabalho((cfg or {}).get("rotina") or {})
-    d, saida = hoje, []
+    d, saida = hoje, ([hoje] if incluir_hoje and hoje.weekday() not in trabalho else [])
+    if saida:
+        d += timedelta(days=1)
     while len(saida) < n:
         if d.weekday() in trabalho:
             saida.append(d)
@@ -132,6 +141,29 @@ def _encolher_stories(plano, d, cfg):
         return False
     plano["blocos"].remove(st[-1])
     return True
+
+
+def _tirar_consumo(plano):
+    """Dia curto: o consumo do dia (rotina, 30 min) sai antes de qualquer tarefa. Cada dia tem o seu, então nada se perde."""
+    for b in plano.get("blocos") or []:
+        if "consumo" in _norm(b.get("titulo")) and b.get("status") != "feito" and not b.get("clickup_id"):
+            plano["blocos"].remove(b)
+            return True
+    return False
+
+
+def _suave(item, oper, cfg):
+    """Tarefa cujo prazo é sugestão do ClickUp (ou data que o próprio guardião pôs): o guardião pode passar para outro dia sem perguntar.
+    Prazo máximo, marco de campanha, etapa de post, preparo de live e entrega com horário limite NÃO são suaves."""
+    import travas as tv
+    if item.get("etapa") or item.get("ate") or item.get("origem") in ("preparo", "etapa", "prazo_hora", "desdobrado pela IA"):
+        return False
+    resumo = {t.get("id"): t for t in (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []}
+    t = resumo.get(item.get("id"))
+    if not t:
+        return False
+    marcos, agendadas = tv.ids_de_marcos(pb._memoria(cfg)), tv.carregar_agendadas(oper)
+    return tv.classe(t, cfg, marcos, agendadas) in (tv.SUGESTAO, tv.ESTABELECIDA)
 
 
 def _inserir_consumo(plano, d, cfg, nome, memoria):
@@ -226,6 +258,25 @@ def _sobrepoe(b, ocupado):
     return any(x < vs.hm(b["fim"]) and vs.hm(b["inicio"]) < y for x, y in ocupado)
 
 
+def _liberar_o_que_acabou_cedo(plano, d, feitos_reg):
+    """Bloco feito que acabou antes do fim planejado (hotseat de 09h às 14h que terminou 11h50) encolhe até o fim real. O almoço que o plano_base
+    tinha empurrado para depois dele volta ao horário da rotina, e o tempo liberado entra na conta."""
+    liberou = False
+    for b in plano.get("blocos") or []:
+        reg = next((f for f in feitos_reg if f.get("clickup_id") and f.get("clickup_id") == b.get("clickup_id")), None)
+        real = ((reg or {}).get("real") or {}).get("fim")
+        if reg and real and b.get("inicio") and vs.hm(real) > vs.hm(b["inicio"]) and vs.hm(real) < vs.hm(b["fim"]):
+            b["fim"] = real
+            b["status"] = "feito"
+            liberou = True
+    if liberou:
+        cfg = pb._cfg()
+        base = [f for f in ra.fixos_do_dia(d, cfg) if "almoco" in ra._norm(f.get("titulo"))]
+        if base:
+            plano["fixos"] = [f for f in plano.get("fixos") or [] if "almoco" not in ra._norm(f.get("titulo"))] + base
+            pb._mover_almoco(plano)
+
+
 def _refazer_hoje(plano, d, oper, ajustes, fila):
     """Hoje a partir de agora (pedido dela ou atraso): o que já foi feito fica como feito; o que passou sem ser feito volta para a fila; imprevistos e
     refeições com horário dito por ela entram como fixos e liberam o que estava por baixo; o que ela mandou tirar sai; stories já feitos contam."""
@@ -234,6 +285,7 @@ def _refazer_hoje(plano, d, oper, ajustes, fila):
     aj = ajustes or {}
     feitos_reg = _feitos_do_registro(oper, iso)
     feitos_ia = aj.get("feitos") or []
+    _liberar_o_que_acabou_cedo(plano, d, feitos_reg)
     for imp in aj.get("imprevistos") or []:
         fixos = plano.setdefault("fixos", [])
         mesmo = next((f for f in fixos if _parecido(f.get("titulo"), imp["titulo"])), None)
@@ -301,7 +353,9 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
     existentes = vs.carregar_planos(oper, hoje)
     rascunho, aprovados, fila = {}, [], {}
     acrescimo = {}  # dia aprovado: o motor só ACRESCENTA em espaço livre (nunca move o que ela aprovou) e o dia volta para aprovação
-    for d in _dias(hoje, cfg, dias):
+    pedidos_hoje = [str(t) for t in (ajustes or {}).get("hoje") or []]
+    hoje_folga = incluir_hoje and folga(hoje, cfg)
+    for d in _dias(hoje, cfg, dias, incluir_hoje):
         iso = d.isoformat()
         ex = existentes.get(iso)
         if d == hoje and not incluir_hoje:
@@ -319,6 +373,15 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             chave = item.get("id") or _norm(item.get("titulo"))
             if chave and (chave not in fila or (not fila[chave].get("limite") and item.get("limite"))):  # o limite da etapa vale mesmo se ela voltou à fila sem ele
                 fila[chave] = {**fila.get(chave, {}), **item}
+        if d == hoje and hoje_folga:  # folga: o dia começa vazio (sem almoço da rotina, sem "conferir com"); tarefa do ClickUp que estava nele volta à fila
+            base["fixos"] = [f for f in base.get("fixos") or [] if f.get("clickup_id")]
+            for b in list(base.get("blocos") or []):
+                if b.get("status") == "feito":
+                    continue
+                base["blocos"].remove(b)
+                if b.get("clickup_id"):
+                    fila.setdefault(b["clickup_id"], {"id": b["clickup_id"], "titulo": b.get("titulo"), "limite": _limite_da_tarefa(b["clickup_id"], oper),
+                                                      "origem": "dia de folga", "minutos": max(5, cp._minutos(b)), "lista": b.get("frente")})
         if d == hoje:
             _refazer_hoje(base, d, oper, ajustes, fila)
         _soltar_nao_fixas(base, d, oper, cfg, fila)
@@ -344,6 +407,28 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             if _parecido(item.get("titulo"), titulo):
                 item["limite"] = date.fromisoformat(ate)
                 item.pop("ate", None)
+    for tid, titulo, a_partir in _adiamentos(oper, hoje, ajustes):  # ela adiou ("só depois do dia 31"): sai dos dias antes da data e só volta a partir dela
+        for iso, plano in rascunho.items():
+            for b in list(plano.get("blocos") or []) if iso < a_partir.isoformat() else []:
+                if b.get("status") != "feito" and _mesma(tid, titulo, b.get("clickup_id"), b.get("titulo")):
+                    plano["blocos"].remove(b)
+                    fila.setdefault(b.get("clickup_id") or _norm(b.get("titulo")), {"id": b.get("clickup_id"), "titulo": b.get("titulo"),
+                                                                                    "origem": "adiada por ela", "minutos": max(5, cp._minutos(b)),
+                                                                                    "lista": b.get("frente")})
+        for item in fila.values():
+            if _mesma(tid, titulo, item.get("id"), item.get("titulo")):
+                item["abre"] = max(item.get("abre") or a_partir, a_partir)
+                if item.get("limite") and item["limite"] < item["abre"]:
+                    item["limite"] = None  # o prazo antigo venceu antes da data que ela deu
+    for titulo in pedidos_hoje:  # "faço hoje": sai do dia em que o plano base pôs (atrasada cai em qualquer dia) e volta à fila, que põe hoje primeiro
+        for iso, plano in rascunho.items():
+            for b in list(plano.get("blocos") or []) if iso != hoje.isoformat() else []:
+                if b.get("status") != "feito" and _parecido(b.get("titulo"), titulo):
+                    plano["blocos"].remove(b)
+                    fila.setdefault(b.get("clickup_id") or _norm(b.get("titulo")), {"id": b.get("clickup_id"), "titulo": b.get("titulo"),
+                                                                                    "limite": _limite_da_tarefa(b.get("clickup_id"), oper),
+                                                                                    "origem": "ela disse que faz hoje", "minutos": max(5, cp._minutos(b)),
+                                                                                    "lista": b.get("frente")})
     prioridade = (ajustes or {}).get("prioridade") or {}
     ja = {b.get("clickup_id") for p in acrescimo.values() for b in p.get("blocos") or [] if b.get("clickup_id")}
     ja |= {b.get("clickup_id") for iso, p in existentes.items() if iso > max(list(rascunho) + aprovados or [hoje.isoformat()])
@@ -355,19 +440,36 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
     itens = sorted(fila.values(), key=lambda i: (i.get("limite") or date.max, prioridade.get(str(i.get("id") or ""), 4),
                                                  ordem.get(i.get("etapa") or _tipo_janela(i, ajustes), 4), str(i.get("titulo"))))
     for iso, plano in rascunho.items():
+        if hoje_folga and iso == hoje.isoformat():
+            continue  # dia de folga: sem consumo de rotina, só o que ela pediu
         if any(i.get("etapa") == "copy" for i in itens):
             _inserir_consumo(plano, date.fromisoformat(iso), cfg, nome, memoria)
-    nao_coube, julgar, adiados = [], [], []
+    nao_coube, julgar, adiados, movidas = [], [], [], []
     ultimo_dia = max(rascunho) if rascunho else hoje.isoformat()
     for item in itens:
         minutos, medido = estimar(item, oper, ajustes)
         if not medido:
             julgar.append({"id": item.get("id"), "titulo": item.get("titulo"), "minutos_padrao": minutos})
         tipo = _tipo_janela(item, ajustes)
-        validos = [iso for iso in rascunho if (not item.get("limite") or iso <= max(item["limite"].isoformat(), hoje.isoformat()))  # limite que já passou: hoje ainda serve
-                   and (not item.get("abre") or iso >= item["abre"].isoformat())]
+        pedido_hoje = any(_parecido(item.get("titulo"), t) for t in pedidos_hoje)
+        piso = hoje.isoformat()
+        if hoje_folga and not pedido_hoje:  # dia de folga: só entra o que ela disse que faz hoje; o resto, vencido ou não, vai para o próximo dia de trabalho
+            piso = min([iso for iso in rascunho if iso > hoje.isoformat()] or [piso])
+        validos = [iso for iso in rascunho if (not item.get("limite") or iso <= max(item["limite"].isoformat(), piso))  # limite que já passou: o primeiro dia possível ainda serve
+                   and (not item.get("abre") or iso >= item["abre"].isoformat())
+                   and not (hoje_folga and iso == hoje.isoformat() and not pedido_hoje)]
+        if pedido_hoje and hoje.isoformat() in rascunho:  # ela disse "faço hoje": hoje primeiro, mesmo num dia de folga
+            validos = [hoje.isoformat()] + [v for v in validos if v != hoje.isoformat()]
         posto = None
-        if item.get("limite"):  # com limite: de trás para frente a partir do próprio limite (o limite é o prazo do preparo, não o do evento)
+        if pedido_hoje and hoje.isoformat() in rascunho:  # ela disse "faço hoje": qualquer horário livre de hoje antes de outro dia
+            if hoje_folga:  # folga: o que ela escolheu vem em sequência a partir de agora; janela nobre e zona morta são regras do dia útil
+                posto = _colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria, qualquer=True)
+            else:
+                posto = (_colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria)
+                         or _colocar(rascunho[hoje.isoformat()], hoje, item, minutos, tipo, nome, memoria, qualquer=True))
+            if posto:
+                continue
+        if item.get("limite") and not pedido_hoje:  # com limite: de trás para frente a partir do próprio limite (o limite é o prazo do preparo, não o do evento)
             validos = sorted(validos, reverse=True)
         for iso in validos:
             posto = _colocar(rascunho[iso], date.fromisoformat(iso), item, minutos, tipo, nome, memoria)
@@ -378,18 +480,29 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
             if posto:
                 break
         validos = sorted(validos)
-        while not posto and validos and _encolher_stories(rascunho[validos[-1]], date.fromisoformat(validos[-1]), cfg):  # stories só encolhe se não há para onde mover
+        if hoje_folga and validos and validos[-1] == hoje.isoformat():
+            validos = []  # folga: hoje não encolhe stories nem vira hora extra
+        while not posto and validos and (_tirar_consumo(rascunho[validos[-1]]) or _encolher_stories(rascunho[validos[-1]], date.fromisoformat(validos[-1]), cfg)):  # consumo sai primeiro; stories só encolhe se não há para onde mover
             posto = _colocar(rascunho[validos[-1]], date.fromisoformat(validos[-1]), item, minutos, tipo, nome, memoria)
         if posto:
             continue
-        if item.get("limite") and item["limite"].isoformat() > ultimo_dia:  # vence depois do horizonte: fica para os próximos dias, não é "não coube"
+        if _suave(item, oper, cfg):  # prazo é sugestão: o guardião decide, passa para o primeiro dia com espaço e avisa (não pergunta)
+            for iso in sorted(i for i in rascunho if i > (validos[-1] if validos else piso) and not (item.get("abre") and i < item["abre"].isoformat())):
+                posto = (_colocar(rascunho[iso], date.fromisoformat(iso), item, minutos, tipo, nome, memoria)
+                         or _colocar(rascunho[iso], date.fromisoformat(iso), item, minutos, tipo, nome, memoria, qualquer=True))
+                if posto:
+                    movidas.append({"id": item.get("id"), "titulo": item.get("titulo"), "dia": iso})
+                    break
+        if posto:
+            continue
+        if (item.get("limite") and item["limite"].isoformat() > ultimo_dia) or (item.get("abre") and item["abre"].isoformat() > ultimo_dia):  # vence ou só abre depois do horizonte: fica para os próximos dias, não é "não coube"
             adiados.append({"id": item.get("id"), "titulo": item.get("titulo"), "limite": item["limite"].isoformat() if item.get("limite") else None})
             continue
         ultimo = validos[-1] if validos else None
         livre = max([y - x for x, y in ra.espacos(rascunho[ultimo], date.fromisoformat(ultimo), tipo, memoria=memoria)] or [0]) if ultimo else 0  # o maior espaço contínuo
         falta = max(0, minutos - livre)
         pergunta = (f"\"{item['titulo']}\" não cabe até {item['limite']:%d/%m}" if item.get("limite") else f"\"{item['titulo']}\" não cabe nos próximos dias")
-        if ultimo and falta <= HORA_EXTRA_MAX:
+        if ultimo and 0 < falta <= HORA_EXTRA_MAX:
             pergunta += f". Você prefere estender o dia {ultimo[8:10]}/{ultimo[5:7]} em {falta} min ou renegociar o prazo?"
         else:
             pergunta += ". Precisa renegociar o prazo com quem combinou."
@@ -416,7 +529,7 @@ def montar_semana(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, aj
         plano["aviso"] = ("Montei pelo motor da agenda, sem IA. " + (" ".join(dele[:3]) + " " if dele else "") + str(plano.get("aviso") or "")).strip()
         plano["status"] = "sugerido"
         plano["gerado_em"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return {"dias": rascunho, "aprovados": aprovados, "nao_coube": nao_coube, "julgar": julgar, "problemas": problemas, "adiados": adiados, "delegar": delegar}
+    return {"dias": rascunho, "aprovados": aprovados, "nao_coube": nao_coube, "julgar": julgar, "problemas": problemas, "adiados": adiados, "delegar": delegar, "movidas": movidas}
 
 
 def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True, pedido=None):
@@ -436,6 +549,8 @@ def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True
         try:
             atual = vs._json(os.path.join(oper, "plano_do_dia.json")) if pedido else None
             aj = revisor_ia.ajustes(revisor_ia.interpretar(revisor_ia.chamar(revisor_ia.montar_prompt(r, cfg, marcos, pedido, atual), oper)))
+            if pedido:
+                _gravar_decisoes(oper, hoje, aj)
             r = montar_semana(oper, cfg, hoje, dias, incluir_hoje, aj)
         except Exception as erro:  # sem IA o rascunho do motor continua valendo
             print(f"(motor: a revisão da IA falhou, fica o rascunho: {erro})", file=sys.stderr)
@@ -450,16 +565,66 @@ def planejar(oper=OPER, cfg=None, hoje=None, dias=5, incluir_hoje=False, ia=True
     return r
 
 
+DECISOES = "decisoes_atraso.json"  # o que ela já respondeu sobre uma tarefa (adiar, manter, cancelar, fazer hoje): id -> {titulo, prazo, a_partir, em}
+
+
+def _decisoes(oper):
+    dados = vs._json(os.path.join(oper, DECISOES))
+    return dados if isinstance(dados, dict) else {}
+
+
+def _mesma(tid, titulo, outro_id, outro_titulo):
+    return bool(tid and outro_id == tid) or (not tid and _parecido(outro_titulo, titulo))
+
+
+def _adiamentos(oper, hoje, ajustes):
+    """[(id, titulo, a_partir)]: o que ela adiou agora e o que adiou antes e ainda não chegou na data."""
+    saida = [(None, t, date.fromisoformat(a)) for t, a in ((ajustes or {}).get("adiar") or {}).items()]
+    for tid, d in _decisoes(oper).items():
+        if d.get("a_partir") and d["a_partir"] > hoje.isoformat():
+            saida.append((tid, d.get("titulo"), date.fromisoformat(d["a_partir"])))
+    return saida
+
+
+def _gravar_decisoes(oper, hoje, aj):
+    """Tarefa citada no pedido dela vira decisão guardada: o adiamento vale nos próximos replanejamentos e a atrasada não volta a ser perguntada."""
+    aj = aj or {}
+    citados = {str(t): None for chave in ("cancelar", "tirar", "hoje", "manter") for t in aj.get(chave) or []}
+    citados.update({str(f.get("titulo")): None for f in aj.get("feitos") or []})
+    citados.update({str(t): None for t in aj.get("limites") or {}})
+    citados.update({str(t): a for t, a in (aj.get("adiar") or {}).items()})
+    tarefas = (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []
+    abertas = {str(t.get("id")) for t in tarefas}
+    dec = {k: v for k, v in _decisoes(oper).items() if k in abertas}  # tarefa fechada no ClickUp sai daqui
+    for t in tarefas:
+        for titulo, a_partir in citados.items():
+            if t.get("id") and _parecido(t.get("nome"), titulo):
+                antes = dec.get(str(t["id"])) or {}
+                manter_data = None if any(_parecido(titulo, h) for h in aj.get("hoje") or []) else antes.get("a_partir")
+                dec[str(t["id"])] = {"titulo": t.get("nome"), "prazo": t.get("prazo"), "a_partir": a_partir or manter_data, "em": hoje.isoformat()}
+    try:
+        with open(os.path.join(oper, DECISOES), "w", encoding="utf-8") as f:
+            json.dump(dec, f, ensure_ascii=False, indent=2)
+    except OSError as erro:
+        print(f"(motor: não gravei as decisões: {erro})", file=sys.stderr)
+
+
 def _perguntas_de_atraso(oper, hoje, aj):
-    """Tarefa vencida há 2 dias ou mais, ainda aberta: o guardião não decide sozinho se ela ainda vale (replay depois da live, por exemplo)."""
-    cancelados = [_norm(t) for t in (aj or {}).get("cancelar") or []]
+    """Tarefa vencida há 2 dias ou mais, ainda aberta: o guardião não decide sozinho se ela ainda vale (replay depois da live, por exemplo).
+    Pergunta UMA vez: depois que ela respondeu (adiar, manter, cancelar, fazer hoje), só volta se o prazo do ClickUp mudar e vencer de novo."""
+    aj = aj or {}
+    citados = [str(t) for chave in ("cancelar", "tirar", "hoje", "manter") for t in aj.get(chave) or []]
+    citados += [str(t) for t in list(aj.get("limites") or {}) + list(aj.get("adiar") or {})] + [str(f.get("titulo")) for f in aj.get("feitos") or []]
+    dec = _decisoes(oper)
     saida = []
     for t in (vs._json(os.path.join(oper, "resumo_clickup.json")) or {}).get("tarefas") or []:
         try:
             atraso = (hoje - date.fromisoformat(str(t.get("prazo")))).days
         except ValueError:
             continue
-        if atraso >= 2 and not t.get("aprovar") and not any(c and c in _norm(t.get("nome")) for c in cancelados):
+        if (dec.get(str(t.get("id"))) or {}).get("prazo") == t.get("prazo"):
+            continue  # ela já respondeu sobre esta tarefa com este prazo
+        if atraso >= 2 and not t.get("aprovar") and not any(_parecido(t.get("nome"), c) for c in citados):
             saida.append(f"\"{t.get('nome')}\" está atrasada desde {t['prazo'][8:10]}/{t['prazo'][5:7]}. Ainda vale fazer? Se não vale mais, diga \"cancela\" que eu fecho no ClickUp.")
     return saida[:2]
 

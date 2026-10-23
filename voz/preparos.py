@@ -151,6 +151,8 @@ def inserir_cobrancas(plano, dia, cfg, oper, nome="Eu", hoje=None):
     for e in etapas(cfg, oper, hoje):
         if e["eu"] or e["limite"] > dia or e["data_evento"] < dia or (e["limite"] < dia and dia != hoje):
             continue  # cobra no dia em que vence (ou hoje, se já venceu), e só para evento que ainda não passou
+        if (e["data_evento"] - dia).days <= 1:
+            continue  # evento hoje ou amanhã: a antecipação do dia anterior é o próprio dia; cobrar só atrapalha o dia dela (19/10)
         titulo = f"Conferir com {e['dono'].split(',')[0]}: {e['rotulo']} da {e['evento'][:50]}"
         if _norm(titulo) in titulos:
             continue
